@@ -1,0 +1,26 @@
+{
+  "name": "XaraokeURL",
+  "version": "1.0.0",
+  "description": "A real-time, remote-controlled karaoke player using Node.js, WebSockets, and a local URL database.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "import": "node import_csv.js"
+  },
+  "keywords": [
+    "Karaoke",
+    "MP4",
+    "Database",
+    "WebSocket",
+    "Remote Control",
+    "Node.js"
+  ],
+  "author": "Xalcker",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2",
+    "qrcode": "^1.5.3",
+    "sqlite3": "^5.1.7",
+    "ws": "^8.18.0"
+  }
+}

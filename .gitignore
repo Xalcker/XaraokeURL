@@ -1,0 +1,4 @@
+.env
+node_modules/
+karaoke.db
+songs.csv

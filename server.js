@@ -13,7 +13,8 @@ const FileStore = require('session-file-store')(session);
 
 const app = express();
 const PORT = process.env.PORT || 8081;
-const DB_PATH = '/data/karaoke.db';
+const DB_PATH = process.env.NODE_ENV === "production" ? "/data/karaoke.db" : "karaoke.db";
+//const DB_PATH = '/data/karaoke.db';
 
 const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
     if (err) {

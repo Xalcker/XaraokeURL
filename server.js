@@ -12,15 +12,14 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FileStore = require("session-file-store")(session);
 
 const app = express();
+
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1); // Trust the first proxy hop (Nginx)
   console.log("Trust Proxy enabled for production environment.");
 }
 
 const PORT = process.env.PORT || 8081;
-const DB_PATH =
-  process.env.NODE_ENV === "production" ? "/data/karaoke.db" : "karaoke.db";
-//const DB_PATH = '/data/karaoke.db';
+const DB_PATH = "/data/karaoke.db";
 
 const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
   if (err) {
@@ -42,7 +41,12 @@ const sessionMiddleware = session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 24 * 60 * 60 * 1000 },
+  // Add secure cookie setting for production
+  cookie: {
+    secure: process.env.NODE_ENV === "production", // Set Secure flag in production
+    httpOnly: true, // Recommended for security
+    maxAge: 24 * 60 * 60 * 1000,
+  },
 });
 app.use(sessionMiddleware);
 
@@ -167,10 +171,10 @@ app.get("/api/rooms/:roomId", (req, res) => {
 });
 
 app.get("/api/qr", (req, res) => {
-  const isProduction = process.env.NODE_ENV === "production";
-  const baseUrl = isProduction
-    ? `https://xaraokeurl.xalcker.xyz`
-    : `http://${req.headers.host}`;
+  // Rely on 'trust proxy' to correctly detect the protocol
+  const protocol = req.secure ? "https" : "http";
+  const host = req.get("host");
+  const baseUrl = `${protocol}://${host}`;
   const remoteUrl = `${baseUrl}/remote.html`;
 
   QRCode.toDataURL(remoteUrl, (err, url) => {
@@ -201,7 +205,7 @@ function broadcastToRoom(roomId, data) {
 
 wss.on("connection", (ws, req) => {
   sessionMiddleware(req, {}, () => {
-    const url = new URL(req.url, `http://${req.headers.host}`);
+    const url = new URL(req.url, `${req.protocol}://${req.headers.host}`); // Use req.protocol after trust proxy
     const roomId = url.searchParams.get("sala")?.toUpperCase();
     const isHost = url.searchParams.get("isHost") === "true";
     const isAuthenticated = req.session?.passport?.user;
@@ -278,6 +282,7 @@ wss.on("connection", (ws, req) => {
     });
 
     ws.on("close", () => {
+      const room = rooms[ws.roomId]; // Use local variable
       if (room) {
         room.clients.delete(ws);
         console.log(

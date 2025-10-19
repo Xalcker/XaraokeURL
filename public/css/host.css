@@ -7,15 +7,27 @@ body {
     align-items: center;
     height: 100vh;
     overflow: hidden;
-    background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #121212);
+
+    /* --- GRADIENTE MÁS NOTABLE Y RÁPIDO --- */
+    background: linear-gradient(-45deg, #1f0c2e, #4e1f70, #142142, #0d0d1e);
+    /* Colores con más contraste */
     background-size: 400% 400%;
-    animation: moveGradient 15s ease infinite;
+    animation: moveGradient 12s ease infinite;
+    /* Duración reducida a 12s */
 }
 
 @keyframes moveGradient {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
 }
 
 .hidden {
@@ -71,7 +83,8 @@ body {
     background-color: transparent;
 }
 
-.sidebar-left, .sidebar-right {
+.sidebar-left,
+.sidebar-right {
     flex: 1.5;
     display: flex;
     flex-direction: column;
@@ -114,7 +127,8 @@ h3 {
     text-align: center;
 }
 
-#now-playing, #up-next {
+#now-playing,
+#up-next {
     text-align: center;
 }
 
@@ -170,4 +184,15 @@ h3 {
 
 .queue-item:nth-child(odd) {
     background-color: rgba(40, 40, 40, 0.7);
+}
+
+.queue-item .song-name {
+    font-weight: bold;
+}
+
+.queue-item .user-name {
+    font-style: italic;
+    color: #aaa;
+    margin-left: 1rem;
+    white-space: nowrap;
 }

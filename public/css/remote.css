@@ -7,9 +7,11 @@ body {
     /* Ensure body covers height */
 
     /* --- ESTILOS DEL GRADIENTE ANIMADO --- */
-    background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #121212);
+    background: linear-gradient(-45deg, #1f0c2e, #4e1f70, #142142, #0d0d1e);
+    /* Colores con más contraste */
     background-size: 400% 400%;
-    animation: moveGradient 15s ease infinite;
+    animation: moveGradient 12s ease infinite;
+    /* Duración reducida a 12s */
 }
 
 @keyframes moveGradient {

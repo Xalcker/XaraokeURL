@@ -1,4 +1,53 @@
+# Variables de entorno
 .env
+.env.local
+.env.production
+!.env.example
+
+# Dependencias
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Base de datos
 karaoke.db
+karaoke.db-journal
+*.db
+*.db-journal
+
+# Archivos de datos
 songs.csv
+/data/
+
+# Sesiones
+sessions/
+/data/sessions/
+
+# Logs
+logs/
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs y editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Archivos temporales
+*.tmp
+*.temp
+.cache/
+
+# Archivos de respaldo
+*.bak
+*.backup

@@ -57,6 +57,16 @@ h2 {
     display: none !important;
 }
 
+#host-status-banner {
+    background-color: #c0392b;
+    color: #fff;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 1rem;
+}
+
 #room-modal {
     position: fixed;
     top: 0;

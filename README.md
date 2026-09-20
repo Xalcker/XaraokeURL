@@ -83,6 +83,17 @@ Sigue estos pasos para ejecutar el proyecto en tu máquina local.
 
 7.  Abre tu navegador y ve a `http://localhost:8081` (o el puerto configurado en `.env`).
 
+### Levantar el server en local sin configurar Google OAuth
+
+Si solo querés probar la app en tu máquina y no te querés meter a configurar credenciales de Google Cloud, podés saltarte el login. En tu `.env` (con `NODE_ENV=development`, que es el default):
+
+```bash
+DISABLE_GOOGLE_AUTH=true
+DEV_USER_NAME=Tu Nombre   # opcional, así se ve quién agregó cada canción
+```
+
+Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control remoto (`/remote.html`) queda accesible directamente y las canciones que agregues se atribuyen a `DEV_USER_NAME`. Esta variable **se ignora si `NODE_ENV=production`**, así que no hay riesgo de dejarla prendida por error en un deploy real.
+
 ---
 ## 💡 Cómo Usar
 
@@ -99,7 +110,7 @@ Sigue estos pasos para ejecutar el proyecto en tu máquina local.
 ## 🔒 Seguridad
 
 * El acceso al control remoto requiere autenticación con Google OAuth 2.0
-* Por defecto, solo se permiten cuentas del dominio `@xalcker.xyz` (configurable en `server.js`)
+* Por defecto, solo se permiten cuentas del dominio `@xalcker.xyz` (configurable con la variable de entorno `ALLOWED_DOMAIN`)
 * Las sesiones se almacenan de forma segura en el servidor
 * En producción, las cookies de sesión usan el flag `secure` para HTTPS
 
@@ -111,11 +122,16 @@ XaraokeURL/
 │   ├── css/
 │   │   ├── host.css          # Estilos para la pantalla principal
 │   │   └── remote.css        # Estilos para el control remoto
+│   ├── js/
+│   │   └── shared.js         # Utilidades compartidas (escapeHtml, parseSongFilename)
 │   ├── index.html            # Interfaz del host/reproductor
 │   ├── karaoke.js            # Lógica del reproductor principal
 │   ├── remote.html           # Interfaz del control remoto
 │   ├── remote.js             # Lógica del control remoto
 │   └── notification.mp3      # Sonido de notificación
+├── lib/
+│   └── roomId.js             # Generación de códigos de sala (testeable)
+├── test/                     # Pruebas unitarias (node --test)
 ├── server.js                 # Servidor principal con WebSockets y OAuth
 ├── import_csv.js             # Script para importar canciones desde CSV
 ├── package.json              # Dependencias del proyecto
@@ -139,4 +155,6 @@ Para desplegar en producción:
 ## 🛠️ Scripts Disponibles
 
 * `npm start` - Inicia el servidor de producción
+* `npm run lint` - Corre ESLint sobre todo el proyecto
+* `npm test` - Corre las pruebas unitarias (`node --test`)
 * `npm run import` - Importa canciones desde `songs.csv` a la base de datos

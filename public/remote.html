@@ -32,39 +32,53 @@
     </div>
 
     <div id="main-content" class="container hidden">
-        <h1 class="app-header"><img src="img/logo.svg" alt="" width="40" height="40"> <span data-i18n="remote.header">Control Remoto</span></h1>
-        <div id="remote-room-code">SALA: ----</div>
-        <div id="host-status-banner" class="hidden"><span data-icon="warning"></span><span data-i18n="remote.hostDisconnected">El host se desconectó. La reproducción está pausada hasta que vuelva a conectarse.</span></div>
-        <div id="turn-notification-banner" class="hidden" role="alert"><span data-icon="mic"></span><span data-i18n="remote.turnBanner">¡Prepárate! Tu canción está por empezar...</span></div>
-        <div id="now-playing-info">
-            <div id="current-song-title" data-i18n="remote.loading">Cargando...</div>
-            <div id="current-song-time"></div>
-        </div>
-        <div id="controls">
-            <button id="playPauseBtn" class="control-btn" type="button" aria-label="Reproducir o pausar" title="Reproducir o pausar" data-i18n-aria-label="remote.playPauseLabel" data-i18n-title="remote.playPauseLabel">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5v14l9-7z"/><path d="M14 5h3v14h-3zM19 5h3v14h-3z"/></svg>
-                <span data-i18n="remote.playPause">Play / Pausa</span>
-            </button>
-            <button id="skipBtn" class="control-btn" type="button" aria-label="Saltar canción" title="Saltar canción" data-i18n-aria-label="remote.skip" data-i18n-title="remote.skip">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5v14l10-7z"/><path d="M17 5h2.5v14H17z"/></svg>
-                <span data-i18n="remote.skip">Saltar canción</span>
-            </button>
-        </div>
-        <div id="user-display">
-            <span id="userNameDisplay" data-i18n="remote.userLoading">Cargando usuario...</span>
-            <a id="logout-link" href="/logout" data-i18n="remote.logout">Salir</a>
-        </div>
-        <form id="song-search-form" role="search">
-            <div class="search-field">
-                <span data-icon="search"></span>
-                <input type="search" id="songSearch" placeholder="Buscar canción o artista..." aria-label="Buscar canción o artista" data-i18n-placeholder="remote.search.placeholder" data-i18n-aria-label="remote.search.label" autocomplete="off" enterkeyhint="search">
+        <header id="app-top">
+            <h1 class="app-header"><img src="img/logo.svg" alt="" width="40" height="40"> <span data-i18n="remote.header">Control Remoto</span></h1>
+            <div id="remote-room-code">SALA: ----</div>
+            <div id="user-display">
+                <span id="userNameDisplay" data-i18n="remote.userLoading">Cargando usuario...</span>
+                <a id="logout-link" href="/logout" data-i18n="remote.logout">Salir</a>
             </div>
-        </form>
-        <div id="songBrowser"></div>
-        <div id="queue-container">
-            <h2 data-i18n="remote.queue.title">Cola Actual</h2>
-            <div id="songQueue"></div>
+        </header>
+
+        <div id="sticky-top">
+            <div id="host-status-banner" class="hidden"><span data-icon="warning"></span><span data-i18n="remote.hostDisconnected">El host se desconectó. La reproducción está pausada hasta que vuelva a conectarse.</span></div>
+            <div id="mini-player" role="group" aria-label="Ahora suena" data-i18n-aria-label="remote.nowPlayingLabel">
+                <div id="now-playing-info">
+                    <div id="current-song-title" data-i18n="remote.loading">Cargando...</div>
+                    <div id="current-song-time"></div>
+                </div>
+                <div id="controls">
+                    <button id="playPauseBtn" class="control-btn" type="button" aria-label="Reproducir o pausar" title="Reproducir o pausar" data-i18n-aria-label="remote.playPauseLabel" data-i18n-title="remote.playPauseLabel">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5v14l9-7z"/><path d="M14 5h3v14h-3zM19 5h3v14h-3z"/></svg>
+                    </button>
+                    <button id="skipBtn" class="control-btn" type="button" aria-label="Saltar canción" title="Saltar canción" data-i18n-aria-label="remote.skip" data-i18n-title="remote.skip">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5v14l10-7z"/><path d="M17 5h2.5v14H17z"/></svg>
+                    </button>
+                </div>
+                <div id="progress" aria-hidden="true"><div id="progress-bar"></div></div>
+            </div>
+            <div id="turn-notification-banner" class="hidden" role="alert"><span data-icon="mic"></span><span data-i18n="remote.turnBanner">¡Prepárate! Tu canción está por empezar...</span></div>
+            <div id="tabs" role="tablist">
+                <button type="button" id="tab-search" class="tab" role="tab" aria-selected="true" aria-controls="search-panel"><span data-icon="search"></span><span data-i18n="remote.tab.search">Buscar</span></button>
+                <button type="button" id="tab-queue" class="tab" role="tab" aria-selected="false" aria-controls="queue-container" tabindex="-1"><span data-icon="list"></span><span data-i18n="remote.tab.queue">Mi cola</span><span id="queue-badge" class="tab-badge hidden">0</span></button>
+            </div>
         </div>
+
+        <section id="search-panel" role="tabpanel" aria-labelledby="tab-search">
+            <form id="song-search-form" role="search">
+                <div class="search-field">
+                    <span data-icon="search"></span>
+                    <input type="search" id="songSearch" placeholder="Buscar canción o artista..." aria-label="Buscar canción o artista" data-i18n-placeholder="remote.search.placeholder" data-i18n-aria-label="remote.search.label" autocomplete="off" enterkeyhint="search">
+                </div>
+            </form>
+            <div id="songBrowser"></div>
+        </section>
+
+        <section id="queue-container" class="hidden" role="tabpanel" aria-labelledby="tab-queue">
+            <p id="queue-summary" aria-live="polite"></p>
+            <div id="songQueue"></div>
+        </section>
     </div>
     <div id="confirm-modal" class="hidden">
         <div id="confirm-modal-content">
@@ -82,6 +96,8 @@
             <p id="yt-download-modal-text" data-i18n="yt.downloading">Descargando desde YouTube, esto puede tardar unos segundos...</p>
         </div>
     </div>
+
+    <div id="toast" class="hidden" role="status" aria-live="polite"></div>
 
     <script src="js/icons.js"></script>
     <script src="js/i18n.js"></script>

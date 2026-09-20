@@ -48,6 +48,9 @@ test("toda variable CSS que se usa está definida en tokens.css", () => {
   }
 });
 
+// Elementos con fondo de acento que son solo una barra o un adorno, sin texto encima.
+const ACCENT_WITHOUT_TEXT = new Set(["#progress-bar"]);
+
 test("el texto sobre fondos de acento usa --on-accent (oscuro), no blanco", () => {
   const dark = read(path.join(PUBLIC, "css", "tokens.css"));
   assert.match(dark, /--on-accent:\s*var\(--brand-dark\)/);
@@ -57,6 +60,7 @@ test("el texto sobre fondos de acento usa --on-accent (oscuro), no blanco", () =
     for (const m of css.matchAll(/([^{}]+)\{([^{}]*background(?:-color)?:\s*var\(--accent\)[^{}]*)\}/g)) {
       const selector = m[1].trim().split("\n").pop();
       if (selector.startsWith("@") || /^(0%|50%|100%)/.test(selector)) continue;
+      if (ACCENT_WITHOUT_TEXT.has(selector)) continue;
       assert.match(m[2], /color:\s*var\(--on-accent\)/, `${file}: "${selector}" tiene fondo de acento pero no color: var(--on-accent)`);
     }
   }

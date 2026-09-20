@@ -11,6 +11,7 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Explorador de Canciones Alfabético:** Navega por la biblioteca de canciones de forma intuitiva, filtrando por artista y luego seleccionando la canción.
 * **Cola de Reproducción Compartida:** Múltiples usuarios pueden ver y añadir canciones a la misma cola de reproducción en tiempo real.
 * **Controles de Reproducción:** Los controles remotos pueden pausar, reanudar y saltar canciones.
+* **Remoto pensado para el celular:** una barra fija arriba con lo que suena, su avance y los botones de play/pausa y saltar, siempre a la vista aunque bajes por una lista larga. Debajo, dos pestañas: **Buscar** (el buscador y el explorador) y **Mi cola** (la cola de todos, tus canciones resaltadas, cuántas tienes y cuántas faltan para tu turno). El aviso de "tu turno" aparece pegado bajo el mini-reproductor.
 * **Salas Virtuales:** Soporte de salas virtuales con colas independientes mediante códigos de 4 letras.
 * **Autenticación Google OAuth:** Acceso seguro al control remoto mediante autenticación con cuentas de Google (dominio configurable).
 * **Gestión de Sesiones:** Sesiones persistentes almacenadas en archivos para mantener usuarios autenticados.
@@ -142,8 +143,8 @@ Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control r
 3.  Escanea el código QR con la cámara de tu teléfono para abrir el **Control Remoto**.
 4.  Inicia sesión con tu cuenta de Google (debe ser del dominio autorizado configurado en el código).
 5.  Introduce el código de sala de 4 letras para unirte a la sesión.
-6.  Usa el explorador alfabético o el buscador de texto para encontrar tu canción favorita y añadirla a la cola (si no aparece, puedes buscarla en YouTube — ver la sección "Búsqueda y descarga desde YouTube" más abajo).
-7.  La cola se actualizará en la pantalla principal y en todos los remotos conectados.
+6.  En la pestaña **Buscar**, usa el explorador alfabético o el buscador de texto para encontrar tu canción favorita y añadirla a la cola (si no aparece, puedes buscarla en YouTube — ver la sección "Búsqueda y descarga desde YouTube" más abajo).
+7.  Un aviso confirma que se añadió, y la cola se actualiza en la pantalla principal y en todos los remotos conectados; en la pestaña **Mi cola** ves tu posición y puedes quitar tus canciones.
 8.  Recibirás una notificación (vibración, sonido y un aviso visual) 10 segundos antes de que empiece tu canción.
 9.  ¡Espera tu turno y canta!
 

@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "A real-time, remote-controlled karaoke player using Node.js, WebSockets, and a local URL database.",
   "main": "server.js",
+  "engines": {
+    "node": ">=20.17.0"
+  },
   "scripts": {
     "start": "node server.js",
     "import": "node import_csv.js",

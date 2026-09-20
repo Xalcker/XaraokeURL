@@ -11,12 +11,14 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Explorador de Canciones Alfabético:** Navega por la biblioteca de canciones de forma intuitiva, filtrando por artista y luego seleccionando la canción.
 * **Cola de Reproducción Compartida:** Múltiples usuarios pueden ver y añadir canciones a la misma cola de reproducción en tiempo real.
 * **Controles de Reproducción:** Los controles remotos pueden pausar, reanudar y saltar canciones.
-* **Notificaciones Inteligentes:** El control remoto vibra y suena para avisar al usuario cuando su canción está a punto de empezar (10 segundos antes).
 * **Salas Virtuales:** Soporte de salas virtuales con colas independientes mediante códigos de 4 letras.
 * **Autenticación Google OAuth:** Acceso seguro al control remoto mediante autenticación con cuentas de Google (dominio configurable).
 * **Gestión de Sesiones:** Sesiones persistentes almacenadas en archivos para mantener usuarios autenticados.
 * **Redirección Automática:** Los dispositivos móviles son redirigidos automáticamente al control remoto.
-* **Búsqueda y Descarga desde YouTube:** Si una canción no está en la biblioteca, se puede buscar en YouTube (con sufijos como "karaoke", "instrumental" o "pista"), descargarla y agregarla a la cola de forma efímera.
+* **Buscador de Canciones:** Además del explorador alfabético, un buscador de texto (insensible a acentos) filtra por artista o título.
+* **Aviso de Host Desconectado:** Si la pantalla principal se desconecta, todos los remotos muestran un aviso en vez de seguir agregando canciones a una cola que nadie va a reproducir.
+* **Notificaciones Confiables:** El control remoto vibra, suena y muestra un aviso visual pulsante para avisar cuando la canción está a punto de empezar (10 segundos antes), incluso en navegadores que bloquean el autoplay de audio.
+* **Búsqueda y Descarga desde YouTube:** Si una canción no está en la biblioteca, se puede buscar en YouTube (con sufijos como "karaoke", "instrumental" o "pista"), elegir entre varios resultados y agregarla a la cola de forma efímera.
 
 ---
 ## 🛠️ Stack Tecnológico
@@ -35,7 +37,7 @@ Sigue estos pasos para ejecutar el proyecto en tu máquina local.
 
 ### Pre-requisitos
 
-* Node.js (v16 o superior)
+* Node.js v20.17 o superior (lo exige `sqlite3@6`)
 * npm
 * Cuenta de Google Cloud con OAuth 2.0 configurado (para autenticación)
 * (Opcional) `yt-dlp` y `ffmpeg` instalados y en el `PATH` del sistema, solo si quieres usar la búsqueda/descarga desde YouTube:
@@ -110,10 +112,12 @@ Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control r
 3.  Escanea el código QR con la cámara de tu teléfono para abrir el **Control Remoto**.
 4.  Inicia sesión con tu cuenta de Google (debe ser del dominio autorizado configurado en el código).
 5.  Introduce el código de sala de 4 letras para unirte a la sesión.
-6.  Usa el explorador alfabético para encontrar tu canción favorita y añadirla a la cola.
+6.  Usa el explorador alfabético o el buscador de texto para encontrar tu canción favorita y añadirla a la cola (si no aparece, puedes buscarla en YouTube — ver la sección "Búsqueda y descarga desde YouTube" más abajo).
 7.  La cola se actualizará en la pantalla principal y en todos los remotos conectados.
-8.  Recibirás una notificación (vibración y sonido) 10 segundos antes de que empiece tu canción.
+8.  Recibirás una notificación (vibración, sonido y un aviso visual) 10 segundos antes de que empiece tu canción.
 9.  ¡Espera tu turno y canta!
+
+Si el host se desconecta (por ejemplo, alguien cierra la pestaña de la pantalla principal por error), todos los remotos muestran un aviso hasta que se reconecte.
 
 ## 🔎 Búsqueda y descarga desde YouTube
 
@@ -132,10 +136,17 @@ Detalles a tener en cuenta:
 
 ## 🔒 Seguridad
 
-* El acceso al control remoto requiere autenticación con Google OAuth 2.0
-* Por defecto, solo se permiten cuentas del dominio `@xalcker.xyz` (configurable con la variable de entorno `ALLOWED_DOMAIN`)
-* Las sesiones se almacenan de forma segura en el servidor
-* En producción, las cookies de sesión usan el flag `secure` para HTTPS
+* El acceso al control remoto requiere autenticación con Google OAuth 2.0.
+* Por defecto, solo se permiten cuentas del dominio `@xalcker.xyz` (configurable con la variable de entorno `ALLOWED_DOMAIN`).
+* Las sesiones se almacenan de forma segura en el servidor; en producción, las cookies usan el flag `secure` para HTTPS.
+* **El host de una sala se autentica con un token secreto** (`hostToken`, generado al crear la sala), no con un flag que el cliente pueda falsificar — solo quien creó la sala puede controlar la reproducción o suplantar el nombre en la cola.
+* **El WebSocket valida el header `Origin`** en el handshake, rechazando conexiones cross-site que intenten aprovechar la cookie de sesión del navegador.
+* **Headers de seguridad HTTP** vía `helmet` (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.).
+* **Rate limiting** en los endpoints más sensibles: creación de salas (10/min), búsqueda en YouTube (20/min) y descarga de YouTube (5/min, máximo 3 descargas simultáneas).
+* **Salas y descargas se limpian solas:** una sala sin conexiones se borra a los 10 minutos, y las descargas de YouTube a las 6 horas — nada queda creciendo en memoria o disco indefinidamente.
+* **Contenido generado por usuarios escapado antes de insertarse en el DOM** (nombres de perfil, títulos de canciones) para evitar XSS.
+* **La cola solo acepta canciones válidas:** un `filename` en `addSong` se valida contra la base de datos o el registro de descargas de YouTube antes de encolarse; nunca se confía en lo que mande el cliente a ciegas.
+* **La descarga de YouTube nunca interpola datos del usuario en un shell:** se invoca `yt-dlp` vía `execFile` con argumentos separados, el ID de video se valida con una expresión regular estricta antes de usarse, y los archivos se guardan con un nombre generado por el servidor (UUID), nunca con datos provistos por el cliente.
 
 ## 📁 Estructura del Proyecto
 
@@ -143,27 +154,29 @@ Detalles a tener en cuenta:
 XaraokeURL/
 ├── public/
 │   ├── css/
-│   │   ├── host.css          # Estilos para la pantalla principal
-│   │   └── remote.css        # Estilos para el control remoto
+│   │   ├── host.css              # Estilos para la pantalla principal
+│   │   └── remote.css            # Estilos para el control remoto
 │   ├── js/
-│   │   └── shared.js         # Utilidades compartidas (escapeHtml, parseSongFilename)
-│   ├── index.html            # Interfaz del host/reproductor
-│   ├── karaoke.js            # Lógica del reproductor principal
-│   ├── remote.html           # Interfaz del control remoto
-│   ├── remote.js             # Lógica del control remoto
-│   └── notification.mp3      # Sonido de notificación
+│   │   └── shared.js             # Utilidades compartidas (escapeHtml, parseSongFilename)
+│   ├── index.html                # Interfaz del host/reproductor
+│   ├── karaoke.js                # Lógica del reproductor principal
+│   ├── remote.html               # Interfaz del control remoto
+│   ├── remote.js                 # Lógica del control remoto
+│   └── notification.mp3          # Sonido de notificación
 ├── lib/
-│   ├── roomId.js              # Generación de códigos de sala (testeable)
-│   └── ytdlp.js               # Wrapper seguro sobre el binario yt-dlp
-├── test/                     # Pruebas unitarias (node --test)
-├── server.js                 # Servidor principal con WebSockets y OAuth
-├── import_csv.js             # Script para importar canciones desde CSV
-├── package.json              # Dependencias del proyecto
-├── .env.example              # Plantilla de variables de entorno
-├── .env                      # Variables de entorno (no incluido en git)
-├── songs.csv                 # Catálogo de canciones (no incluido en git)
-├── karaoke.db                 # Base de datos SQLite (generada automáticamente)
-└── downloads/                 # Descargas efímeras de YouTube (no incluido en git)
+│   ├── roomId.js                 # Generación de códigos de sala (testeable)
+│   └── ytdlp.js                  # Wrapper seguro sobre el binario yt-dlp
+├── test/                         # Pruebas unitarias (node --test)
+├── .github/workflows/ci.yml      # CI: lint + test en cada push/PR
+├── eslint.config.js              # Configuración de ESLint
+├── server.js                     # Servidor principal con WebSockets y OAuth
+├── import_csv.js                 # Script para importar canciones desde CSV
+├── package.json                  # Dependencias del proyecto
+├── .env.example                  # Plantilla de variables de entorno
+├── .env                          # Variables de entorno (no incluido en git)
+├── songs.csv                     # Catálogo de canciones (no incluido en git)
+├── karaoke.db                    # Base de datos SQLite (generada automáticamente)
+└── downloads/                    # Descargas efímeras de YouTube (no incluido en git)
 ```
 
 ## 🚀 Despliegue en Producción

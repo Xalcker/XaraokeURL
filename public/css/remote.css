@@ -125,6 +125,23 @@ a:focus-visible {
     border-radius: 10px;
 }
 
+.brand-logo {
+    display: block;
+    margin: 0 auto 0.5rem;
+    filter: drop-shadow(0 6px 18px rgba(73, 214, 216, 0.25));
+}
+
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.app-header img {
+    flex-shrink: 0;
+}
+
 #dev-name-field {
     margin-bottom: 1rem;
 }

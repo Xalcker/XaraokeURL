@@ -24,12 +24,16 @@ test("iconSvg devuelve '' para nombres que no existen, incluidos los heredados d
   }
 });
 
-test("todos los íconos que usan el HTML y remote.js existen", () => {
+test("todos los íconos que usan el HTML y los scripts existen", () => {
   const used = new Set();
   for (const file of ["index.html", "remote.html"]) {
     for (const m of read(file).matchAll(/data-icon="([^"]+)"/g)) used.add(m[1]);
   }
   for (const m of read("remote.js").matchAll(/setLabel\([^,]+,\s*"([^"]+)"/g)) used.add(m[1]);
+  // iconSvg("nombre") desde JavaScript (por ejemplo, el botón de pantalla completa del host).
+  for (const file of ["remote.js", "karaoke.js"]) {
+    for (const m of read(file).matchAll(/iconSvg\(\s*"([^"]+)"\s*\)/g)) used.add(m[1]);
+  }
 
   assert.ok(used.size > 0, "no se encontró ningún uso de íconos");
   for (const name of used) {

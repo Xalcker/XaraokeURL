@@ -15,7 +15,7 @@ const FileStore = require("session-file-store")(session);
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const { generateRoomId } = require("./lib/roomId");
-const { getLanAddresses, formatAccessLines } = require("./lib/network");
+const { getServerAddresses, parseLanIpOverride, formatAccessLines, remoteBaseUrl } = require("./lib/network");
 const { sanitizeDisplayName } = require("./lib/displayName");
 const { escapeHtml } = require("./public/js/shared");
 const { pickLanguage, translate } = require("./public/js/i18n");
@@ -684,8 +684,13 @@ app.get("/api/rooms/:roomId", (req, res) => {
 app.get("/api/qr", (req, res) => {
   // Rely on 'trust proxy' to correctly detect the protocol
   const protocol = req.secure ? "https" : "http";
-  const host = req.get("host");
-  const baseUrl = `${protocol}://${host}`;
+  // Si la pantalla principal se abrió como "localhost" (fuera de producción), el QR usa la
+  // dirección de la red local para que los teléfonos puedan abrirlo.
+  const baseUrl = remoteBaseUrl({
+    protocol,
+    host: req.get("host"),
+    addresses: process.env.NODE_ENV === "production" ? [] : getServerAddresses(process.env.LAN_IP),
+  });
   const remoteUrl = `${baseUrl}/remote.html`;
 
   QRCode.toDataURL(remoteUrl, (err, url) => {
@@ -922,7 +927,10 @@ initDownloads()
       // En producción se accede por dominio/proxy, así que las IPs de la red
       // local solo se muestran en desarrollo.
       if (process.env.NODE_ENV !== "production") {
-        formatAccessLines(PORT, getLanAddresses()).forEach((line) =>
+        if (process.env.LAN_IP && !parseLanIpOverride(process.env.LAN_IP)) {
+          console.warn(`⚠️  LAN_IP="${process.env.LAN_IP}" no es una dirección IPv4 válida: se ignora y se usan las de los adaptadores de red.`);
+        }
+        formatAccessLines(PORT, getServerAddresses(process.env.LAN_IP)).forEach((line) =>
           console.log(line)
         );
       }

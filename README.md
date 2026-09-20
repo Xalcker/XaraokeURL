@@ -11,6 +11,7 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Explorador de Canciones Alfabético:** Navega por la biblioteca de canciones de forma intuitiva, filtrando por artista y luego seleccionando la canción.
 * **Cola de Reproducción Compartida:** Múltiples usuarios pueden ver y añadir canciones a la misma cola de reproducción en tiempo real.
 * **Controles de Reproducción:** Los controles remotos pueden pausar, reanudar y saltar canciones.
+* **Modo TV en la pantalla principal:** letra y tarjetas que crecen con la pantalla, "quién canta" en grande y de color, pantalla completa (botón, tecla `F` o doble clic) y una pantalla de espera con el código QR enorme cuando la cola está vacía. Mantiene la pantalla encendida durante la sesión (ver "Modo TV").
 * **Remoto pensado para el celular:** una barra fija arriba con lo que suena, su avance y los botones de play/pausa y saltar, siempre a la vista aunque bajes por una lista larga. Debajo, dos pestañas: **Buscar** (el buscador y el explorador) y **Mi cola** (la cola de todos, tus canciones resaltadas, cuántas tienes y cuántas faltan para tu turno). El aviso de "tu turno" aparece pegado bajo el mini-reproductor.
 * **Salas Virtuales:** Soporte de salas virtuales con colas independientes mediante códigos de 4 letras.
 * **Autenticación Google OAuth:** Acceso seguro al control remoto mediante autenticación con cuentas de Google (dominio configurable).
@@ -111,16 +112,16 @@ Sigue estos pasos para ejecutar el proyecto en tu máquina local.
 
 7.  Abre tu navegador y ve a `http://localhost:8081` (o el puerto configurado en `.env`).
 
-    **Si vas a conectar teléfonos con el código QR, no uses `localhost`:** el QR se arma con la dirección con la que abriste la página, y en el teléfono `localhost` apunta al propio teléfono. Al iniciar, el servidor imprime las direcciones de tu red local; abre la pantalla principal con una de ellas (por ejemplo `http://192.168.0.72:8081`):
+    **La pantalla principal se abre mejor como `localhost`.** El código QR que ven los teléfonos no puede llevar `localhost` (en el teléfono apuntaría al propio teléfono), así que el servidor lo arma con la dirección de tu red local. Además, con `localhost` el navegador permite mantener la pantalla encendida (ver "Modo TV" más abajo), cosa que no hace si abres la página por la IP con HTTP. Al iniciar, el servidor imprime sus direcciones y marca la que llevará el QR:
 
     ```
     🚀 Servidor corriendo en el puerto 8081
-    🌐 Abre la pantalla principal con una de estas direcciones (con localhost, el QR no funcionaría en los teléfonos):
-       http://192.168.0.72:8081   (Wi-Fi)
-       Solo en este equipo: http://localhost:8081
+    🌐 Direcciones de este servidor:
+       http://192.168.0.72:8081   (Wi-Fi)   <- la que lleva el código QR si abres la pantalla como localhost
+       En este equipo: http://localhost:8081   (recomendada para la pantalla principal: ...)
     ```
 
-    Si aparece más de una, usa la del adaptador por el que estás conectado a la misma red Wi-Fi que los teléfonos (el nombre del adaptador aparece entre paréntesis). Si Windows muestra el aviso del Firewall la primera vez, permite el acceso en redes privadas. Estas direcciones solo se muestran fuera de producción.
+    La dirección del QR también aparece escrita bajo el código, en la pantalla principal. Si hay varias redes, se prefieren las reales y se dejan al final las de máquinas virtuales (VirtualBox, WSL, docker...); si aun así el QR usa la red equivocada, fija la correcta en el `.env` con `LAN_IP=192.168.0.72`. Si Windows muestra el aviso del Firewall la primera vez, permite el acceso en redes privadas. Estas direcciones solo se muestran fuera de producción.
 
 ### Levantar el server en local sin configurar Google OAuth
 
@@ -149,6 +150,15 @@ Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control r
 9.  ¡Espera tu turno y canta!
 
 Si el host se desconecta (por ejemplo, alguien cierra la pestaña de la pantalla principal por error), todos los remotos muestran un aviso hasta que se reconecte.
+
+## 📺 Modo TV (pantalla principal)
+
+La pantalla principal está pensada para verse de lejos:
+
+* **Se adapta al tamaño de la pantalla:** el tamaño de la letra y de las tarjetas crece con el ancho de la ventana (de 16 px en una ventana pequeña a unos 22 px en una TV de 1920 px, con tope de 26 px). "Ahora suena" y "A continuación" muestran en grande el artista, la canción y **quién canta**, en color.
+* **Pantalla de espera:** con la cola vacía, el video negro deja su lugar a un código QR grande, el código de sala y la dirección escrita por si no se puede escanear. En cuanto alguien añade una canción, vuelve el video.
+* **Pantalla completa:** botón discreto abajo a la izquierda, tecla `F` o doble clic sobre el video. Entra toda la página (no solo el video), así que la cola y el QR siguen a la vista; `Esc` sale. Tras 3 segundos sin mover el ratón ni pulsar teclas, se ocultan el cursor y el botón.
+* **Pantalla siempre encendida:** al comenzar la sesión se pide al navegador que no apague la pantalla (Screen Wake Lock API), y se vuelve a pedir si la pestaña se oculta y regresa. **El navegador solo lo permite en `localhost` o con HTTPS**: si abres la pantalla por la IP de la red con HTTP (`http://192.168.0.72:8081`), no está disponible y la pantalla puede apagarse por inactividad del sistema (mientras suena un video, los navegadores suelen mantenerla encendida). Por eso conviene abrirla como `localhost`.
 
 ## 🔎 Búsqueda y descarga desde YouTube
 
@@ -199,6 +209,7 @@ XaraokeURL/
 │   │   ├── apple-touch-icon.png  # Ícono al agregar a la pantalla de inicio en iOS
 │   │   └── icon-192.png / icon-512.png  # Íconos de la app (manifiesto), aptos para "maskable"
 │   ├── js/
+│   │   ├── wakeLock.js           # Mantiene la pantalla del host encendida (Screen Wake Lock API)
 │   │   ├── icons.js              # Íconos SVG (iconSvg / data-icon); la interfaz no usa emojis
 │   │   ├── i18n.js               # Textos en español e inglés y detección del idioma (navegador y servidor)
 │   │   └── shared.js             # Utilidades compartidas (escapeHtml, parseSongFilename)

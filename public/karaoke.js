@@ -9,12 +9,27 @@ document.addEventListener("DOMContentLoaded", () => {
   const qrCodeImg = document.getElementById("qrCode");
   const qrError = document.getElementById("qr-error");
   const roomCodeDisplay = document.getElementById("room-code");
+  const idleScreen = document.getElementById("idle-screen");
+  const idleRoomCode = document.getElementById("idle-room-code");
+  const idleQr = document.getElementById("idle-qr");
+  const idleHint = document.getElementById("idle-hint");
+  const remoteUrlEl = document.getElementById("remote-url");
+  const fullscreenBtn = document.getElementById("fullscreen-btn");
 
   let currentQueue = [], ws, lastTimeUpdate = 0;
   let roomId = null;
   let hostToken = null;
 
   const songDisplay = (item) => getSongDisplay(item, t("song.unknownArtist"));
+
+  // Mantiene la pantalla encendida durante la sesión. Solo funciona en HTTPS o en localhost.
+  const wakeLock = createWakeLock({
+    nav: navigator,
+    doc: document,
+    onChange: (active, error) => {
+      if (error) console.warn("No se pudo mantener la pantalla encendida:", error.name);
+    },
+  });
 
   startBtn.addEventListener("click", async () => {
     if (startBtn.disabled) return;
@@ -29,6 +44,9 @@ document.addEventListener("DOMContentLoaded", () => {
       roomId = data.roomId;
       hostToken = data.hostToken;
       roomCodeDisplay.textContent = roomId;
+      idleRoomCode.textContent = roomId;
+      if (wakeLock.supported) wakeLock.enable();
+      else console.info("La pantalla puede apagarse por inactividad: el navegador solo permite evitarlo en HTTPS o en localhost.");
       welcomeModal.classList.add("hidden");
       mainContainer.classList.remove("hidden");
       connectWebSocket();
@@ -70,6 +88,9 @@ document.addEventListener("DOMContentLoaded", () => {
       qrCodeImg.src = qrData.qrUrl;
       qrCodeImg.classList.remove("hidden");
       qrError.classList.add("hidden");
+      idleQr.src = qrData.qrUrl;
+      idleQr.classList.remove("hidden");
+      showRemoteUrl(qrData.remoteUrl);
     } catch (error) {
       console.error("Error durante la inicialización:", error);
       showQrError();
@@ -79,11 +100,26 @@ document.addEventListener("DOMContentLoaded", () => {
   function showQrError() {
     qrCodeImg.classList.add("hidden");
     qrError.classList.remove("hidden");
+    idleQr.classList.add("hidden");
+    showRemoteUrl(window.location.origin + "/remote.html");
+  }
+
+  // La dirección del control remoto, sin "http://", bajo el QR y en la pista de la pantalla de espera.
+  function showRemoteUrl(url) {
+    const shown = String(url).replace(/^https?:\/\//, "");
+    remoteUrlEl.textContent = shown;
+    idleHint.textContent = t("host.idle.hint", { url: shown });
+  }
+
+  // Sin canciones en la cola no hay nada que ver en el video: se muestra el QR grande.
+  function updateIdleScreen() {
+    idleScreen.classList.toggle("hidden", currentQueue.length > 0);
   }
 
   qrCodeImg.addEventListener("error", showQrError);
 
   function renderAllSections() {
+    updateIdleScreen();
     renderNowPlaying();
     renderUpNext();
     renderUpcomingQueue();
@@ -169,6 +205,43 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error al reproducir la canción:", e);
     }
   }
+
+  // Pantalla completa de toda la página (no solo del video), para que sigan a la vista la cola y el QR.
+  function updateFullscreenButton() {
+    const active = !!document.fullscreenElement;
+    const label = t(active ? "host.exitFullscreen" : "host.fullscreen");
+    fullscreenBtn.innerHTML = iconSvg(active ? "fullscreen-exit" : "fullscreen");
+    fullscreenBtn.setAttribute("aria-label", label);
+    fullscreenBtn.title = label;
+  }
+
+  function toggleFullscreen() {
+    const change = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    change.catch((error) => console.error("No se pudo cambiar la pantalla completa:", error));
+  }
+
+  if (document.fullscreenEnabled) {
+    fullscreenBtn.classList.remove("hidden");
+    updateFullscreenButton();
+    fullscreenBtn.addEventListener("click", toggleFullscreen);
+    document.addEventListener("fullscreenchange", updateFullscreenButton);
+    document.addEventListener("keydown", (e) => {
+      if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey) toggleFullscreen();
+    });
+    document.querySelector(".player-column").addEventListener("dblclick", toggleFullscreen);
+  }
+
+  // Tras unos segundos sin mover el ratón ni tocar una tecla, se oculta el cursor y el botón.
+  let idleUiTimer = null;
+  function showUi() {
+    document.body.classList.remove("ui-idle");
+    clearTimeout(idleUiTimer);
+    idleUiTimer = setTimeout(() => document.body.classList.add("ui-idle"), 3000);
+  }
+  ["mousemove", "mousedown", "keydown", "touchstart"].forEach((name) =>
+    document.addEventListener(name, showUi, { passive: true })
+  );
+  showUi();
 
   player.addEventListener("ended", () => ws.send(JSON.stringify({ type: "playNext" })));
   player.addEventListener("loadedmetadata", () => {

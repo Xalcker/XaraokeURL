@@ -1,3 +1,9 @@
+/* Los tamaños se miden en rem: al crecer la pantalla, crece todo en proporción.
+   De 16 px en una ventana pequeña a unos 22 px en una TV de 1920 px y 26 px como máximo. */
+html {
+    font-size: clamp(16px, calc(0.95vw + 4px), 26px);
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     color: #fff;
@@ -103,16 +109,19 @@ a:focus-visible {
 
 .sidebar-left,
 .sidebar-right {
-    flex: 1.5;
+    /* Ancho proporcional a la pantalla, sin bajar de lo que necesitan los textos. */
+    flex: 0 0 clamp(210px, 18vw, 520px);
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
 }
 
 .player-column {
-    flex: 8;
+    flex: 1;
     display: flex;
     min-width: 0;
+    position: relative; /* la pantalla de espera se coloca encima del video */
 }
 
 .sidebar-section {
@@ -140,7 +149,7 @@ h3 {
     margin-bottom: 1rem;
     color: #ccc;
     text-transform: uppercase;
-    font-size: 0.9rem;
+    font-size: 1rem;
     letter-spacing: 1px;
     text-align: center;
 }
@@ -156,25 +165,27 @@ h3 .icon {
 
 .info-card-title {
     font-weight: bold;
-    font-size: 1.2rem;
+    font-size: 1.5rem;
+    text-wrap: balance;
     color: #fff;
 }
 
 .info-card-subtitle {
-    font-size: 1rem;
+    font-size: 1.15rem;
     color: var(--text-muted);
 }
 
+/* Quién canta: es lo que más importa saber desde lejos. */
 .info-card-user {
-    font-style: italic;
-    font-size: 0.9rem;
+    font-size: 1.15rem;
+    font-weight: 600;
     color: var(--accent);
-    margin-top: 5px;
+    margin-top: 6px;
 }
 
 #room-code {
     text-align: center;
-    font-size: 2rem;
+    font-size: 2.6rem;
     font-weight: bold;
     letter-spacing: 5px;
     margin-bottom: 1rem;
@@ -189,12 +200,14 @@ h3 .icon {
 }
 
 #qr-container img {
-    max-width: 100%;
+    /* Tan grande como quepa a lo ancho de la barra y sin pasar del 26 % del alto de la pantalla. */
+    width: min(100%, 26vh);
+    height: auto;
+    aspect-ratio: 1;
     display: block;
     margin: 0 auto;
     border: 5px solid white;
     border-radius: 5px;
-    min-height: 150px;
     background-color: rgba(255, 255, 255, 0.05);
 }
 
@@ -208,21 +221,27 @@ h3 .icon {
     font-size: 0.85rem;
 }
 
+/* La cola cede espacio al QR cuando la pantalla es baja (el QR no se encoge más de lo que se pueda escanear). */
 #queue-container {
     flex-grow: 1;
+    flex-shrink: 1;
     min-height: 0;
+    overflow: hidden;
 }
 
 #songQueue {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
 }
 
 .queue-item {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 2px;
     padding: 8px;
     border-radius: 5px;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
 }
 
 .queue-item:nth-child(odd) {
@@ -234,8 +253,140 @@ h3 .icon {
 }
 
 .queue-item .user-name {
-    font-style: italic;
     color: #aaa;
-    margin-left: 1rem;
-    white-space: nowrap;
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+}
+
+/* Dirección del control remoto, por si no se puede escanear el QR. */
+#qr-container #remote-url {
+    margin-top: 0.6rem;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+}
+
+/* Pantalla de espera: con la cola vacía, el video negro deja su lugar a un código QR grande. */
+#idle-screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.6vh;
+    padding: 2vh 2vw;
+    box-sizing: border-box;
+    text-align: center;
+    border-radius: 10px;
+    background:
+        radial-gradient(circle at 50% 38%, rgba(var(--accent-rgb), 0.14), transparent 62%),
+        linear-gradient(160deg, var(--brand-dark), #000);
+}
+
+#idle-screen .brand-logo {
+    height: 11vh;
+    width: auto;
+    margin: 0;
+}
+
+#idle-title {
+    margin: 0;
+    font-size: clamp(1.2rem, 3.2vh, 2.4rem);
+    font-weight: 700;
+    text-wrap: balance;
+}
+
+#idle-room-code {
+    padding-left: 0.3em; /* compensa el espacio que deja el último letter-spacing */
+    font-size: min(9vh, 6rem);
+    font-weight: 800;
+    letter-spacing: 0.3em;
+    line-height: 1;
+    color: var(--accent);
+}
+
+#idle-qr {
+    width: min(36vh, 60%);
+    height: auto;
+    aspect-ratio: 1;
+    border: 8px solid #fff;
+    border-radius: 8px;
+    background-color: #fff;
+}
+
+#idle-qr.hidden {
+    display: none;
+}
+
+#idle-hint {
+    margin: 0;
+    max-width: 90%;
+    color: var(--text-muted);
+    font-size: clamp(0.9rem, 2.2vh, 1.4rem);
+    overflow-wrap: anywhere;
+}
+
+/* Botón de pantalla completa: discreto, abajo a la izquierda (la barra lateral izquierda solo
+   tiene dos tarjetas, así que ahí no tapa nada). */
+#fullscreen-btn {
+    position: fixed;
+    bottom: 1rem;
+    left: 1rem;
+    z-index: 110; /* por encima de la bienvenida (100) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.3s;
+}
+
+#fullscreen-btn:hover {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.75);
+}
+
+#fullscreen-btn .icon {
+    width: 24px;
+    height: 24px;
+    margin: 0;
+}
+
+/* Sin tocar el ratón ni el teclado unos segundos, el cursor y el botón se ocultan. */
+body.ui-idle {
+    cursor: none;
+}
+
+body.ui-idle #fullscreen-btn:not(:focus-visible) {
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #fullscreen-btn {
+        transition: none;
+    }
+}
+
+/* Pantallas bajas: el QR lateral ocupa menos para dejar sitio a la cola (el QR grande de la
+   pantalla de espera sigue ahí, y la dirección va en su pista). */
+@media (max-height: 700px) {
+    #qr-container img {
+        width: min(100%, 20vh);
+    }
+
+    #qr-container #remote-url {
+        display: none;
+    }
+
+    #room-code {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
 }

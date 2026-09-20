@@ -22,6 +22,8 @@
     </script>
 </head>
 <body>
+    <button id="fullscreen-btn" type="button" class="hidden" aria-label="Pantalla completa" title="Pantalla completa" data-i18n-aria-label="host.fullscreen" data-i18n-title="host.fullscreen"></button>
+
     <div id="welcome-modal">
         <img class="brand-logo" src="img/logo.svg" alt="" width="128" height="128">
         <h1>XaraokeURL</h1>
@@ -50,6 +52,13 @@
         <div class="player-column">
             <!-- <video id="karaokePlayer" controls controlslist="nodownload" autoplay></video> -->
              <video oncontextmenu="return false;" id="karaokePlayer"></video>
+            <div id="idle-screen">
+                <img class="brand-logo" src="img/logo.svg" alt="" width="96" height="96">
+                <p id="idle-title" data-i18n="host.idle.title">Escanea el código para elegir tu canción</p>
+                <div id="idle-room-code">----</div>
+                <img id="idle-qr" class="hidden" alt="Código QR del control remoto" data-i18n-alt="host.qrAlt">
+                <p id="idle-hint"></p>
+            </div>
         </div>
         
         <div class="sidebar-right">
@@ -63,6 +72,7 @@
                 <div id="room-code">----</div>
                 <p data-i18n="host.scan">Escanea para añadir canciones</p>
                 <img id="qrCode" alt="Código QR del control remoto" data-i18n-alt="host.qrAlt">
+                <p id="remote-url"></p>
                 <p id="qr-error" class="hidden" data-i18n-html="host.qrError.html">No se pudo generar el QR. Entra manualmente a <strong>/remote.html</strong> desde tu teléfono.</p>
             </div>
         </div>
@@ -70,6 +80,7 @@
     <script src="js/icons.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/shared.js"></script>
+    <script src="js/wakeLock.js"></script>
     <script src="karaoke.js"></script>
 </body>
 </html>

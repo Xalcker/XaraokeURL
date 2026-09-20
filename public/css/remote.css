@@ -327,6 +327,13 @@ a:focus-visible {
     background-color: #3f3f3f;
 }
 
+.browser-item small {
+    display: block;
+    margin-top: 2px;
+    color: #b3b3b3;
+    font-size: 0.8rem;
+}
+
 .alphabet-container {
     display: flex;
     flex-wrap: wrap;

@@ -189,10 +189,16 @@ XaraokeURL/
 │   ├── css/
 │   │   ├── host.css              # Estilos para la pantalla principal
 │   │   └── remote.css            # Estilos para el control remoto
+│   ├── img/
+│   │   ├── logo.svg              # Logo de la marca (fuente de todos los demás íconos)
+│   │   ├── favicon-32.png        # Favicon de respaldo (navegadores sin favicon SVG)
+│   │   ├── apple-touch-icon.png  # Ícono al agregar a la pantalla de inicio en iOS
+│   │   └── icon-192.png / icon-512.png  # Íconos de la app (manifiesto), aptos para "maskable"
 │   ├── js/
 │   │   └── shared.js             # Utilidades compartidas (escapeHtml, parseSongFilename)
 │   ├── index.html                # Interfaz del host/reproductor
 │   ├── karaoke.js                # Lógica del reproductor principal
+│   ├── manifest.webmanifest      # Manifiesto de la app (nombre, íconos, colores)
 │   ├── remote.html               # Interfaz del control remoto
 │   ├── remote.js                 # Lógica del control remoto
 │   └── notification.mp3          # Sonido de notificación

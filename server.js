@@ -17,6 +17,7 @@ const rateLimit = require("express-rate-limit");
 const { generateRoomId } = require("./lib/roomId");
 const { getLanAddresses, formatAccessLines } = require("./lib/network");
 const { sanitizeDisplayName } = require("./lib/displayName");
+const { escapeHtml } = require("./public/js/shared");
 const {
   YOUTUBE_ID_RE,
   checkYtdlpAvailable,
@@ -184,10 +185,46 @@ function ensureAuthenticated(req, res, next) {
   res.redirect("/login");
 }
 
+// Página completa (con viewport, título e iconos) para las pantallas de acceso.
+// Antes eran un <div> suelto sin <head>, que en un celular se veía diminuto.
+// Viven aquí y no en public/ porque dependen de la configuración.
+function simplePage(title, contentHtml) {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#171124">
+<title>${escapeHtml(title)}</title>
+<link rel="icon" href="/img/logo.svg" type="image/svg+xml" sizes="any">
+<link rel="icon" href="/img/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #fff; background: linear-gradient(-45deg, #1f0c2e, #4e1f70, #142142, #0d0d1e); }
+  main { max-width: 360px; text-align: center; }
+  img { display: block; margin: 0 auto 1rem; filter: drop-shadow(0 8px 24px rgba(73, 214, 216, 0.25)); }
+  h1 { margin: 0.2rem 0 0.8rem; }
+  p { color: #ccc; line-height: 1.4; }
+  a.btn { display: inline-block; margin-top: 1rem; padding: 12px 22px; border-radius: 8px; background: #4285F4; color: #fff; font-weight: 600; text-decoration: none; }
+</style>
+</head>
+<body>
+<main>
+<img src="/img/logo.svg" alt="" width="96" height="96">
+${contentHtml}
+</main>
+</body>
+</html>`;
+}
+
 app.get("/login", (req, res) => {
   if (AUTH_DISABLED) return res.redirect("/remote.html");
   res.send(
-    `<div style="font-family: sans-serif; text-align: center; padding-top: 50px;"><h1>XaraokeURL</h1><p>Necesitas iniciar sesión para acceder al control remoto.</p><a href="/auth/google" style="background-color: #4285F4; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Iniciar sesión con Google</a></div>`
+    simplePage(
+      "XaraokeURL",
+      `<h1>XaraokeURL</h1><p>Necesitas iniciar sesión para acceder al control remoto.</p><a class="btn" href="/auth/google">Iniciar sesión con Google</a>`
+    )
   );
 });
 
@@ -202,7 +239,10 @@ app.get("/login-failed", (req, res) => {
   res
     .status(403)
     .send(
-      `<h1>Acceso denegado</h1><p>Debes usar una cuenta del dominio ${ALLOWED_DOMAIN} para acceder.</p>`
+      simplePage(
+        "Acceso denegado",
+        `<h1>Acceso denegado</h1><p>Debes usar una cuenta del dominio ${escapeHtml(ALLOWED_DOMAIN)} para acceder.</p><a class="btn" href="/login">Volver a intentar</a>`
+      )
     );
 });
 
@@ -622,7 +662,10 @@ app.get("/api/qr", (req, res) => {
   });
 });
 
-app.get("/favicon.ico", (req, res) => res.status(204).send());
+// Algunos clientes piden /favicon.ico sin leer los <link>: se les sirve el PNG.
+app.get("/favicon.ico", (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "img", "favicon-32.png"))
+);
 app.use("/remote.html", ensureAuthenticated);
 app.use(express.static(path.join(__dirname, "public")));
 // Sin auth a propósito: el host (pantalla principal) reproduce estos

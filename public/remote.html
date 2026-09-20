@@ -4,12 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>XaraokeURL Remote</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22 font-size=%2290%22><text y=%22.9em%22>🎤</text></svg>">
+    <meta name="theme-color" content="#171124">
+    <link rel="icon" href="img/logo.svg" type="image/svg+xml" sizes="any">
+    <link rel="icon" href="img/favicon-32.png" type="image/png" sizes="32x32">
+    <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="css/remote.css">
 </head>
 <body>
     <div id="room-modal">
         <div id="room-modal-content">
+            <img class="brand-logo" src="img/logo.svg" alt="" width="88" height="88">
             <h1>Unirse a una Sala</h1>
             <p>Introduce el código de 4 letras de la sala.</p>
             <form id="room-form">
@@ -25,7 +30,7 @@
     </div>
 
     <div id="main-content" class="container hidden">
-        <h1>🎤 Control Remoto 🎶</h1>
+        <h1 class="app-header"><img src="img/logo.svg" alt="" width="40" height="40"> Control Remoto</h1>
         <div id="remote-room-code">SALA: ----</div>
         <div id="host-status-banner" class="hidden">⚠️ El host se desconectó. La reproducción está pausada hasta que vuelva a conectarse.</div>
         <div id="turn-notification-banner" class="hidden" role="alert">🎤 ¡Prepárate! Tu canción está por empezar...</div>

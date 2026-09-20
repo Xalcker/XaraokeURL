@@ -4,7 +4,9 @@ const {
   YOUTUBE_ID_RE,
   VIDEO_FORMAT,
   buildSearchQuery,
+  normalizeSearchSuffix,
   parseSearchOutput,
+  parseVideoInfoOutput,
 } = require("../lib/ytdlp");
 
 test("buildSearchQuery agrega el sufijo karaoke por defecto", () => {
@@ -70,4 +72,35 @@ test("VIDEO_FORMAT limita la resolución a 720p en las opciones de video separad
   const separateVideo = VIDEO_FORMAT.split("/").filter((o) => o.startsWith("bestvideo"));
   assert.equal(separateVideo.length, 2);
   separateVideo.forEach((o) => assert.match(o, /height<=720/));
+});
+
+test("parseVideoInfoOutput lee duración, título y canal de tres líneas JSON", () => {
+  const stdout = '354\n"Queen - Bohemian Rhapsody (Karaoke Version)"\n"Sing King"\n';
+  assert.deepEqual(parseVideoInfoOutput(stdout), {
+    duration: 354,
+    title: "Queen - Bohemian Rhapsody (Karaoke Version)",
+    channel: "Sing King",
+  });
+});
+
+test("parseVideoInfoOutput conserva acentos y comillas tipográficas del título", () => {
+  const stdout = '19\n"“Me at the Zoo” — canción más vista"\n"Canal Ñandú"\r\n';
+  const info = parseVideoInfoOutput(stdout);
+  assert.equal(info.title, "“Me at the Zoo” — canción más vista");
+  assert.equal(info.channel, "Canal Ñandú");
+});
+
+test("parseVideoInfoOutput devuelve null en los datos que faltan o no son válidos", () => {
+  assert.deepEqual(parseVideoInfoOutput("null\nnull\nnull\n"), { duration: null, title: null, channel: null });
+  assert.deepEqual(parseVideoInfoOutput('"no es número"\n"   "\n7'), { duration: null, title: null, channel: null });
+  assert.deepEqual(parseVideoInfoOutput(""), { duration: null, title: null, channel: null });
+});
+
+test("normalizeSearchSuffix acepta solo los sufijos conocidos", () => {
+  for (const suffix of ["karaoke", "instrumental", "pista", "none"]) {
+    assert.equal(normalizeSearchSuffix(suffix), suffix);
+  }
+  for (const suffix of ["otro", "", undefined, null, 5, "__proto__", "toString"]) {
+    assert.equal(normalizeSearchSuffix(suffix), null);
+  }
 });

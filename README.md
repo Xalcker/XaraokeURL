@@ -18,7 +18,7 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Buscador de Canciones:** Además del explorador alfabético, un buscador de texto (insensible a acentos) filtra por artista o título.
 * **Aviso de Host Desconectado:** Si la pantalla principal se desconecta, todos los remotos muestran un aviso en vez de seguir agregando canciones a una cola que nadie va a reproducir.
 * **Notificaciones Confiables:** El control remoto vibra, suena y muestra un aviso visual pulsante para avisar cuando la canción está a punto de empezar (10 segundos antes), incluso en navegadores que bloquean el autoplay de audio.
-* **Búsqueda y Descarga desde YouTube:** Si una canción no está en la biblioteca, se puede buscar en YouTube (con sufijos como "karaoke", "instrumental" o "pista"), elegir entre varios resultados y agregarla a la cola de forma efímera.
+* **Búsqueda y Descarga desde YouTube:** Si una canción no está en la biblioteca, se puede buscar en YouTube (con sufijos como "karaoke", "instrumental" o "pista"), elegir entre varios resultados y agregarla a la cola. Las descargas se registran en su propia base de datos, son buscables y se reutilizan (no se descargan dos veces), y se borran solas pasado el tiempo que configures.
 
 ---
 ## 🛠️ Stack Tecnológico
@@ -158,7 +158,9 @@ Detalles a tener en cuenta:
 
 * **Funciona sin biblioteca.** Si no existe `karaoke.db` (no ejecutaste `npm run import`), el servidor arranca igual y deja un aviso en los logs: el catálogo local aparece vacío (con el selector de sufijo ya visible) y la única forma de agregar canciones es escribir el nombre y pulsar Enter para buscarlas en YouTube. Al ejecutar `npm run import` y reiniciar el servidor, la biblioteca local queda disponible junto con la búsqueda en YouTube.
 * **Cómo se ve en la cola.** Las canciones de YouTube se muestran con el título del video (y "YouTube" como artista), tanto en la pantalla principal como en el control remoto, en lugar del nombre interno del archivo.
-* **Es efímero, no permanente.** El video descargado no se guarda en `karaoke.db`; vive en `DOWNLOADS_PATH` (`./downloads` en desarrollo, `/data/downloads` en producción) y se borra automáticamente 6 horas después de descargado.
+* **Las descargas se registran en su propia base de datos.** `karaoke.db` nunca se modifica: cada video descargado queda en `downloads.db` (`DOWNLOADS_DB_PATH`; `./downloads.db` en desarrollo, `/data/downloads.db` en producción, se crea sola) con su uuid, el ID y el link del video, el título original, el canal, la duración, la búsqueda original y el sufijo, quién lo pidió, el tamaño, la fecha y hora de descarga, el último uso y cuántas veces se agregó a una cola. El archivo vive en `DOWNLOADS_PATH` (`./downloads` en desarrollo, `/data/downloads` en producción).
+* **Son buscables y no se descargan dos veces.** La búsqueda local incluye los videos ya descargados (por título, canal y por la búsqueda con la que se encontraron), y se agregan a la cola directo. Si alguien elige un video que ya está descargado, se reutiliza el archivo; y si dos personas piden el mismo a la vez, se descarga una sola vez. Como el registro está en disco, todo esto sobrevive a reiniciar el servidor.
+* **Cuánto viven las descargas: `DOWNLOAD_TTL_HOURS`.** Es el número de horas que una descarga puede pasar sin usarse antes de borrarse (archivo y registro); por defecto 6. Cada vez que se agrega a una cola, la cuenta empieza de nuevo, y **nunca se borra lo que está en la cola de una sala**. Con `0` (o `never`) no se borra nunca; acepta decimales (`0.5` = 30 minutos). Un valor inválido se avisa en los logs y se usa el valor por defecto. Cuando el borrado está activo, también se limpian los archivos huérfanos (con nombre de uuid, sin registro y de más de una hora), como los restos de una descarga fallida.
 * **Límites anti-abuso:** máximo 20 búsquedas/min y 5 descargas/min por IP, como mucho 3 descargas corriendo a la vez, y se rechazan videos de más de 10 minutos.
 * **Requiere `yt-dlp` y `ffmpeg`** instalados en el servidor (ver Pre-requisitos). Sin ellos, la búsqueda/descarga devuelve error pero el resto de la app sigue funcionando normal.
 * **Consideración legal:** descargar contenido de YouTube puede estar en conflicto con sus Términos de Servicio. Esta función se ofrece para uso personal/privado (la misma sala cerrada por autenticación que ya protege al resto de la app); usarla es criterio y responsabilidad de quien despliega el servidor.
@@ -172,7 +174,7 @@ Detalles a tener en cuenta:
 * **El WebSocket valida el header `Origin`** en el handshake, rechazando conexiones cross-site que intenten aprovechar la cookie de sesión del navegador.
 * **Headers de seguridad HTTP** vía `helmet` (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.).
 * **Rate limiting** en los endpoints más sensibles: creación de salas (10/min), búsqueda en YouTube (20/min) y descarga de YouTube (5/min, máximo 3 descargas simultáneas).
-* **Salas y descargas se limpian solas:** una sala sin conexiones se borra a los 10 minutos, y las descargas de YouTube a las 6 horas — nada queda creciendo en memoria o disco indefinidamente.
+* **Salas y descargas se limpian solas:** una sala sin conexiones se borra a los 10 minutos, y las descargas de YouTube tras `DOWNLOAD_TTL_HOURS` horas sin usarse (6 por defecto) — nada queda creciendo en memoria o disco indefinidamente, salvo que se desactive el borrado a propósito con `DOWNLOAD_TTL_HOURS=0`.
 * **Contenido generado por usuarios escapado antes de insertarse en el DOM** (nombres de perfil, títulos de canciones) para evitar XSS.
 * **La cola solo acepta canciones válidas:** un `filename` en `addSong` se valida contra la base de datos o el registro de descargas de YouTube antes de encolarse; nunca se confía en lo que mande el cliente a ciegas.
 * **La descarga de YouTube nunca interpola datos del usuario en un shell:** se invoca `yt-dlp` vía `execFile` con argumentos separados, el ID de video se valida con una expresión regular estricta antes de usarse, y los archivos se guardan con un nombre generado por el servidor (UUID), nunca con datos provistos por el cliente.
@@ -193,6 +195,8 @@ XaraokeURL/
 │   ├── remote.js                 # Lógica del control remoto
 │   └── notification.mp3          # Sonido de notificación
 ├── lib/
+│   ├── downloadPolicy.js         # Vida útil de las descargas (DOWNLOAD_TTL_HOURS) y limpieza de la búsqueda original
+│   ├── downloadsStore.js         # Registro de las descargas de YouTube en downloads.db
 │   ├── network.js                # Detección de las IPs de la red local (testeable)
 │   ├── roomId.js                 # Generación de códigos de sala (testeable)
 │   └── ytdlp.js                  # Wrapper seguro sobre el binario yt-dlp
@@ -206,7 +210,8 @@ XaraokeURL/
 ├── .env                          # Variables de entorno (no incluido en git)
 ├── songs.csv                     # Catálogo de canciones (no incluido en git)
 ├── karaoke.db                    # Base de datos SQLite (generada automáticamente)
-└── downloads/                    # Descargas efímeras de YouTube (no incluido en git)
+├── downloads.db                  # Registro de las descargas de YouTube (generada automáticamente)
+└── downloads/                    # Videos descargados de YouTube (no incluido en git)
 ```
 
 ## 🚀 Despliegue en Producción
@@ -218,7 +223,7 @@ Para desplegar en producción:
 3. Configura las rutas de datos persistentes:
    - Base de datos: `/data/karaoke.db`
    - Sesiones: `/data/sessions`
-   - Descargas de YouTube: `/data/downloads`
+   - Descargas de YouTube: `/data/downloads` (archivos) y `/data/downloads.db` (registro; necesita permiso de escritura)
 4. Actualiza las URLs de callback de Google OAuth con tu dominio de producción
 5. Si vas a usar la búsqueda/descarga de YouTube, instala `yt-dlp` y `ffmpeg` en el host de producción (no se instalan solos con `npm install`)
 

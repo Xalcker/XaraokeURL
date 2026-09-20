@@ -25,6 +25,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let songData = {};
     let flatSongList = [];
+    // Videos de YouTube ya descargados en el servidor: también son buscables.
+    let downloadList = [];
     let ws;
     let myName = "";
     let upNextSongId = null;
@@ -144,7 +146,20 @@ document.addEventListener("DOMContentLoaded", () => {
     async function initializeMainApp(roomId) {
         remoteRoomCodeDisplay.textContent = `SALA: ${roomId}`;
         connectWebSocket(roomId);
+        await loadDownloads();
         await loadSongs();
+    }
+
+    // Si falla se conserva la última lista conocida: es un extra de la búsqueda,
+    // no debe impedir usar el resto.
+    async function loadDownloads() {
+        try {
+            const res = await fetch("/api/downloads");
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            downloadList = await res.json();
+        } catch (error) {
+            console.error("No se pudo cargar la lista de descargas:", error);
+        }
     }
 
     async function loadSongs() {
@@ -251,6 +266,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const emptyHint = document.createElement("p");
             emptyHint.textContent = "La biblioteca local está vacía. Escribe el nombre de una canción y pulsa Enter para buscarla en YouTube.";
             songBrowser.appendChild(emptyHint);
+            if (downloadList.length > 0) {
+                const downloadsHint = document.createElement("p");
+                downloadsHint.textContent = `Hay ${downloadList.length} video(s) ya descargado(s) de YouTube: aparecen al buscar, sin volver a descargarlos.`;
+                songBrowser.appendChild(downloadsHint);
+            }
             appendYoutubeSuffixSelect();
             return;
         }
@@ -290,21 +310,38 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    async function confirmAndQueue(filename, title) {
+        const confirmed = await showConfirm(`¿Añadir "${title}" a la cola?`);
+        if (confirmed) {
+            ws.send(JSON.stringify({ type: "addSong", payload: { song: filename } }));
+            songSearch.value = "";
+            renderAlphabet();
+        }
+    }
+
     function createSongItem(filename) {
         const { songTitle } = parseSongFilename(filename);
         const songEl = document.createElement("button");
         songEl.type = "button";
         songEl.className = "browser-item";
         songEl.textContent = `🎵 ${songTitle}`;
-        songEl.onclick = async () => {
-            const confirmed = await showConfirm(`¿Añadir "${songTitle}" a la cola?`);
-            if (confirmed) {
-                ws.send(JSON.stringify({ type: "addSong", payload: { song: filename } }));
-                songSearch.value = "";
-                renderAlphabet();
-            }
-        };
+        songEl.onclick = () => confirmAndQueue(filename, songTitle);
         return songEl;
+    }
+
+    // Video de YouTube que ya se descargó antes: se agrega directo, sin volver a bajarlo.
+    function createDownloadItem(download) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "browser-item";
+        const title = document.createElement("span");
+        title.textContent = `📥 ${download.title}`;
+        item.appendChild(title);
+        const meta = document.createElement("small");
+        meta.textContent = ["Ya descargado de YouTube", download.channel].filter(Boolean).join(" · ");
+        item.appendChild(meta);
+        item.onclick = () => confirmAndQueue(download.filename, download.title);
+        return item;
     }
 
     function addBackButton(onClickAction) {
@@ -320,26 +357,38 @@ document.addEventListener("DOMContentLoaded", () => {
         return str.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     }
 
+    // Coincidencias locales: canciones del catálogo y videos ya descargados de
+    // YouTube (estos últimos también por su canal y por la búsqueda original con
+    // la que se encontraron).
     function findLocalMatches(query) {
         const normalizedQuery = normalizeForSearch(query);
-        return flatSongList.filter((filename) => {
+        const songs = flatSongList.filter((filename) => {
             const { artist, songTitle } = parseSongFilename(filename);
             return (
                 normalizeForSearch(artist).includes(normalizedQuery) ||
                 normalizeForSearch(songTitle).includes(normalizedQuery)
             );
         });
+        const downloads = downloadList.filter((download) =>
+            [download.title, download.channel, download.query].some(
+                (text) => text && normalizeForSearch(text).includes(normalizedQuery)
+            )
+        );
+        return { songs, downloads };
     }
 
     function renderSearchResults(query) {
         songBrowser.innerHTML = "";
-        const matches = findLocalMatches(query);
-        if (matches.length === 0) {
+        const { songs, downloads } = findLocalMatches(query);
+        if (songs.length === 0 && downloads.length === 0) {
             renderYoutubeSearchPrompt(query);
             return;
         }
-        matches.slice(0, 50).forEach((filename) => {
+        songs.slice(0, 50).forEach((filename) => {
             songBrowser.appendChild(createSongItem(filename));
+        });
+        downloads.slice(0, 20).forEach((download) => {
+            songBrowser.appendChild(createDownloadItem(download));
         });
     }
 
@@ -374,7 +423,7 @@ document.addEventListener("DOMContentLoaded", () => {
         songBrowser.innerHTML = "";
 
         const emptyMsg = document.createElement("p");
-        emptyMsg.textContent = flatSongList.length === 0
+        emptyMsg.textContent = flatSongList.length === 0 && downloadList.length === 0
             ? "Pulsa Enter para buscar en YouTube."
             : "No se encontraron canciones en la biblioteca. Pulsa Enter para buscarla en YouTube.";
         songBrowser.appendChild(emptyMsg);
@@ -480,11 +529,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const res = await fetch("/api/youtube/download", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ videoId: video.id, title: video.title }),
+                // El servidor guarda la búsqueda original junto a la descarga (el
+                // título y el canal los consulta él mismo a YouTube).
+                body: JSON.stringify({ videoId: video.id, query: lastYtQuery, suffix: lastYtSuffix }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "No se pudo descargar el video.");
             ws.send(JSON.stringify({ type: "addSong", payload: { song: data.filename } }));
+            loadDownloads();
             songSearch.value = "";
             renderAlphabet();
         } catch (error) {
@@ -507,13 +559,21 @@ document.addEventListener("DOMContentLoaded", () => {
         renderSearchResults(query);
     });
 
+    // Otras personas pueden haber descargado videos desde que se abrió esta
+    // pantalla: al ir a buscar se refresca la lista (no bloquea; si llega tarde,
+    // el servidor igual reutiliza el archivo y no lo descarga otra vez).
+    songSearch.addEventListener("focus", loadDownloads);
+
     // Enter (o la tecla "Ir/Buscar" del teclado del celular) busca directo en
-    // YouTube cuando no hay coincidencias en la biblioteca local; con la
-    // biblioteca vacía eso ocurre siempre. Si hay coincidencias locales no hace nada.
+    // YouTube cuando no hay coincidencias locales (ni en el catálogo ni entre
+    // los videos ya descargados); con la biblioteca vacía eso ocurre siempre.
+    // Si hay coincidencias locales no hace nada.
     songSearchForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const query = songSearch.value.trim();
-        if (query && findLocalMatches(query).length === 0) {
+        if (!query) return;
+        const { songs, downloads } = findLocalMatches(query);
+        if (songs.length === 0 && downloads.length === 0) {
             searchYoutubeUI(query, selectedYtSuffix);
         }
     });

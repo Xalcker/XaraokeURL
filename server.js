@@ -19,10 +19,17 @@ const { getLanAddresses, formatAccessLines } = require("./lib/network");
 const {
   YOUTUBE_ID_RE,
   checkYtdlpAvailable,
+  normalizeSearchSuffix,
   searchYoutube,
-  getVideoDurationSeconds,
+  getVideoInfo,
   downloadYoutubeVideo,
 } = require("./lib/ytdlp");
+const { openDownloadsStore } = require("./lib/downloadsStore");
+const {
+  parseDownloadTtl,
+  sweepIntervalMs,
+  sanitizeSearchQuery,
+} = require("./lib/downloadPolicy");
 
 const app = express();
 
@@ -60,6 +67,16 @@ const DOWNLOADS_PATH =
   process.env.DOWNLOADS_PATH ||
   (process.env.NODE_ENV === "production" ? "/data/downloads" : "./downloads");
 fs.mkdirSync(DOWNLOADS_PATH, { recursive: true });
+// Segunda base de datos, propia de las descargas de YouTube (karaoke.db no se toca).
+const DOWNLOADS_DB_PATH =
+  process.env.DOWNLOADS_DB_PATH ||
+  (process.env.NODE_ENV === "production" ? "/data/downloads.db" : "./downloads.db");
+fs.mkdirSync(path.dirname(path.resolve(DOWNLOADS_DB_PATH)), { recursive: true });
+// Horas que vive una descarga sin usarse (DOWNLOAD_TTL_HOURS); null = no borrar nunca.
+const { ttlMs: DOWNLOAD_TTL_MS, warning: downloadTtlWarning } = parseDownloadTtl(
+  process.env.DOWNLOAD_TTL_HOURS
+);
+if (downloadTtlWarning) console.warn(`⚠️  ${downloadTtlWarning}`);
 
 checkYtdlpAvailable().then((available) => {
   if (!available) {
@@ -91,10 +108,15 @@ if (fs.existsSync(DB_PATH)) {
 }
 
 let rooms = {};
-// Registro efímero de videos descargados de YouTube: filename -> { url, title, addedAt }.
-// Nunca se escriben en karaoke.db (que se abre en modo solo-lectura); un
-// barrido periódico los borra del disco después de un tiempo (ver más abajo).
+// Videos descargados de YouTube que siguen en disco: filename -> entrada (con
+// url, título, canal, búsqueda original, fechas, etc.). Es una copia en memoria
+// de la base downloads.db (que es la que persiste entre reinicios), para
+// consultarla de forma síncrona. Nunca se escribe en karaoke.db.
 let downloadedVideos = {};
+let downloadsStore = null;
+// Descargas en curso por id de video, para que dos personas que piden el mismo
+// video a la vez no lo descarguen dos veces.
+const inflightDownloads = new Map();
 
 const sessionMiddleware = session({
   store: new FileStore({
@@ -270,69 +292,254 @@ app.get(
   }
 );
 
+// Error con el código HTTP con el que se debe responder al cliente.
+class DownloadError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function toDownloadEntry(row) {
+  return { ...row, url: `/downloads/${row.filename}` };
+}
+
+function findDownloadByVideoId(videoId) {
+  return Object.values(downloadedVideos).find((entry) => entry.videoId === videoId);
+}
+
+// Quién hace la petición, para dejarlo registrado junto a la descarga.
+function getRequestUserName(req) {
+  if (AUTH_DISABLED) return req.session?.devName || DEV_USER_NAME;
+  return req.user?.displayName || "Usuario";
+}
+
+// Borra el archivo, el registro en la base y la copia en memoria.
+async function removeDownload(filename) {
+  delete downloadedVideos[filename];
+  try {
+    fs.unlinkSync(path.join(DOWNLOADS_PATH, filename));
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      console.error(`No se pudo borrar la descarga ${filename}:`, err.message);
+    }
+  }
+  await downloadsStore.remove(filename);
+}
+
+// Si una descarga falla a medias, yt-dlp deja archivos temporales con el uuid
+// (por ejemplo <uuid>.f136.mp4 o <uuid>.mp4.part): se limpian todos.
+function removePartialFiles(uuid) {
+  for (const file of fs.readdirSync(DOWNLOADS_PATH)) {
+    if (!file.startsWith(uuid)) continue;
+    try {
+      fs.unlinkSync(path.join(DOWNLOADS_PATH, file));
+    } catch {
+      /* si no se puede borrar ahora, lo recoge el barrido de huérfanos */
+    }
+  }
+}
+
+async function downloadNewVideo({ videoId, searchQuery, searchSuffix, requestedBy }) {
+  // Metadatos autoritativos, pedidos a YouTube: la duración para aplicar el
+  // tope, y el título y el canal que se guardan (no se confía en el cliente).
+  const info = await getVideoInfo(videoId);
+  if (info.duration !== null && info.duration > MAX_YOUTUBE_DURATION_SECONDS) {
+    throw new DownloadError(400, "El video es demasiado largo (máximo 10 minutos).");
+  }
+
+  const uuid = crypto.randomUUID();
+  const filename = `${uuid}.mp4`;
+  const destPath = path.join(DOWNLOADS_PATH, filename);
+  try {
+    await downloadYoutubeVideo(videoId, destPath);
+    const row = {
+      uuid,
+      filename,
+      videoId,
+      videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+      title: Array.from(info.title || "Video de YouTube").slice(0, 200).join(""),
+      channel: info.channel,
+      durationSeconds: info.duration === null ? null : Math.round(info.duration),
+      searchQuery,
+      searchSuffix,
+      requestedBy,
+      fileSizeBytes: fs.statSync(destPath).size,
+      downloadedAt: new Date().toISOString(),
+    };
+    await downloadsStore.insert(row);
+    const entry = toDownloadEntry({ ...row, lastUsedAt: row.downloadedAt, useCount: 0 });
+    downloadedVideos[filename] = entry;
+    return entry;
+  } catch (err) {
+    removePartialFiles(uuid);
+    throw err;
+  }
+}
+
+// Devuelve la descarga de ese video, reutilizando el archivo si ya existe (o si
+// otra persona lo está descargando en este momento) para no bajarlo dos veces.
+async function ensureDownloaded(params) {
+  const { videoId } = params;
+
+  const existing = findDownloadByVideoId(videoId);
+  if (existing) {
+    if (fs.existsSync(path.join(DOWNLOADS_PATH, existing.filename))) {
+      return { entry: existing, reused: true };
+    }
+    await removeDownload(existing.filename); // el archivo desapareció: registro huérfano
+  }
+
+  const running = inflightDownloads.get(videoId);
+  if (running) return { entry: await running, reused: true };
+
+  if (activeDownloads >= MAX_CONCURRENT_DOWNLOADS) {
+    throw new DownloadError(429, "Ya hay demasiadas descargas en curso, intenta en un momento.");
+  }
+  activeDownloads++;
+  const promise = downloadNewVideo(params).finally(() => {
+    activeDownloads--;
+    inflightDownloads.delete(videoId);
+  });
+  inflightDownloads.set(videoId, promise);
+  return { entry: await promise, reused: false };
+}
+
 app.post(
   "/api/youtube/download",
   ensureAuthenticated,
   youtubeDownloadLimiter,
   async (req, res) => {
-    const { videoId, title } = req.body || {};
+    const { videoId, query, suffix } = req.body || {};
     if (typeof videoId !== "string" || !YOUTUBE_ID_RE.test(videoId)) {
       return res.status(400).json({ error: "ID de video inválido." });
     }
-    if (activeDownloads >= MAX_CONCURRENT_DOWNLOADS) {
-      return res
-        .status(429)
-        .json({ error: "Ya hay demasiadas descargas en curso, intenta en un momento." });
-    }
-
-    activeDownloads++;
     try {
-      // Chequeo autoritativo de duración: nunca confiar en la que haya
-      // devuelto la búsqueda (puede faltar o estar desactualizada).
-      const duration = await getVideoDurationSeconds(videoId);
-      if (duration !== null && duration > MAX_YOUTUBE_DURATION_SECONDS) {
-        return res
-          .status(400)
-          .json({ error: "El video es demasiado largo (máximo 10 minutos)." });
-      }
-
-      const filename = `${crypto.randomUUID()}.mp4`;
-      const destPath = path.join(DOWNLOADS_PATH, filename);
-      await downloadYoutubeVideo(videoId, destPath);
-
-      downloadedVideos[filename] = {
-        url: `/downloads/${filename}`,
-        title: typeof title === "string" && title ? title.slice(0, 200) : "Video de YouTube",
-        addedAt: Date.now(),
-      };
-      res.json({ filename, title: downloadedVideos[filename].title });
+      const { entry, reused } = await ensureDownloaded({
+        videoId,
+        searchQuery: sanitizeSearchQuery(query),
+        searchSuffix: normalizeSearchSuffix(suffix),
+        requestedBy: getRequestUserName(req),
+      });
+      res.json({ filename: entry.filename, title: entry.title, reused });
     } catch (err) {
+      if (err instanceof DownloadError) {
+        return res.status(err.status).json({ error: err.message });
+      }
       console.error("Error descargando de YouTube:", err.message);
       res.status(502).json({ error: "No se pudo descargar el video." });
-    } finally {
-      activeDownloads--;
     }
   }
 );
 
-// Borra las descargas de YouTube después de un tiempo: son efímeras por
-// diseño (nunca se agregan a karaoke.db) y si no se limpiaran el disco
-// crecería sin límite con cada canción que alguien busque y agregue.
-const DOWNLOAD_TTL_MS = 6 * 60 * 60 * 1000; // 6 horas
-setInterval(() => {
-  const now = Date.now();
-  for (const [filename, info] of Object.entries(downloadedVideos)) {
-    if (now - info.addedAt > DOWNLOAD_TTL_MS) {
-      delete downloadedVideos[filename];
-      fs.unlink(path.join(DOWNLOADS_PATH, filename), (err) => {
-        if (err && err.code !== "ENOENT") {
-          console.error(`No se pudo borrar la descarga ${filename}:`, err.message);
-        }
-      });
-      console.log(`Descarga ${filename} eliminada por antigüedad.`);
+// Lista de las descargas que siguen en disco. El control remoto la usa para
+// incluirlas en la búsqueda local (por título, canal o búsqueda original).
+app.get("/api/downloads", ensureAuthenticated, (req, res) => {
+  const list = Object.values(downloadedVideos)
+    .sort((a, b) => (a.downloadedAt < b.downloadedAt ? 1 : -1))
+    .map((entry) => ({
+      filename: entry.filename,
+      title: entry.title,
+      channel: entry.channel,
+      query: entry.searchQuery,
+      durationSeconds: entry.durationSeconds,
+      downloadedAt: entry.downloadedAt,
+    }));
+  res.json(list);
+});
+
+// Registra un uso (se agregó a una cola): suma al contador y renueva su vida útil.
+function touchDownload(filename) {
+  const entry = downloadedVideos[filename];
+  if (!entry) return;
+  const now = new Date().toISOString();
+  entry.lastUsedAt = now;
+  entry.useCount += 1;
+  downloadsStore.touch(filename, now).catch((err) => {
+    console.error(`No se pudo registrar el uso de ${filename}:`, err.message);
+  });
+}
+
+// Borra las descargas que llevan DOWNLOAD_TTL_HOURS sin usarse, salvo las que
+// están en la cola de alguna sala (se borraría el archivo mientras espera su
+// turno o suena). También limpia los archivos huérfanos: con nombre de uuid,
+// sin registro y más viejos que la vida útil (restos de descargas fallidas o de
+// versiones anteriores, que no guardaban registro y perdían el rastro al reiniciar).
+const UUID_PREFIX_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+// Archivos con nombre de uuid en DOWNLOADS_PATH que no tienen registro.
+function findOrphanFiles() {
+  const knownUuids = new Set(Object.values(downloadedVideos).map((entry) => entry.uuid));
+  return fs.readdirSync(DOWNLOADS_PATH).filter((file) => {
+    const match = UUID_PREFIX_RE.exec(file);
+    return match && !knownUuids.has(match[0].toLowerCase());
+  });
+}
+
+async function sweepDownloads() {
+  const cutoff = new Date(Date.now() - DOWNLOAD_TTL_MS).toISOString();
+  const queued = new Set(
+    Object.values(rooms).flatMap((room) => room.songQueue.map((item) => item.song))
+  );
+  for (const row of await downloadsStore.listUnusedSince(cutoff)) {
+    if (queued.has(row.filename)) continue;
+    await removeDownload(row.filename);
+    console.log(`Descarga "${row.title}" (${row.filename}) eliminada: ${row.lastUsedAt} fue su último uso.`);
+  }
+
+  const orphanMinAgeMs = Math.max(60 * 60 * 1000, DOWNLOAD_TTL_MS);
+  for (const file of findOrphanFiles()) {
+    const filePath = path.join(DOWNLOADS_PATH, file);
+    try {
+      if (Date.now() - fs.statSync(filePath).mtimeMs < orphanMinAgeMs) continue;
+      fs.unlinkSync(filePath);
+      console.log(`Archivo huérfano ${file} eliminado (sin registro).`);
+    } catch {
+      /* ya no existe o no se puede borrar: se reintenta en el próximo barrido */
     }
   }
-}, 30 * 60 * 1000).unref();
+}
+
+// Abre la base de descargas y recupera lo que quedó registrado antes del último
+// apagado: lo que sigue en disco vuelve a estar disponible, y se limpian los
+// registros cuyo archivo ya no existe.
+async function initDownloads() {
+  downloadsStore = await openDownloadsStore(DOWNLOADS_DB_PATH);
+  let restored = 0;
+  for (const row of await downloadsStore.list()) {
+    if (fs.existsSync(path.join(DOWNLOADS_PATH, row.filename))) {
+      downloadedVideos[row.filename] = toDownloadEntry(row);
+      restored++;
+    } else {
+      await downloadsStore.remove(row.filename);
+    }
+  }
+  console.log(
+    `Descargas de YouTube: ${restored} registrada(s) en ${DOWNLOADS_DB_PATH}. ` +
+      (DOWNLOAD_TTL_MS === null
+        ? "No se borran nunca (DOWNLOAD_TTL_HOURS lo desactiva)."
+        : `Se borran tras ${DOWNLOAD_TTL_MS / 3600000} h sin usarse.`)
+  );
+
+  if (DOWNLOAD_TTL_MS !== null) {
+    // Las descargas de versiones anteriores no tienen registro (esa versión lo
+    // perdía al reiniciar): se avisa antes de que el barrido las borre.
+    const orphans = findOrphanFiles();
+    if (orphans.length > 0) {
+      console.warn(
+        `⚠️  Hay ${orphans.length} archivo(s) sin registro en ${DOWNLOADS_PATH} (descargas de una versión anterior o fallidas). ` +
+          `Se borrarán cuando lleven más de ${Math.max(1, DOWNLOAD_TTL_MS / 3600000)} h sin modificarse. ` +
+          "Para conservarlos, usa DOWNLOAD_TTL_HOURS=0 (así no se borra nada)."
+      );
+    }
+    const runSweep = () =>
+      sweepDownloads().catch((err) =>
+        console.error("Error al limpiar las descargas:", err.message)
+      );
+    runSweep();
+    setInterval(runSweep, sweepIntervalMs(DOWNLOAD_TTL_MS)).unref();
+  }
+}
 
 // Sin este límite, cualquiera podía crear salas sin autenticarse y sin
 // límite alguno; combinado con la limpieza de abajo, una sala que nunca
@@ -525,6 +732,7 @@ wss.on("connection", (ws, req) => {
           if (downloadedVideos[filename]) {
             // El título de YouTube lo pone el servidor (nunca el cliente) para
             // mostrar algo legible en la cola en lugar del UUID del archivo.
+            touchDownload(filename);
             enqueueSong(ws.roomId, data.payload, downloadedVideos[filename].title);
             return;
           }
@@ -596,13 +804,26 @@ wss.on("connection", (ws, req) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
-  // En producción se accede por dominio/proxy, así que las IPs de la red
-  // local solo se muestran en desarrollo.
-  if (process.env.NODE_ENV !== "production") {
-    formatAccessLines(PORT, getLanAddresses()).forEach((line) =>
-      console.log(line)
+// El servidor empieza a atender cuando la base de descargas ya está abierta y
+// su registro restaurado. Si no se puede abrir (por ejemplo, sin permisos de
+// escritura), el error es fatal, igual que con karaoke.db, para no ocultarlo.
+initDownloads()
+  .then(() => {
+    server.listen(PORT, () => {
+      console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
+      // En producción se accede por dominio/proxy, así que las IPs de la red
+      // local solo se muestran en desarrollo.
+      if (process.env.NODE_ENV !== "production") {
+        formatAccessLines(PORT, getLanAddresses()).forEach((line) =>
+          console.log(line)
+        );
+      }
+    });
+  })
+  .catch((err) => {
+    console.error(
+      `Error al abrir la base de datos de descargas (${DOWNLOADS_DB_PATH}):`,
+      err.message
     );
-  }
-});
+    process.exit(1);
+  });

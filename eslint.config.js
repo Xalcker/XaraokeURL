@@ -29,6 +29,8 @@ module.exports = [
         escapeHtml: "readonly",
         parseSongFilename: "readonly",
         getSongDisplay: "readonly",
+        // Definida por public/js/icons.js.
+        iconSvg: "readonly",
       },
     },
   },

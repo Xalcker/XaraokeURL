@@ -1,0 +1,25 @@
+/* Tokens de diseño: única fuente de los colores de la marca. Los usan la pantalla
+   principal (host.css), el control remoto (remote.css) y las páginas de acceso
+   que genera el servidor. No escribas el color del acento a mano en otro sitio:
+   usa var(--accent). */
+:root {
+    /* Marca (tomados del logo) */
+    --accent: #49d6d8;
+    --accent-hover: #6fe3e5;
+    --accent-rgb: 73, 214, 216;      /* para rgba(var(--accent-rgb), .2) */
+    --brand-dark: #171124;
+    /* Texto sobre un fondo de acento. El turquesa es un color claro: con texto
+       blanco el contraste es 1,8:1; con --on-accent es 10,4:1 (AA pide 4,5:1). */
+    --on-accent: var(--brand-dark);
+
+    /* Estados */
+    --danger: #f44336;
+    --danger-strong: #e53935;
+    --danger-banner: #c0392b;
+
+    /* Texto secundario */
+    --text-muted: #b3b3b3;
+
+    /* Fondo de las pantallas (degradado animado) */
+    --bg-gradient: linear-gradient(-45deg, #1f0c2e, #4e1f70, #142142, #0d0d1e);
+}

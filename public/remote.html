@@ -9,6 +9,8 @@
     <link rel="icon" href="img/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
     <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/icons.css">
     <link rel="stylesheet" href="css/remote.css">
 </head>
 <body>
@@ -32,8 +34,8 @@
     <div id="main-content" class="container hidden">
         <h1 class="app-header"><img src="img/logo.svg" alt="" width="40" height="40"> Control Remoto</h1>
         <div id="remote-room-code">SALA: ----</div>
-        <div id="host-status-banner" class="hidden">⚠️ El host se desconectó. La reproducción está pausada hasta que vuelva a conectarse.</div>
-        <div id="turn-notification-banner" class="hidden" role="alert">🎤 ¡Prepárate! Tu canción está por empezar...</div>
+        <div id="host-status-banner" class="hidden"><span data-icon="warning"></span>El host se desconectó. La reproducción está pausada hasta que vuelva a conectarse.</div>
+        <div id="turn-notification-banner" class="hidden" role="alert"><span data-icon="mic"></span>¡Prepárate! Tu canción está por empezar...</div>
         <div id="now-playing-info">
             <div id="current-song-title">Cargando...</div>
             <div id="current-song-time"></div>
@@ -53,7 +55,10 @@
             <a id="logout-link" href="/logout">Salir</a>
         </div>
         <form id="song-search-form" role="search">
-            <input type="search" id="songSearch" placeholder="🔍 Buscar canción o artista..." autocomplete="off" enterkeyhint="search">
+            <div class="search-field">
+                <span data-icon="search"></span>
+                <input type="search" id="songSearch" placeholder="Buscar canción o artista..." aria-label="Buscar canción o artista" autocomplete="off" enterkeyhint="search">
+            </div>
         </form>
         <div id="songBrowser"></div>
         <div id="queue-container">
@@ -78,6 +83,7 @@
         </div>
     </div>
 
+    <script src="js/icons.js"></script>
     <script src="js/shared.js"></script>
     <script src="remote.js"></script>
 </body>

@@ -28,6 +28,7 @@ const {
   downloadYoutubeVideo,
 } = require("./lib/ytdlp");
 const { openDownloadsStore } = require("./lib/downloadsStore");
+const { hardenSessionStore } = require("./lib/sessionStore");
 const {
   parseDownloadTtl,
   sweepIntervalMs,
@@ -130,12 +131,27 @@ let downloadsStore = null;
 // video a la vez no lo descarguen dos veces.
 const inflightDownloads = new Map();
 
+// Renovar una sesión puede fallar en Windows si otro programa (antivirus, sincronizador de la
+// nube) tiene abierto su archivo justo entonces. No afecta a nadie: se reintenta en la siguiente
+// petición. Se avisa como mucho una vez cada 10 minutos, por si es algo persistente.
+let lastSessionWarning = 0;
+function warnSessionTouchFailed(err) {
+  if (Date.now() - lastSessionWarning < 10 * 60 * 1000) return;
+  lastSessionWarning = Date.now();
+  console.warn(
+    `⚠️  No se pudo renovar una sesión (${err.code || err.message}). Suele ser un antivirus o un sincronizador usando la carpeta ${SESSIONS_PATH}; se reintenta solo.`
+  );
+}
+
 const sessionMiddleware = session({
-  store: new FileStore({
-    path: SESSIONS_PATH,
-    ttl: 86400,
-    logFn: function () {},
-  }),
+  store: hardenSessionStore(
+    new FileStore({
+      path: SESSIONS_PATH,
+      ttl: 86400,
+      logFn: function () {},
+    }),
+    { onTouchError: warnSessionTouchFailed }
+  ),
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,

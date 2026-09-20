@@ -18,6 +18,7 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Buscador de Canciones:** Además del explorador alfabético, un buscador de texto (insensible a acentos) filtra por artista o título.
 * **Aviso de Host Desconectado:** Si la pantalla principal se desconecta, todos los remotos muestran un aviso en vez de seguir agregando canciones a una cola que nadie va a reproducir.
 * **Notificaciones Confiables:** El control remoto vibra, suena y muestra un aviso visual pulsante para avisar cuando la canción está a punto de empezar (10 segundos antes), incluso en navegadores que bloquean el autoplay de audio.
+* **Multi-idioma (español e inglés):** la interfaz y los mensajes del servidor se muestran en el idioma del navegador de cada persona, con español como predeterminado (ver "Idiomas" más abajo).
 * **Búsqueda y Descarga desde YouTube:** Si una canción no está en la biblioteca, se puede buscar en YouTube (con sufijos como "karaoke", "instrumental" o "pista"), elegir entre varios resultados y agregarla a la cola. Las descargas se registran en su propia base de datos, son buscables y se reutilizan (no se descargan dos veces), y se borran solas pasado el tiempo que configures.
 
 ---
@@ -126,7 +127,7 @@ Si solo quieres probar la app en tu máquina y no quieres meterte a configurar c
 
 ```bash
 DISABLE_GOOGLE_AUTH=true
-DEV_USER_NAME=Tu Nombre   # opcional, es el nombre que se sugiere por defecto
+DEV_USER_NAME=Tu Nombre   # opcional, es el nombre que se sugiere por defecto (si no lo fijas: "Usuario Local" o "Local User", según el idioma del navegador)
 ```
 
 Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control remoto (`/remote.html`) queda accesible directamente. Esta variable **se ignora si `NODE_ENV=production`**, así que no hay riesgo de dejarla prendida por error en un deploy real.
@@ -152,7 +153,7 @@ Si el host se desconecta (por ejemplo, alguien cierra la pestaña de la pantalla
 
 Si buscas una canción y no aparece en la biblioteca, el control remoto ofrece buscarla en YouTube:
 
-1. Al no haber resultados en la búsqueda local, aparece la opción de buscar en YouTube con un sufijo (Karaoke, Instrumental, Pista o sin sufijo). Basta con pulsar **Enter** (o la tecla "Ir/Buscar" del teclado del celular) para buscar directamente con el sufijo elegido, "Karaoke" por defecto. Si hay coincidencias en la biblioteca local, Enter no hace nada.
+1. Al no haber resultados en la búsqueda local, aparece la opción de buscar en YouTube con un sufijo (Karaoke, Instrumental, Pista o sin sufijo; en inglés, "Backing track" en lugar de "Pista"). Basta con pulsar **Enter** (o la tecla "Ir/Buscar" del teclado del celular) para buscar directamente con el sufijo elegido, "Karaoke" por defecto. Si hay coincidencias en la biblioteca local, Enter no hace nada.
 2. Se muestran hasta 4 resultados (miniatura, título, canal y duración) para elegir manualmente — nunca se reproduce el primer resultado a ciegas.
 3. Al elegir uno, se descarga (video + audio, hasta 720p) y se agrega a la cola de esa sesión. Se prefiere el códec H.264, que casi cualquier dispositivo reproduce con aceleración por hardware (TVs, Safari/iOS, navegadores sin soporte de AV1); si el video no lo ofrece, se usa AV1 u otro MP4 disponible.
 
@@ -198,6 +199,7 @@ XaraokeURL/
 │   │   └── icon-192.png / icon-512.png  # Íconos de la app (manifiesto), aptos para "maskable"
 │   ├── js/
 │   │   ├── icons.js              # Íconos SVG (iconSvg / data-icon); la interfaz no usa emojis
+│   │   ├── i18n.js               # Textos en español e inglés y detección del idioma (navegador y servidor)
 │   │   └── shared.js             # Utilidades compartidas (escapeHtml, parseSongFilename)
 │   ├── index.html                # Interfaz del host/reproductor
 │   ├── karaoke.js                # Lógica del reproductor principal
@@ -225,6 +227,12 @@ XaraokeURL/
 ├── downloads.db                  # Registro de las descargas de YouTube (generada automáticamente)
 └── downloads/                    # Videos descargados de YouTube (no incluido en git)
 ```
+
+### Idiomas
+
+La interfaz está en **español** (predeterminado) e **inglés**, y cada persona ve el idioma de su navegador (`navigator.languages`); si no coincide con ninguno de los dos, se usa español. El host y cada control remoto pueden estar en idiomas distintos. Los mensajes de error de la API y las pantallas de acceso los traduce el servidor con el header `Accept-Language` del navegador. Los registros de la consola del servidor siguen en español.
+
+Todos los textos viven en `public/js/i18n.js`. En el HTML se marcan con `data-i18n="clave"` (o `data-i18n-placeholder`, `-aria-label`, `-title`, `-alt`, `-html`), dejando dentro el texto en español como respaldo; en JavaScript se usa `t("clave", { parametro })`, y en el servidor `tr(req, "clave")`. Para **agregar un idioma** basta con una entrada más en `MESSAGES` (con las mismas claves que `es`) y su código en `SUPPORTED`. `test/i18n.test.js` comprueba que no falte ninguna clave, que los `{parámetros}` coincidan, que el código no pida claves inexistentes y que nadie escriba textos a mano en los scripts.
 
 ### Convenciones de interfaz
 

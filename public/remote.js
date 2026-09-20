@@ -40,6 +40,18 @@ document.addEventListener("DOMContentLoaded", () => {
     let lastYtSuffix = "karaoke";
     let lastYtResults = [];
 
+    const songDisplay = (item) => getSongDisplay(item, t("song.unknownArtist"));
+
+    // Error de una respuesta de la API: su `error` ya viene en el idioma de la
+    // persona (el servidor lo elige con Accept-Language). Si la petición ni llegó
+    // (sin red) o la respuesta no tiene mensaje, quien lo muestre usa un texto
+    // propio en lugar del "Failed to fetch" del navegador.
+    function failedRequest(data) {
+        const err = new Error(data && data.error ? data.error : "request failed");
+        err.fromServer = !!(data && data.error);
+        return err;
+    }
+
     // El audio de notificación se crea una sola vez y se "desbloquea" en la
     // primera interacción real del usuario (tap/click). Los navegadores
     // (sobre todo mobile) bloquean silenciosamente el play() automático que
@@ -85,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 myName = userData.name || "";
             } else {
                 myName = userData.name;
-                userNameDisplay.textContent = `Usuario: ${myName}`;
+                userNameDisplay.textContent = t("remote.user", { name: myName });
             }
         } catch {
             window.location.href = '/login';
@@ -97,17 +109,17 @@ document.addEventListener("DOMContentLoaded", () => {
         if (joinRoomBtn.disabled) return;
         const roomCode = roomCodeInput.value.trim().toUpperCase();
         if (roomCode.length !== 4) {
-            roomError.textContent = "El código debe tener 4 letras.";
+            roomError.textContent = t("remote.join.codeLength");
             return;
         }
         if (devMode && !devNameInput.value.trim()) {
-            roomError.textContent = "Escribe tu nombre.";
+            roomError.textContent = t("remote.join.nameRequired");
             return;
         }
 
         roomError.textContent = "";
         joinRoomBtn.disabled = true;
-        joinRoomBtn.textContent = "Verificando...";
+        joinRoomBtn.textContent = t("remote.join.verifying");
         try {
             if (devMode) {
                 const nameRes = await fetch('/api/dev-name', {
@@ -117,12 +129,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
                 const nameData = await nameRes.json();
                 if (!nameRes.ok) {
-                    roomError.textContent = nameData.error || "No se pudo guardar el nombre.";
+                    roomError.textContent = nameData.error || t("remote.join.nameSaveFailed");
                     return;
                 }
                 myName = nameData.name;
                 devNameInput.value = myName;
-                userNameDisplay.textContent = `Usuario: ${myName}`;
+                userNameDisplay.textContent = t("remote.user", { name: myName });
             }
             const response = await fetch(`/api/rooms/${roomCode}`);
             const data = await response.json();
@@ -131,13 +143,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 mainContent.classList.remove('hidden');
                 initializeMainApp(roomCode);
             } else {
-                roomError.textContent = `La sala "${roomCode}" no existe.`;
+                roomError.textContent = t("remote.join.roomMissing", { code: roomCode });
             }
         } catch {
-            roomError.textContent = "Error al verificar la sala.";
+            roomError.textContent = t("remote.join.verifyFailed");
         } finally {
             joinRoomBtn.disabled = false;
-            joinRoomBtn.textContent = "Unirse";
+            joinRoomBtn.textContent = t("remote.join.button");
         }
     });
 
@@ -154,7 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (message.type === "queueUpdate") {
                 renderQueue(message.payload);
                 if (message.payload.length === 0) {
-                    currentSongTitle.textContent = "La cola está vacía";
+                    currentSongTitle.textContent = t("remote.queue.empty");
                     currentSongTime.textContent = "";
                 }
             }
@@ -175,7 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function initializeMainApp(roomId) {
-        remoteRoomCodeDisplay.textContent = `SALA: ${roomId}`;
+        remoteRoomCodeDisplay.textContent = t("remote.room", { code: roomId });
         connectWebSocket(roomId);
         await loadDownloads();
         await loadSongs();
@@ -217,11 +229,11 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("Error cargando la lista de canciones:", error);
             songBrowser.innerHTML = "";
             const errorMsg = document.createElement("p");
-            errorMsg.textContent = "No se pudieron cargar las canciones.";
+            errorMsg.textContent = t("library.loadFailed");
             const retryBtn = document.createElement("button");
             retryBtn.type = "button";
             retryBtn.className = "back-btn";
-            setLabel(retryBtn, "refresh", "Reintentar");
+            setLabel(retryBtn, "refresh", t("remote.retry"));
             retryBtn.onclick = loadSongs;
             songBrowser.appendChild(errorMsg);
             songBrowser.appendChild(retryBtn);
@@ -237,14 +249,14 @@ document.addEventListener("DOMContentLoaded", () => {
         currentQueue = queue;
         songQueueContainer.innerHTML = "";
         queue.slice(1).forEach((item) => {
-            const { songTitle } = getSongDisplay(item);
+            const { songTitle } = songDisplay(item);
             const isMine = myName !== "" && item.name === myName;
             const div = document.createElement("div");
             div.className = isMine ? "queue-item mine" : "queue-item";
-            div.innerHTML = `<span><b>${escapeHtml(songTitle)}</b> (${escapeHtml(isMine ? "tú" : item.name)})</span>`;
+            div.innerHTML = `<span><b>${escapeHtml(songTitle)}</b> (${escapeHtml(isMine ? t("remote.queue.you") : item.name)})</span>`;
             if (isMine) {
                 const removeBtn = document.createElement("button");
-                removeBtn.textContent = "Quitar";
+                removeBtn.textContent = t("remote.queue.remove");
                 removeBtn.className = "remove-btn";
                 removeBtn.onclick = () => {
                     ws.send(JSON.stringify({ type: "removeSong", payload: { id: item.id } }));
@@ -262,14 +274,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updateNowPlaying(data) {
         if (!data || !data.song) {
-            currentSongTitle.textContent = "La cola está vacía";
+            currentSongTitle.textContent = t("remote.queue.empty");
             currentSongTime.textContent = "";
             return;
         }
         const remainingTime = data.duration - data.currentTime;
-        const { artist, songTitle } = getSongDisplay(data);
-        setLabel(currentSongTitle, "music", `Ahora suena: ${artist} - ${songTitle}`);
-        currentSongTime.textContent = `${formatTime(data.currentTime)} / ${formatTime(data.duration)} (Faltan ${formatTime(remainingTime)})`;
+        const { artist, songTitle } = songDisplay(data);
+        setLabel(currentSongTitle, "music", t("remote.nowPlaying", { artist, title: songTitle }));
+        currentSongTime.textContent = t("remote.timeLeft", {
+            elapsed: formatTime(data.currentTime),
+            total: formatTime(data.duration),
+            remaining: formatTime(remainingTime),
+        });
     }
 
     function notifyUser() {
@@ -315,11 +331,11 @@ document.addEventListener("DOMContentLoaded", () => {
         songBrowser.innerHTML = "";
         if (flatSongList.length === 0) {
             const emptyHint = document.createElement("p");
-            emptyHint.textContent = "La biblioteca local está vacía. Escribe el nombre de una canción y pulsa Enter para buscarla en YouTube.";
+            emptyHint.textContent = t("library.empty");
             songBrowser.appendChild(emptyHint);
             if (downloadList.length > 0) {
                 const downloadsHint = document.createElement("p");
-                downloadsHint.textContent = `Hay ${downloadList.length} video(s) ya descargado(s) de YouTube: aparecen al buscar, sin volver a descargarlos.`;
+                downloadsHint.textContent = t("library.downloads", { n: downloadList.length });
                 songBrowser.appendChild(downloadsHint);
             }
             appendYoutubeSuffixSelect();
@@ -362,7 +378,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function confirmAndQueue(filename, title) {
-        const confirmed = await showConfirm(`¿Añadir "${title}" a la cola?`);
+        const confirmed = await showConfirm(t("confirm.addSong", { title }));
         if (confirmed) {
             ws.send(JSON.stringify({ type: "addSong", payload: { song: filename } }));
             songSearch.value = "";
@@ -389,7 +405,7 @@ document.addEventListener("DOMContentLoaded", () => {
         setLabel(title, "download", download.title);
         item.appendChild(title);
         const meta = document.createElement("small");
-        meta.textContent = ["Ya descargado de YouTube", download.channel].filter(Boolean).join(" · ");
+        meta.textContent = [t("library.alreadyDownloaded"), download.channel].filter(Boolean).join(" · ");
         item.appendChild(meta);
         item.onclick = () => confirmAndQueue(download.filename, download.title);
         return item;
@@ -399,7 +415,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const backBtn = document.createElement("button");
         backBtn.type = "button";
         backBtn.className = "back-btn";
-        setLabel(backBtn, "arrow-left", "Volver");
+        setLabel(backBtn, "arrow-left", t("remote.back"));
         backBtn.onclick = onClickAction;
         songBrowser.appendChild(backBtn);
     }
@@ -449,20 +465,15 @@ document.addEventListener("DOMContentLoaded", () => {
     function appendYoutubeSuffixSelect() {
         const suffixLabel = document.createElement("label");
         suffixLabel.setAttribute("for", "ytSuffixSelect");
-        suffixLabel.textContent = "Buscar en YouTube como:";
+        suffixLabel.textContent = t("yt.suffixLabel");
         songBrowser.appendChild(suffixLabel);
 
         const suffixSelect = document.createElement("select");
         suffixSelect.id = "ytSuffixSelect";
-        [
-            ["karaoke", "Karaoke"],
-            ["instrumental", "Instrumental"],
-            ["pista", "Pista"],
-            ["none", "Sin sufijo"],
-        ].forEach(([value, label]) => {
+        t("yt.suffixOptions").split(",").forEach((value) => {
             const opt = document.createElement("option");
             opt.value = value;
-            opt.textContent = label;
+            opt.textContent = t(`yt.suffix.${value}`);
             suffixSelect.appendChild(opt);
         });
         suffixSelect.value = selectedYtSuffix;
@@ -475,8 +486,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const emptyMsg = document.createElement("p");
         emptyMsg.textContent = flatSongList.length === 0 && downloadList.length === 0
-            ? "Pulsa Enter para buscar en YouTube."
-            : "No se encontraron canciones en la biblioteca. Pulsa Enter para buscarla en YouTube.";
+            ? t("yt.pressEnter")
+            : t("yt.noLocalMatches");
         songBrowser.appendChild(emptyMsg);
 
         appendYoutubeSuffixSelect();
@@ -484,7 +495,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const searchBtn = document.createElement("button");
         searchBtn.type = "button";
         searchBtn.className = "back-btn";
-        setLabel(searchBtn, "search", "Buscar en YouTube");
+        setLabel(searchBtn, "search", t("yt.searchButton"));
         searchBtn.onclick = () => searchYoutubeUI(query, selectedYtSuffix);
         songBrowser.appendChild(searchBtn);
     }
@@ -492,24 +503,24 @@ document.addEventListener("DOMContentLoaded", () => {
     async function searchYoutubeUI(query, suffix) {
         songBrowser.innerHTML = "";
         const loadingMsg = document.createElement("p");
-        loadingMsg.textContent = "Buscando en YouTube...";
+        loadingMsg.textContent = t("yt.searching");
         songBrowser.appendChild(loadingMsg);
 
         try {
             const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}&suffix=${encodeURIComponent(suffix)}`);
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Error de búsqueda");
+            if (!res.ok) throw failedRequest(data);
             renderYoutubeResults(data.results, query, suffix);
         } catch (error) {
             songBrowser.innerHTML = "";
             const errMsg = document.createElement("p");
             errMsg.className = "yt-error";
-            errMsg.textContent = error.message || "No se pudo buscar en YouTube. Intenta de nuevo.";
+            errMsg.textContent = error.fromServer ? error.message : t("yt.searchFailed");
             songBrowser.appendChild(errMsg);
             const retryBtn = document.createElement("button");
             retryBtn.type = "button";
             retryBtn.className = "back-btn";
-            setLabel(retryBtn, "refresh", "Reintentar");
+            setLabel(retryBtn, "refresh", t("remote.retry"));
             retryBtn.onclick = () => searchYoutubeUI(query, suffix);
             songBrowser.appendChild(retryBtn);
         }
@@ -525,7 +536,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (lastYtResults.length === 0) {
             const noResults = document.createElement("p");
-            noResults.textContent = "No se encontraron resultados en YouTube.";
+            noResults.textContent = t("yt.noResults");
             songBrowser.appendChild(noResults);
             return;
         }
@@ -565,7 +576,7 @@ document.addEventListener("DOMContentLoaded", () => {
         item.appendChild(info);
 
         item.onclick = async () => {
-            const confirmed = await showConfirm(`¿Descargar "${video.title}" desde YouTube y agregarla a la cola? Puede tardar unos segundos.`);
+            const confirmed = await showConfirm(t("confirm.download", { title: video.title }));
             if (confirmed) {
                 downloadAndQueueYoutube(video);
             }
@@ -585,7 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify({ videoId: video.id, query: lastYtQuery, suffix: lastYtSuffix }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "No se pudo descargar el video.");
+            if (!res.ok) throw failedRequest(data);
             ws.send(JSON.stringify({ type: "addSong", payload: { song: data.filename } }));
             loadDownloads();
             songSearch.value = "";
@@ -594,7 +605,7 @@ document.addEventListener("DOMContentLoaded", () => {
             renderYoutubeResults(lastYtResults, lastYtQuery, lastYtSuffix);
             const errMsg = document.createElement("p");
             errMsg.className = "yt-error";
-            errMsg.textContent = error.message || "No se pudo descargar el video. Intenta de nuevo.";
+            errMsg.textContent = error.fromServer ? error.message : t("yt.downloadFailed");
             songBrowser.insertBefore(errMsg, songBrowser.firstChild);
         } finally {
             ytDownloadModal.classList.add("hidden");

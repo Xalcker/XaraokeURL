@@ -1,0 +1,313 @@
+// Textos de la interfaz en cada idioma, compartidos por el navegador y el servidor.
+// Se carga como <script> plano en el navegador (define `t` y `currentLang`, y traduce
+// los elementos con data-i18n*) y también es requireable desde Node, donde el
+// servidor lo usa para los mensajes de error de la API y las pantallas de acceso.
+//
+// Para agregar un idioma: una entrada en MESSAGES con las mismas claves que "es"
+// (test/i18n.test.js lo comprueba) y su código en SUPPORTED.
+(function (root, factory) {
+  const mod = factory();
+  if (typeof module === "object" && module.exports) {
+    module.exports = mod;
+  }
+  if (root && root.document) {
+    const nav = root.navigator || {};
+    const lang = mod.pickLanguage(nav.languages && nav.languages.length ? nav.languages : nav.language);
+    root.currentLang = lang;
+    root.t = (key, params) => mod.translate(lang, key, params);
+    const apply = () => {
+      root.document.documentElement.lang = lang;
+      mod.applyTranslations(lang, root.document);
+    };
+    apply(); // el script va al final del <body>: los elementos ya existen y no hay parpadeo
+    root.document.addEventListener("DOMContentLoaded", apply);
+  }
+})(typeof window !== "undefined" ? window : undefined, function () {
+  const DEFAULT_LANG = "es";
+  const SUPPORTED = ["es", "en"];
+
+  const MESSAGES = {
+    es: {
+      // ----- Control remoto: unirse a una sala
+      "remote.join.title": "Unirse a una Sala",
+      "remote.join.hint": "Introduce el código de 4 letras de la sala.",
+      "remote.join.nameLabel": "Tu nombre",
+      "remote.join.button": "Unirse",
+      "remote.join.verifying": "Verificando...",
+      "remote.join.codeLength": "El código debe tener 4 letras.",
+      "remote.join.nameRequired": "Escribe tu nombre.",
+      "remote.join.nameSaveFailed": "No se pudo guardar el nombre.",
+      "remote.join.roomMissing": 'La sala "{code}" no existe.',
+      "remote.join.verifyFailed": "Error al verificar la sala.",
+
+      // ----- Control remoto: pantalla principal
+      "remote.header": "Control Remoto",
+      "remote.room": "SALA: {code}",
+      "remote.hostDisconnected": "El host se desconectó. La reproducción está pausada hasta que vuelva a conectarse.",
+      "remote.turnBanner": "¡Prepárate! Tu canción está por empezar...",
+      "remote.loading": "Cargando...",
+      "remote.playPause": "Play / Pausa",
+      "remote.playPauseLabel": "Reproducir o pausar",
+      "remote.skip": "Saltar canción",
+      "remote.userLoading": "Cargando usuario...",
+      "remote.user": "Usuario: {name}",
+      "remote.logout": "Salir",
+      "remote.search.placeholder": "Buscar canción o artista...",
+      "remote.search.label": "Buscar canción o artista",
+      "remote.queue.title": "Cola Actual",
+      "remote.queue.empty": "La cola está vacía",
+      "remote.queue.you": "tú",
+      "remote.queue.remove": "Quitar",
+      "remote.nowPlaying": "Ahora suena: {artist} - {title}",
+      "remote.timeLeft": "{elapsed} / {total} (Faltan {remaining})",
+      "remote.back": "Volver",
+      "remote.retry": "Reintentar",
+
+      // ----- Control remoto: biblioteca y búsqueda
+      "library.loadFailed": "No se pudieron cargar las canciones.",
+      "library.empty": "La biblioteca local está vacía. Escribe el nombre de una canción y pulsa Enter para buscarla en YouTube.",
+      "library.downloads.one": "Hay 1 video ya descargado de YouTube: aparece al buscar, sin volver a descargarlo.",
+      "library.downloads.other": "Hay {n} videos ya descargados de YouTube: aparecen al buscar, sin volver a descargarlos.",
+      "library.alreadyDownloaded": "Ya descargado de YouTube",
+      "song.unknownArtist": "Desconocido",
+
+      "confirm.cancel": "Cancelar",
+      "confirm.add": "Añadir",
+      "confirm.addSong": '¿Añadir "{title}" a la cola?',
+      "confirm.download": '¿Descargar "{title}" desde YouTube y agregarla a la cola? Puede tardar unos segundos.',
+
+      "yt.suffixLabel": "Buscar en YouTube como:",
+      // Opciones del selector, en orden. "pista" es como se dice en español; en inglés se usa "backing track".
+      "yt.suffixOptions": "karaoke,instrumental,pista,none",
+      "yt.suffix.karaoke": "Karaoke",
+      "yt.suffix.instrumental": "Instrumental",
+      "yt.suffix.pista": "Pista",
+      "yt.suffix.backing": "Backing track",
+      "yt.suffix.none": "Sin sufijo",
+      "yt.pressEnter": "Pulsa Enter para buscar en YouTube.",
+      "yt.noLocalMatches": "No se encontraron canciones en la biblioteca. Pulsa Enter para buscarla en YouTube.",
+      "yt.searchButton": "Buscar en YouTube",
+      "yt.searching": "Buscando en YouTube...",
+      "yt.searchFailed": "No se pudo buscar en YouTube. Intenta de nuevo.",
+      "yt.noResults": "No se encontraron resultados en YouTube.",
+      "yt.downloading": "Descargando desde YouTube, esto puede tardar unos segundos...",
+      "yt.downloadFailed": "No se pudo descargar el video. Intenta de nuevo.",
+
+      // ----- Host (pantalla principal)
+      "host.welcome": "Haz clic para iniciar la sesión",
+      "host.start": "Comenzar",
+      "host.creating": "Creando sala...",
+      "host.createFailed": "Error al crear la sala. Por favor, intenta de nuevo.",
+      "host.nowPlaying": "Ahora Suena",
+      "host.upNext": "A Continuación",
+      "host.upcoming": "Próximas 5 Canciones",
+      "host.remote": "Control Remoto",
+      "host.room": "Sala:",
+      "host.scan": "Escanea para añadir canciones",
+      "host.qrAlt": "Código QR del control remoto",
+      "host.qrError.html": "No se pudo generar el QR. Entra manualmente a <strong>/remote.html</strong> desde tu teléfono.",
+      "host.loading": "Cargando...",
+      "host.nobodyWaiting": "Nadie en espera",
+      "host.queueEmpty": "La cola está vacía",
+      "host.noMoreSongs": "No hay más canciones en cola.",
+      "host.by": "por {name}",
+      "host.duration": "Duración: {time}",
+
+      // ----- Mensajes de la API y pantallas de acceso (los arma el servidor)
+      "api.songNameMissing": "Falta el nombre de la canción.",
+      "api.songNotFound": "Canción no encontrada.",
+      "api.songsFailed": "No se pudieron obtener las canciones.",
+      "api.nameRequired": "Escribe un nombre.",
+      "api.queryMissing": "Falta el término de búsqueda.",
+      "api.queryTooLong": "Búsqueda demasiado larga.",
+      "api.searchFailed": "No se pudo buscar en YouTube.",
+      "api.tooManySearches": "Demasiadas búsquedas en YouTube. Espera un minuto.",
+      "api.tooManyDownloads": "Demasiadas descargas. Espera un minuto.",
+      "api.tooManyRooms": "Demasiadas salas creadas. Intenta de nuevo en un minuto.",
+      "api.invalidVideoId": "ID de video inválido.",
+      "api.videoTooLong": "El video es demasiado largo (máximo {minutes} minutos).",
+      "api.downloadsBusy": "Ya hay demasiadas descargas en curso, intenta en un momento.",
+      "api.downloadFailed": "No se pudo descargar el video.",
+      "login.prompt": "Necesitas iniciar sesión para acceder al control remoto.",
+      "login.google": "Iniciar sesión con Google",
+      "login.deniedTitle": "Acceso denegado",
+      "login.deniedBody": "Debes usar una cuenta del dominio {domain} para acceder.",
+      "login.retry": "Volver a intentar",
+      "user.default": "Usuario",
+      "dev.defaultName": "Usuario Local",
+    },
+
+    en: {
+      "remote.join.title": "Join a Room",
+      "remote.join.hint": "Enter the room's 4-letter code.",
+      "remote.join.nameLabel": "Your name",
+      "remote.join.button": "Join",
+      "remote.join.verifying": "Checking...",
+      "remote.join.codeLength": "The code must be 4 letters.",
+      "remote.join.nameRequired": "Enter your name.",
+      "remote.join.nameSaveFailed": "Couldn't save the name.",
+      "remote.join.roomMissing": 'Room "{code}" doesn\'t exist.',
+      "remote.join.verifyFailed": "Couldn't check the room.",
+
+      "remote.header": "Remote Control",
+      "remote.room": "ROOM: {code}",
+      "remote.hostDisconnected": "The host disconnected. Playback is paused until they reconnect.",
+      "remote.turnBanner": "Get ready! Your song is about to start...",
+      "remote.loading": "Loading...",
+      "remote.playPause": "Play / Pause",
+      "remote.playPauseLabel": "Play or pause",
+      "remote.skip": "Skip song",
+      "remote.userLoading": "Loading user...",
+      "remote.user": "User: {name}",
+      "remote.logout": "Log out",
+      "remote.search.placeholder": "Search song or artist...",
+      "remote.search.label": "Search song or artist",
+      "remote.queue.title": "Current Queue",
+      "remote.queue.empty": "The queue is empty",
+      "remote.queue.you": "you",
+      "remote.queue.remove": "Remove",
+      "remote.nowPlaying": "Now playing: {artist} - {title}",
+      "remote.timeLeft": "{elapsed} / {total} ({remaining} left)",
+      "remote.back": "Back",
+      "remote.retry": "Retry",
+
+      "library.loadFailed": "Couldn't load the songs.",
+      "library.empty": "The local library is empty. Type a song name and press Enter to search for it on YouTube.",
+      "library.downloads.one": "There is 1 video already downloaded from YouTube: it shows up when you search, no need to download it again.",
+      "library.downloads.other": "There are {n} videos already downloaded from YouTube: they show up when you search, no need to download them again.",
+      "library.alreadyDownloaded": "Already downloaded from YouTube",
+      "song.unknownArtist": "Unknown",
+
+      "confirm.cancel": "Cancel",
+      "confirm.add": "Add",
+      "confirm.addSong": 'Add "{title}" to the queue?',
+      "confirm.download": 'Download "{title}" from YouTube and add it to the queue? It may take a few seconds.',
+
+      "yt.suffixLabel": "Search YouTube as:",
+      "yt.suffixOptions": "karaoke,instrumental,backing,none",
+      "yt.suffix.karaoke": "Karaoke",
+      "yt.suffix.instrumental": "Instrumental",
+      "yt.suffix.pista": "Pista",
+      "yt.suffix.backing": "Backing track",
+      "yt.suffix.none": "No extra term",
+      "yt.pressEnter": "Press Enter to search YouTube.",
+      "yt.noLocalMatches": "No songs found in the library. Press Enter to search for it on YouTube.",
+      "yt.searchButton": "Search YouTube",
+      "yt.searching": "Searching YouTube...",
+      "yt.searchFailed": "Couldn't search YouTube. Try again.",
+      "yt.noResults": "No results found on YouTube.",
+      "yt.downloading": "Downloading from YouTube, this may take a few seconds...",
+      "yt.downloadFailed": "Couldn't download the video. Try again.",
+
+      "host.welcome": "Click to start the session",
+      "host.start": "Start",
+      "host.creating": "Creating room...",
+      "host.createFailed": "Couldn't create the room. Please try again.",
+      "host.nowPlaying": "Now Playing",
+      "host.upNext": "Up Next",
+      "host.upcoming": "Next 5 Songs",
+      "host.remote": "Remote Control",
+      "host.room": "Room:",
+      "host.scan": "Scan to add songs",
+      "host.qrAlt": "Remote control QR code",
+      "host.qrError.html": "Couldn't generate the QR code. On your phone, go to <strong>/remote.html</strong> manually.",
+      "host.loading": "Loading...",
+      "host.nobodyWaiting": "Nobody waiting",
+      "host.queueEmpty": "The queue is empty",
+      "host.noMoreSongs": "No more songs in the queue.",
+      "host.by": "by {name}",
+      "host.duration": "Duration: {time}",
+
+      "api.songNameMissing": "The song name is missing.",
+      "api.songNotFound": "Song not found.",
+      "api.songsFailed": "Couldn't get the songs.",
+      "api.nameRequired": "Enter a name.",
+      "api.queryMissing": "The search term is missing.",
+      "api.queryTooLong": "Search is too long.",
+      "api.searchFailed": "Couldn't search YouTube.",
+      "api.tooManySearches": "Too many YouTube searches. Wait a minute.",
+      "api.tooManyDownloads": "Too many downloads. Wait a minute.",
+      "api.tooManyRooms": "Too many rooms created. Try again in a minute.",
+      "api.invalidVideoId": "Invalid video ID.",
+      "api.videoTooLong": "The video is too long (maximum {minutes} minutes).",
+      "api.downloadsBusy": "There are too many downloads in progress, try again in a moment.",
+      "api.downloadFailed": "Couldn't download the video.",
+      "login.prompt": "You need to sign in to use the remote control.",
+      "login.google": "Sign in with Google",
+      "login.deniedTitle": "Access denied",
+      "login.deniedBody": "You must use an account from the {domain} domain to sign in.",
+      "login.retry": "Try again",
+      "user.default": "User",
+      "dev.defaultName": "Local User",
+    },
+  };
+
+  // Elige el primer idioma de la lista de preferencias que esté soportado; si
+  // ninguno lo está, el predeterminado. Acepta la lista de navigator.languages o
+  // el texto del header Accept-Language ("es-MX,es;q=0.9,en;q=0.8"). Solo cuenta
+  // el idioma, no la región: "en-GB" y "en-US" dan "en".
+  function pickLanguage(preferences) {
+    let tags = [];
+    if (Array.isArray(preferences)) {
+      tags = preferences.map((tag) => ({ tag, q: 1 }));
+    } else if (typeof preferences === "string") {
+      tags = preferences.split(",").map((part, index) => {
+        const [tag, ...params] = part.trim().split(";");
+        const qParam = params.map((p) => p.trim()).find((p) => p.startsWith("q="));
+        const q = qParam === undefined ? 1 : Number(qParam.slice(2));
+        return { tag, q: Number.isNaN(q) ? 0 : q, index };
+      });
+      // Mayor prioridad primero; a igualdad se respeta el orden en que llegaron.
+      tags.sort((a, b) => b.q - a.q || a.index - b.index);
+    }
+    for (const { tag, q } of tags) {
+      if (typeof tag !== "string" || q <= 0) continue;
+      const primary = tag.trim().toLowerCase().split(/[-_]/)[0];
+      if (SUPPORTED.includes(primary)) return primary;
+    }
+    return DEFAULT_LANG;
+  }
+
+  // Texto de `key` en `lang`. Si falta en ese idioma se usa el predeterminado, y
+  // si falta en todos, la propia clave (así un olvido se nota en pantalla).
+  // {nombre} se sustituye por params.nombre. Si hay params.n y existe la variante
+  // "clave.one" / "clave.other" (según las reglas de plural del idioma), se usa esa.
+  function translate(lang, key, params) {
+    const table = MESSAGES[lang] || MESSAGES[DEFAULT_LANG];
+    const fallback = MESSAGES[DEFAULT_LANG];
+    let template;
+    if (params && typeof params.n === "number") {
+      const category = new Intl.PluralRules(lang in MESSAGES ? lang : DEFAULT_LANG).select(params.n);
+      // Categorías como "many" (español, millones) o "few" (otros idiomas) que no
+      // tengan variante propia caen en "other".
+      for (const cat of [category, "other"]) {
+        template = template ?? table[`${key}.${cat}`] ?? fallback[`${key}.${cat}`];
+      }
+    }
+    template = template ?? table[key] ?? fallback[key] ?? key;
+    // Con una función, "$&" o "$1" dentro de un valor no se interpretan como patrones.
+    return template.replace(/\{(\w+)\}/g, (whole, name) =>
+      params && params[name] !== undefined ? String(params[name]) : whole
+    );
+  }
+
+  // Traduce los elementos marcados de un documento:
+  //   data-i18n="clave"              -> textContent
+  //   data-i18n-html="clave"         -> innerHTML (solo textos propios con <strong>; ver test)
+  //   data-i18n-placeholder / -aria-label / -title / -alt="clave" -> ese atributo
+  function applyTranslations(lang, doc) {
+    doc.querySelectorAll("[data-i18n]").forEach((el) => {
+      el.textContent = translate(lang, el.getAttribute("data-i18n"));
+    });
+    doc.querySelectorAll("[data-i18n-html]").forEach((el) => {
+      el.innerHTML = translate(lang, el.getAttribute("data-i18n-html"));
+    });
+    for (const attr of ["placeholder", "aria-label", "title", "alt"]) {
+      doc.querySelectorAll(`[data-i18n-${attr}]`).forEach((el) => {
+        el.setAttribute(attr, translate(lang, el.getAttribute(`data-i18n-${attr}`)));
+      });
+    }
+  }
+
+  return { DEFAULT_LANG, SUPPORTED, MESSAGES, pickLanguage, translate, applyTranslations };
+});

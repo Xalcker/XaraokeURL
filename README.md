@@ -213,6 +213,7 @@ XaraokeURL/
 │   ├── downloadsStore.js         # Registro de las descargas de YouTube en downloads.db
 │   ├── network.js                # Detección de las IPs de la red local (testeable)
 │   ├── roomId.js                 # Generación de códigos de sala (testeable)
+│   ├── sessionStore.js           # Endurece las sesiones en archivo ante bloqueos transitorios en Windows (EPERM)
 │   └── ytdlp.js                  # Wrapper seguro sobre el binario yt-dlp
 ├── test/                         # Pruebas unitarias (node --test)
 ├── .github/workflows/ci.yml      # CI: lint + test en cada push/PR

@@ -109,6 +109,17 @@ Sigue estos pasos para ejecutar el proyecto en tu máquina local.
 
 7.  Abre tu navegador y ve a `http://localhost:8081` (o el puerto configurado en `.env`).
 
+    **Si vas a conectar teléfonos con el código QR, no uses `localhost`:** el QR se arma con la dirección con la que abriste la página, y en el teléfono `localhost` apunta al propio teléfono. Al iniciar, el servidor imprime las direcciones de tu red local; abre la pantalla principal con una de ellas (por ejemplo `http://192.168.0.72:8081`):
+
+    ```
+    🚀 Servidor corriendo en el puerto 8081
+    🌐 Abre la pantalla principal con una de estas direcciones (con localhost, el QR no funcionaría en los teléfonos):
+       http://192.168.0.72:8081   (Wi-Fi)
+       Solo en este equipo: http://localhost:8081
+    ```
+
+    Si aparece más de una, usa la del adaptador por el que estás conectado a la misma red Wi-Fi que los teléfonos (el nombre del adaptador aparece entre paréntesis). Si Windows muestra el aviso del Firewall la primera vez, permite el acceso en redes privadas. Estas direcciones solo se muestran fuera de producción.
+
 ### Levantar el server en local sin configurar Google OAuth
 
 Si solo quieres probar la app en tu máquina y no quieres meterte a configurar credenciales de Google Cloud, puedes saltarte el login. En tu `.env` (con `NODE_ENV=development`, que es el default):
@@ -181,6 +192,7 @@ XaraokeURL/
 │   ├── remote.js                 # Lógica del control remoto
 │   └── notification.mp3          # Sonido de notificación
 ├── lib/
+│   ├── network.js                # Detección de las IPs de la red local (testeable)
 │   ├── roomId.js                 # Generación de códigos de sala (testeable)
 │   └── ytdlp.js                  # Wrapper seguro sobre el binario yt-dlp
 ├── test/                         # Pruebas unitarias (node --test)

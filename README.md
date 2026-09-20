@@ -100,6 +100,8 @@ Sigue estos pasos para ejecutar el proyecto en tu máquina local.
     npm run import
     ```
 
+    Este paso es opcional: si no existe `karaoke.db`, el servidor arranca igual en "modo sin biblioteca" (ver la sección "Búsqueda y descarga desde YouTube" más abajo).
+
 6.  **Inicia el servidor:**
     ```bash
     npm start
@@ -143,6 +145,7 @@ Si buscas una canción y no aparece en la biblioteca, el control remoto ofrece b
 
 Detalles a tener en cuenta:
 
+* **Funciona sin biblioteca.** Si no existe `karaoke.db` (no ejecutaste `npm run import`), el servidor arranca igual y deja un aviso en los logs: el catálogo local aparece vacío y la única forma de agregar canciones es buscarlas en YouTube. Al ejecutar `npm run import` y reiniciar el servidor, la biblioteca local queda disponible junto con la búsqueda en YouTube.
 * **Es efímero, no permanente.** El video descargado no se guarda en `karaoke.db`; vive en `DOWNLOADS_PATH` (`./downloads` en desarrollo, `/data/downloads` en producción) y se borra automáticamente 6 horas después de descargado.
 * **Límites anti-abuso:** máximo 20 búsquedas/min y 5 descargas/min por IP, como mucho 3 descargas corriendo a la vez, y se rechazan videos de más de 10 minutos.
 * **Requiere `yt-dlp` y `ffmpeg`** instalados en el servidor (ver Pre-requisitos). Sin ellos, la búsqueda/descarga devuelve error pero el resto de la app sigue funcionando normal.

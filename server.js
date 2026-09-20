@@ -16,6 +16,7 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const { generateRoomId } = require("./lib/roomId");
 const { getLanAddresses, formatAccessLines } = require("./lib/network");
+const { sanitizeDisplayName } = require("./lib/displayName");
 const {
   YOUTUBE_ID_RE,
   checkYtdlpAvailable,
@@ -184,9 +185,29 @@ app.get("/login-failed", (req, res) => {
 });
 
 app.get("/api/me", ensureAuthenticated, (req, res) => {
-  if (AUTH_DISABLED) return res.json({ name: DEV_USER_NAME });
+  if (AUTH_DISABLED) {
+    // Sin login, cada dispositivo elige su nombre (se guarda en su sesión).
+    // Hasta que lo elija, `name` es null y DEV_USER_NAME solo se sugiere.
+    return res.json({
+      devMode: true,
+      name: req.session.devName || null,
+      suggestedName: DEV_USER_NAME,
+    });
+  }
   res.json({ name: req.user.displayName || "Usuario" });
 });
+
+if (AUTH_DISABLED) {
+  // Solo existe en modo desarrollo: en producción esta ruta ni se registra.
+  app.post("/api/dev-name", (req, res) => {
+    const name = sanitizeDisplayName(req.body?.name);
+    if (!name) {
+      return res.status(400).json({ error: "Escribe un nombre." });
+    }
+    req.session.devName = name;
+    res.json({ name });
+  });
+}
 
 app.get("/api/songs", ensureAuthenticated, (req, res) => {
   if (!db) return res.json({});
@@ -500,6 +521,12 @@ wss.on("connection", (ws, req) => {
       } catch {
         return; // Ignore malformed messages instead of crashing the process.
       }
+      // Un JSON válido no garantiza la forma esperada: "null", un número o un
+      // mensaje sin payload lanzaban un TypeError más abajo y tumbaban todo
+      // el servidor.
+      if (!data || typeof data !== "object") return;
+      if (!data.payload || typeof data.payload !== "object") data.payload = {};
+
       const currentRoom = rooms[ws.roomId];
       if (!currentRoom) return;
 
@@ -507,8 +534,10 @@ wss.on("connection", (ws, req) => {
         isAuthenticated &&
         (data.type === "addSong" || data.type === "removeSong")
       ) {
+        // El nombre lo pone siempre el servidor (nunca el cliente). En modo
+        // desarrollo es el que la persona eligió en su sesión.
         data.payload.name = AUTH_DISABLED
-          ? DEV_USER_NAME
+          ? req.session?.devName || DEV_USER_NAME
           : req.session.passport.user.displayName;
       }
 

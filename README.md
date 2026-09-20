@@ -152,7 +152,7 @@ Si buscas una canción y no aparece en la biblioteca, el control remoto ofrece b
 
 1. Al no haber resultados en la búsqueda local, aparece la opción de buscar en YouTube con un sufijo (Karaoke, Instrumental, Pista o sin sufijo).
 2. Se muestran hasta 4 resultados (miniatura, título, canal y duración) para elegir manualmente — nunca se reproduce el primer resultado a ciegas.
-3. Al elegir uno, se descarga (video + audio, hasta 720p) y se agrega a la cola de esa sesión.
+3. Al elegir uno, se descarga (video + audio, hasta 720p) y se agrega a la cola de esa sesión. Se prefiere el códec H.264, que casi cualquier dispositivo reproduce con aceleración por hardware (TVs, Safari/iOS, navegadores sin soporte de AV1); si el video no lo ofrece, se usa AV1 u otro MP4 disponible.
 
 Detalles a tener en cuenta:
 

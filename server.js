@@ -29,6 +29,17 @@ if (process.env.NODE_ENV === "production") {
 
 const PORT = process.env.PORT || 8081;
 const ALLOWED_DOMAIN = process.env.ALLOWED_DOMAIN || "xalcker.xyz";
+// Bypass de Google OAuth solo para desarrollo local: nunca se activa en
+// producción aunque la variable quede seteada por accidente en un .env.
+const AUTH_DISABLED =
+  process.env.NODE_ENV !== "production" &&
+  process.env.DISABLE_GOOGLE_AUTH === "true";
+const DEV_USER_NAME = process.env.DEV_USER_NAME || "Usuario Local";
+if (AUTH_DISABLED) {
+  console.warn(
+    "⚠️  DISABLE_GOOGLE_AUTH=true: autenticación de Google desactivada (solo dev local)."
+  );
+}
 const DB_PATH =
   process.env.DB_PATH ||
   (process.env.NODE_ENV === "production" ? "/data/karaoke.db" : "./karaoke.db");
@@ -68,50 +79,56 @@ app.use(sessionMiddleware);
 app.use(passport.initialize());
 app.use(passport.session());
 
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/auth/google/callback",
-    },
-    (accessToken, refreshToken, profile, done) => {
-      const userEmail = profile.emails?.[0]?.value;
-      if (userEmail && userEmail.endsWith(`@${ALLOWED_DOMAIN}`)) {
-        return done(null, profile);
-      } else {
-        return done(null, false, { message: "Acceso denegado." });
+if (!AUTH_DISABLED) {
+  // Construir la estrategia requiere GOOGLE_CLIENT_ID/SECRET; por eso se
+  // omite por completo cuando la auth está desactivada, así no hace falta
+  // tener credenciales de Google para levantar el server en local.
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: "/auth/google/callback",
+      },
+      (accessToken, refreshToken, profile, done) => {
+        const userEmail = profile.emails?.[0]?.value;
+        if (userEmail && userEmail.endsWith(`@${ALLOWED_DOMAIN}`)) {
+          return done(null, profile);
+        } else {
+          return done(null, false, { message: "Acceso denegado." });
+        }
       }
+    )
+  );
+
+  app.get(
+    "/auth/google",
+    passport.authenticate("google", { scope: ["profile", "email"] })
+  );
+
+  app.get(
+    "/auth/google/callback",
+    passport.authenticate("google", { failureRedirect: "/login-failed" }),
+    (req, res) => {
+      res.redirect("/remote.html");
     }
-  )
-);
+  );
+}
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) return next();
+  if (AUTH_DISABLED || req.isAuthenticated()) return next();
   res.redirect("/login");
 }
 
 app.get("/login", (req, res) => {
+  if (AUTH_DISABLED) return res.redirect("/remote.html");
   res.send(
     `<div style="font-family: sans-serif; text-align: center; padding-top: 50px;"><h1>XaraokeURL</h1><p>Necesitas iniciar sesión para acceder al control remoto.</p><a href="/auth/google" style="background-color: #4285F4; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Iniciar sesión con Google</a></div>`
   );
 });
-
-app.get(
-  "/auth/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
-);
-
-app.get(
-  "/auth/google/callback",
-  passport.authenticate("google", { failureRedirect: "/login-failed" }),
-  (req, res) => {
-    res.redirect("/remote.html");
-  }
-);
 
 app.get("/logout", (req, res, next) => {
   req.logout((err) => {
@@ -129,6 +146,7 @@ app.get("/login-failed", (req, res) => {
 });
 
 app.get("/api/me", ensureAuthenticated, (req, res) => {
+  if (AUTH_DISABLED) return res.json({ name: DEV_USER_NAME });
   res.json({ name: req.user.displayName || "Usuario" });
 });
 
@@ -260,7 +278,7 @@ wss.on("connection", (ws, req) => {
     const url = new URL(req.url, `${req.protocol}://${req.headers.host}`); // Use req.protocol after trust proxy
     const roomId = url.searchParams.get("sala")?.toUpperCase();
     const hostToken = url.searchParams.get("hostToken");
-    const isAuthenticated = !!req.session?.passport?.user;
+    const isAuthenticated = AUTH_DISABLED || !!req.session?.passport?.user;
 
     if (!roomId) {
       return ws.close(4005, "Room ID not provided");
@@ -316,7 +334,9 @@ wss.on("connection", (ws, req) => {
         isAuthenticated &&
         (data.type === "addSong" || data.type === "removeSong")
       ) {
-        data.payload.name = req.session.passport.user.displayName;
+        data.payload.name = AUTH_DISABLED
+          ? DEV_USER_NAME
+          : req.session.passport.user.displayName;
       }
 
       let updateQueue = false;

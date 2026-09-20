@@ -83,6 +83,17 @@ Sigue estos pasos para ejecutar el proyecto en tu máquina local.
 
 7.  Abre tu navegador y ve a `http://localhost:8081` (o el puerto configurado en `.env`).
 
+### Levantar el server en local sin configurar Google OAuth
+
+Si solo querés probar la app en tu máquina y no te querés meter a configurar credenciales de Google Cloud, podés saltarte el login. En tu `.env` (con `NODE_ENV=development`, que es el default):
+
+```bash
+DISABLE_GOOGLE_AUTH=true
+DEV_USER_NAME=Tu Nombre   # opcional, así se ve quién agregó cada canción
+```
+
+Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control remoto (`/remote.html`) queda accesible directamente y las canciones que agregues se atribuyen a `DEV_USER_NAME`. Esta variable **se ignora si `NODE_ENV=production`**, así que no hay riesgo de dejarla prendida por error en un deploy real.
+
 ---
 ## 💡 Cómo Usar
 

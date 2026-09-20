@@ -15,6 +15,7 @@ const FileStore = require("session-file-store")(session);
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const { generateRoomId } = require("./lib/roomId");
+const { getLanAddresses, formatAccessLines } = require("./lib/network");
 const {
   YOUTUBE_ID_RE,
   checkYtdlpAvailable,
@@ -582,6 +583,13 @@ wss.on("connection", (ws, req) => {
   });
 });
 
-server.listen(PORT, () =>
-  console.log(`🚀 Servidor corriendo en el puerto ${PORT}`)
-);
+server.listen(PORT, () => {
+  console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
+  // En producción se accede por dominio/proxy, así que las IPs de la red
+  // local solo se muestran en desarrollo.
+  if (process.env.NODE_ENV !== "production") {
+    formatAccessLines(PORT, getLanAddresses()).forEach((line) =>
+      console.log(line)
+    );
+  }
+});

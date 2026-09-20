@@ -85,7 +85,7 @@ Sigue estos pasos para ejecutar el proyecto en tu máquina local.
 
 ### Levantar el server en local sin configurar Google OAuth
 
-Si solo querés probar la app en tu máquina y no te querés meter a configurar credenciales de Google Cloud, podés saltarte el login. En tu `.env` (con `NODE_ENV=development`, que es el default):
+Si solo quieres probar la app en tu máquina y no quieres meterte a configurar credenciales de Google Cloud, puedes saltarte el login. En tu `.env` (con `NODE_ENV=development`, que es el default):
 
 ```bash
 DISABLE_GOOGLE_AUTH=true

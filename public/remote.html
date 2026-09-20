@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>XaraokeURL Remote</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22 font-size=%2290%22><text y=%22.9em%22>🎤</text></svg>">
     <link rel="stylesheet" href="css/remote.css">
 </head>
 <body>
@@ -35,12 +36,23 @@
             <span id="userNameDisplay">Cargando usuario...</span>
             <a id="logout-link" href="/logout">Salir</a>
         </div>
+        <input type="search" id="songSearch" placeholder="🔍 Buscar canción o artista..." autocomplete="off">
         <div id="songBrowser"></div>
         <div id="queue-container">
             <h2>Cola Actual</h2>
             <div id="songQueue"></div>
         </div>
     </div>
+    <div id="confirm-modal" class="hidden">
+        <div id="confirm-modal-content">
+            <p id="confirm-modal-text"></p>
+            <div id="confirm-modal-actions">
+                <button type="button" id="confirm-modal-cancel" class="control-btn confirm-btn-cancel">Cancelar</button>
+                <button type="button" id="confirm-modal-yes" class="control-btn confirm-btn-yes">Añadir</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/shared.js"></script>
     <script src="remote.js"></script>
 </body>

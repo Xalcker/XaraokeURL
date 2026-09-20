@@ -2,23 +2,36 @@ document.addEventListener("DOMContentLoaded", () => {
     const roomModal = document.getElementById("room-modal");
     const roomForm = document.getElementById("room-form");
     const roomCodeInput = document.getElementById("roomCodeInput");
+    const joinRoomBtn = document.getElementById("joinRoomBtn");
     const roomError = document.getElementById("room-error");
     const mainContent = document.getElementById("main-content");
     const userNameDisplay = document.getElementById("userNameDisplay");
     const songQueueContainer = document.getElementById("songQueue");
     const songBrowser = document.getElementById("songBrowser");
+    const songSearch = document.getElementById("songSearch");
     const currentSongTitle = document.getElementById("current-song-title");
     const currentSongTime = document.getElementById("current-song-time");
     const playPauseBtn = document.getElementById("playPauseBtn");
     const skipBtn = document.getElementById("skipBtn");
     const remoteRoomCodeDisplay = document.getElementById("remote-room-code");
+    const hostStatusBanner = document.getElementById("host-status-banner");
+    const confirmModal = document.getElementById("confirm-modal");
+    const confirmModalText = document.getElementById("confirm-modal-text");
+    const confirmModalYes = document.getElementById("confirm-modal-yes");
+    const confirmModalCancel = document.getElementById("confirm-modal-cancel");
 
     let songData = {};
+    let flatSongList = [];
     let ws;
     let myName = "";
     let upNextSongId = null;
     let currentQueue = [];
-    const hostStatusBanner = document.getElementById("host-status-banner");
+
+    roomCodeInput.addEventListener("input", () => {
+        const cursorPos = roomCodeInput.selectionStart;
+        roomCodeInput.value = roomCodeInput.value.toUpperCase();
+        roomCodeInput.setSelectionRange(cursorPos, cursorPos);
+    });
 
     async function initializeAppFlow() {
         try {
@@ -34,12 +47,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     roomForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (joinRoomBtn.disabled) return;
         const roomCode = roomCodeInput.value.trim().toUpperCase();
         if (roomCode.length !== 4) {
             roomError.textContent = "El código debe tener 4 letras.";
             return;
         }
 
+        roomError.textContent = "";
+        joinRoomBtn.disabled = true;
+        joinRoomBtn.textContent = "Verificando...";
         try {
             const response = await fetch(`/api/rooms/${roomCode}`);
             const data = await response.json();
@@ -52,6 +69,9 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         } catch {
             roomError.textContent = "Error al verificar la sala.";
+        } finally {
+            joinRoomBtn.disabled = false;
+            joinRoomBtn.textContent = "Unirse";
         }
     });
 
@@ -91,13 +111,30 @@ document.addEventListener("DOMContentLoaded", () => {
     async function initializeMainApp(roomId) {
         remoteRoomCodeDisplay.textContent = `SALA: ${roomId}`;
         connectWebSocket(roomId);
+        await loadSongs();
+    }
+
+    async function loadSongs() {
         try {
             const songsRes = await fetch("/api/songs");
+            if (!songsRes.ok) throw new Error(`HTTP ${songsRes.status}`);
             songData = await songsRes.json();
+            flatSongList = Object.values(songData)
+                .flatMap((artists) => Object.values(artists))
+                .flat();
             renderAlphabet();
         } catch (error) {
             console.error("Error cargando la lista de canciones:", error);
-            songBrowser.innerHTML = "No se pudieron cargar las canciones.";
+            songBrowser.innerHTML = "";
+            const errorMsg = document.createElement("p");
+            errorMsg.textContent = "No se pudieron cargar las canciones.";
+            const retryBtn = document.createElement("button");
+            retryBtn.type = "button";
+            retryBtn.className = "back-btn";
+            retryBtn.textContent = "🔄 Reintentar";
+            retryBtn.onclick = loadSongs;
+            songBrowser.appendChild(errorMsg);
+            songBrowser.appendChild(retryBtn);
         }
     }
 
@@ -111,10 +148,11 @@ document.addEventListener("DOMContentLoaded", () => {
         songQueueContainer.innerHTML = "";
         queue.slice(1).forEach((item) => {
             const { songTitle } = parseSongFilename(item.song);
+            const isMine = myName !== "" && item.name === myName;
             const div = document.createElement("div");
-            div.className = "queue-item";
-            div.innerHTML = `<span><b>${escapeHtml(songTitle)}</b> (${escapeHtml(item.name)})</span>`;
-            if (item.name === myName && myName !== "") {
+            div.className = isMine ? "queue-item mine" : "queue-item";
+            div.innerHTML = `<span><b>${escapeHtml(songTitle)}</b> (${escapeHtml(isMine ? "tú" : item.name)})</span>`;
+            if (isMine) {
                 const removeBtn = document.createElement("button");
                 removeBtn.textContent = "Quitar";
                 removeBtn.className = "remove-btn";
@@ -162,7 +200,8 @@ document.addEventListener("DOMContentLoaded", () => {
         container.className = "alphabet-container";
         "#ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach(letter => {
             if (songData[letter]) {
-                const letterEl = document.createElement("div");
+                const letterEl = document.createElement("button");
+                letterEl.type = "button";
                 letterEl.className = "alphabet-item";
                 letterEl.textContent = letter;
                 letterEl.onclick = () => renderArtists(letter);
@@ -176,7 +215,8 @@ document.addEventListener("DOMContentLoaded", () => {
         songBrowser.innerHTML = "";
         addBackButton(renderAlphabet);
         Object.keys(songData[letter]).sort().forEach(artist => {
-            const artistEl = document.createElement("div");
+            const artistEl = document.createElement("button");
+            artistEl.type = "button";
             artistEl.className = "browser-item";
             artistEl.textContent = `🎤 ${artist}`;
             artistEl.onclick = () => renderSongs(letter, artist);
@@ -187,27 +227,88 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderSongs(letter, artist) {
         songBrowser.innerHTML = "";
         addBackButton(() => renderArtists(letter));
-        songData[letter][artist].forEach(filename => {
-            const { songTitle } = parseSongFilename(filename);
-            const songEl = document.createElement("div");
-            songEl.className = "browser-item";
-            songEl.textContent = `🎵 ${songTitle}`;
-            songEl.onclick = () => {
-                if (confirm(`¿Añadir "${songTitle}" a la cola?`)) {
-                    ws.send(JSON.stringify({ type: "addSong", payload: { song: filename } }));
-                    renderAlphabet();
-                }
-            };
-            songBrowser.appendChild(songEl);
+        songData[letter][artist].forEach((filename) => {
+            songBrowser.appendChild(createSongItem(filename));
         });
     }
 
+    function createSongItem(filename) {
+        const { songTitle } = parseSongFilename(filename);
+        const songEl = document.createElement("button");
+        songEl.type = "button";
+        songEl.className = "browser-item";
+        songEl.textContent = `🎵 ${songTitle}`;
+        songEl.onclick = async () => {
+            const confirmed = await showConfirm(`¿Añadir "${songTitle}" a la cola?`);
+            if (confirmed) {
+                ws.send(JSON.stringify({ type: "addSong", payload: { song: filename } }));
+                songSearch.value = "";
+                renderAlphabet();
+            }
+        };
+        return songEl;
+    }
+
     function addBackButton(onClickAction) {
-        const backBtn = document.createElement("div");
+        const backBtn = document.createElement("button");
+        backBtn.type = "button";
         backBtn.className = "back-btn";
         backBtn.textContent = "← Volver";
         backBtn.onclick = onClickAction;
         songBrowser.appendChild(backBtn);
+    }
+
+    function normalizeForSearch(str) {
+        return str.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    }
+
+    function renderSearchResults(query) {
+        const normalizedQuery = normalizeForSearch(query);
+        songBrowser.innerHTML = "";
+        const matches = flatSongList.filter((filename) => {
+            const { artist, songTitle } = parseSongFilename(filename);
+            return (
+                normalizeForSearch(artist).includes(normalizedQuery) ||
+                normalizeForSearch(songTitle).includes(normalizedQuery)
+            );
+        });
+        if (matches.length === 0) {
+            const emptyMsg = document.createElement("p");
+            emptyMsg.textContent = "No se encontraron canciones.";
+            songBrowser.appendChild(emptyMsg);
+            return;
+        }
+        matches.slice(0, 50).forEach((filename) => {
+            songBrowser.appendChild(createSongItem(filename));
+        });
+    }
+
+    songSearch.addEventListener("input", () => {
+        const query = songSearch.value.trim();
+        if (!query) {
+            renderAlphabet();
+            return;
+        }
+        renderSearchResults(query);
+    });
+
+    function showConfirm(message) {
+        return new Promise((resolve) => {
+            confirmModalText.textContent = message;
+            confirmModal.classList.remove("hidden");
+
+            function cleanup(result) {
+                confirmModal.classList.add("hidden");
+                confirmModalYes.removeEventListener("click", onYes);
+                confirmModalCancel.removeEventListener("click", onCancel);
+                resolve(result);
+            }
+            function onYes() { cleanup(true); }
+            function onCancel() { cleanup(false); }
+
+            confirmModalYes.addEventListener("click", onYes);
+            confirmModalCancel.addEventListener("click", onCancel);
+        });
     }
 
     playPauseBtn.addEventListener("click", () => {

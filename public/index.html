@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>XaraokeURL Host</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22 font-size=%2290%22><text y=%22.9em%22>🎤</text></svg>">
     <link rel="stylesheet" href="css/host.css">
     <script>
         (function() {
@@ -54,7 +55,8 @@
                 <p style="text-align: center; margin-bottom: 0.5rem; font-size: 1.2rem; font-weight: bold;">Sala:</p> 
                 <div id="room-code" style="text-align: center; font-size: 2rem; font-weight: bold; letter-spacing: 5px; margin-bottom: 1rem; color: #1DB954;">----</div>
                 <p>Escanea para añadir canciones</p>
-                <img id="qrCode" src="" alt="QR Code">
+                <img id="qrCode" alt="Código QR del control remoto">
+                <p id="qr-error" class="hidden">No se pudo generar el QR. Entra manualmente a <strong>/remote.html</strong> desde tu teléfono.</p>
             </div>
         </div>
     </div>

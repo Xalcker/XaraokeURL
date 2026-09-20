@@ -1,6 +1,9 @@
+require("dotenv").config();
 const fs = require("fs");
 const sqlite3 = require("sqlite3").verbose();
-const DB_PATH = "./karaoke.db";
+const DB_PATH =
+  process.env.DB_PATH ||
+  (process.env.NODE_ENV === "production" ? "/data/karaoke.db" : "./karaoke.db");
 const CSV_PATH = "./songs.csv";
 
 const db = new sqlite3.Database(DB_PATH, (err) => {

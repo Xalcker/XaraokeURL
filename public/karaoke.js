@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentQueue = [], ws, lastTimeUpdate = 0;
   let roomId = null;
+  let hostToken = null;
 
   startBtn.addEventListener("click", async () => {
     welcomeModal.classList.add("hidden");
@@ -21,6 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch("/api/rooms", { method: "POST" });
       const data = await response.json();
       roomId = data.roomId;
+      hostToken = data.hostToken;
       roomCodeDisplay.textContent = roomId;
       connectWebSocket();
       initialize();
@@ -31,9 +33,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   function connectWebSocket() {
-    if (!roomId) return;
+    if (!roomId || !hostToken) return;
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    ws = new WebSocket(`${protocol}://${window.location.host}?sala=${roomId}&isHost=true`);
+    ws = new WebSocket(`${protocol}://${window.location.host}?sala=${roomId}&hostToken=${hostToken}`);
     ws.onopen = () => console.log(`Host conectado a la sala: ${roomId}`);
     ws.onclose = () => setTimeout(connectWebSocket, 3000);
     ws.onerror = (err) => console.error("Error de WebSocket en Host:", err);
@@ -74,6 +76,16 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${mins}:${secs}`;
   }
 
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[c]));
+  }
+
   function formatSongTitleForDisplay(fullFilename) {
     const parts = fullFilename.replace(".mp4", "").split(" - ");
     if (parts.length >= 2) {
@@ -86,7 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const nowPlaying = currentQueue.length > 0 ? currentQueue[0] : null;
     if (nowPlaying) {
       const { artist, songTitle } = formatSongTitleForDisplay(nowPlaying.song);
-      nowPlayingContent.innerHTML = `<div class="info-card-title">${artist}</div><div class="info-card-subtitle">${songTitle}</div><div class="info-card-user">por ${nowPlaying.name}</div><div class="info-card-subtitle" id="song-duration"></div>`;
+      nowPlayingContent.innerHTML = `<div class="info-card-title">${escapeHtml(artist)}</div><div class="info-card-subtitle">${escapeHtml(songTitle)}</div><div class="info-card-user">por ${escapeHtml(nowPlaying.name)}</div><div class="info-card-subtitle" id="song-duration"></div>`;
     } else {
       nowPlayingContent.innerHTML = '<div class="info-card-title">La cola está vacía</div>';
       const durationEl = document.getElementById("song-duration");
@@ -98,7 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const upNext = currentQueue.length > 1 ? currentQueue[1] : null;
     if (upNext) {
       const { artist, songTitle } = formatSongTitleForDisplay(upNext.song);
-      upNextContent.innerHTML = `<div class="info-card-title">${artist}</div><div class="info-card-subtitle">${songTitle}</div><div class="info-card-user">por ${upNext.name}</div>`;
+      upNextContent.innerHTML = `<div class="info-card-title">${escapeHtml(artist)}</div><div class="info-card-subtitle">${escapeHtml(songTitle)}</div><div class="info-card-user">por ${escapeHtml(upNext.name)}</div>`;
     } else {
       upNextContent.innerHTML = '<div class="info-card-title">Nadie en espera</div>';
     }
@@ -111,7 +123,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const { artist, songTitle } = formatSongTitleForDisplay(item.song);
       const div = document.createElement("div");
       div.className = "queue-item";
-      div.innerHTML = `<span class="song-name">${songTitle}</span><span class="user-name">(${artist}) por ${item.name}</span>`;
+      div.innerHTML = `<span class="song-name">${escapeHtml(songTitle)}</span><span class="user-name">(${escapeHtml(artist)}) por ${escapeHtml(item.name)}</span>`;
       songQueueContainer.appendChild(div);
     });
     if (upcoming.length === 0 && currentQueue.length <= 2) {

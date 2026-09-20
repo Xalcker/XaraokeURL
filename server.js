@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const http = require("http");
+const crypto = require("crypto");
 const { URL } = require("url");
 const WebSocket = require("ws");
 const QRCode = require("qrcode");
@@ -19,7 +20,12 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const PORT = process.env.PORT || 8081;
-const DB_PATH = "/data/karaoke.db";
+const DB_PATH =
+  process.env.DB_PATH ||
+  (process.env.NODE_ENV === "production" ? "/data/karaoke.db" : "./karaoke.db");
+const SESSIONS_PATH =
+  process.env.SESSIONS_PATH ||
+  (process.env.NODE_ENV === "production" ? "/data/sessions" : "./sessions");
 
 const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
   if (err) {
@@ -34,7 +40,7 @@ let rooms = {};
 
 const sessionMiddleware = session({
   store: new FileStore({
-    path: "/data/sessions",
+    path: SESSIONS_PATH,
     ttl: 86400,
     logFn: function () {},
   }),
@@ -161,9 +167,10 @@ app.get("/api/song-url", (req, res) => {
 
 app.post("/api/rooms", (req, res) => {
   const roomId = generateRoomId();
-  rooms[roomId] = { songQueue: [], clients: new Set() };
+  const hostToken = crypto.randomUUID();
+  rooms[roomId] = { songQueue: [], clients: new Set(), hostToken };
   console.log(`Sala creada: ${roomId}`);
-  res.json({ roomId });
+  res.json({ roomId, hostToken });
 });
 
 app.get("/api/rooms/:roomId", (req, res) => {
@@ -204,15 +211,24 @@ function broadcastToRoom(roomId, data) {
 }
 
 wss.on("connection", (ws, req) => {
+  // Reject cross-site WebSocket handshakes: browsers always send Origin,
+  // so only same-origin connections (or non-browser clients with none) pass.
+  const origin = req.headers.origin;
+  if (origin) {
+    try {
+      if (new URL(origin).host !== req.headers.host) {
+        return ws.close(4003, "Origin not allowed");
+      }
+    } catch {
+      return ws.close(4003, "Invalid origin");
+    }
+  }
+
   sessionMiddleware(req, {}, () => {
     const url = new URL(req.url, `${req.protocol}://${req.headers.host}`); // Use req.protocol after trust proxy
     const roomId = url.searchParams.get("sala")?.toUpperCase();
-    const isHost = url.searchParams.get("isHost") === "true";
-    const isAuthenticated = req.session?.passport?.user;
-
-    if (!isHost && !isAuthenticated) {
-      return ws.close(4001, "Not authenticated");
-    }
+    const hostToken = url.searchParams.get("hostToken");
+    const isAuthenticated = !!req.session?.passport?.user;
 
     if (!roomId) {
       return ws.close(4005, "Room ID not provided");
@@ -223,6 +239,15 @@ wss.on("connection", (ws, req) => {
       return ws.close(4004, "Room not found");
     }
 
+    // Only the client holding the room's secret hostToken (issued when the
+    // room was created) may act as host; the old `isHost=true` query flag
+    // let anyone impersonate the host without authenticating.
+    const isHost = !!hostToken && hostToken === room.hostToken;
+
+    if (!isHost && !isAuthenticated) {
+      return ws.close(4001, "Not authenticated");
+    }
+
     ws.roomId = roomId;
     room.clients.add(ws);
     console.log(
@@ -231,7 +256,12 @@ wss.on("connection", (ws, req) => {
     ws.send(JSON.stringify({ type: "queueUpdate", payload: room.songQueue }));
 
     ws.on("message", (message) => {
-      const data = JSON.parse(message);
+      let data;
+      try {
+        data = JSON.parse(message);
+      } catch {
+        return; // Ignore malformed messages instead of crashing the process.
+      }
       const currentRoom = rooms[ws.roomId];
       if (!currentRoom) return;
 
@@ -245,7 +275,10 @@ wss.on("connection", (ws, req) => {
       let updateQueue = false;
       switch (data.type) {
         case "addSong":
-          currentRoom.songQueue.push({ ...data.payload, id: Date.now() });
+          currentRoom.songQueue.push({
+            ...data.payload,
+            id: crypto.randomUUID(),
+          });
           updateQueue = true;
           break;
         case "removeSong":

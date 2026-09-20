@@ -187,6 +187,8 @@ Detalles a tener en cuenta:
 XaraokeURL/
 ├── public/
 │   ├── css/
+│   │   ├── tokens.css            # Tokens de diseño: colores de la marca, acento turquesa (única fuente)
+│   │   ├── icons.css             # Tamaño y alineación de los íconos SVG
 │   │   ├── host.css              # Estilos para la pantalla principal
 │   │   └── remote.css            # Estilos para el control remoto
 │   ├── img/
@@ -195,6 +197,7 @@ XaraokeURL/
 │   │   ├── apple-touch-icon.png  # Ícono al agregar a la pantalla de inicio en iOS
 │   │   └── icon-192.png / icon-512.png  # Íconos de la app (manifiesto), aptos para "maskable"
 │   ├── js/
+│   │   ├── icons.js              # Íconos SVG (iconSvg / data-icon); la interfaz no usa emojis
 │   │   └── shared.js             # Utilidades compartidas (escapeHtml, parseSongFilename)
 │   ├── index.html                # Interfaz del host/reproductor
 │   ├── karaoke.js                # Lógica del reproductor principal
@@ -222,6 +225,12 @@ XaraokeURL/
 ├── downloads.db                  # Registro de las descargas de YouTube (generada automáticamente)
 └── downloads/                    # Videos descargados de YouTube (no incluido en git)
 ```
+
+### Convenciones de interfaz
+
+* **Colores:** se definen solo en `public/css/tokens.css`. Para cambiar el acento de la marca basta con editar `--accent` (y `--accent-rgb`); el texto sobre el acento usa siempre `--on-accent` (oscuro, contraste 10:1).
+* **Íconos:** son SVG de `public/js/icons.js` (`<span data-icon="mic">` en HTML o `iconSvg("mic")` en JS); no se usan emojis.
+* `test/designSystem.test.js` hace cumplir ambas reglas (sin colores escritos a mano, sin emojis, texto legible sobre el acento, también al pasar el cursor).
 
 ## 🚀 Despliegue en Producción
 

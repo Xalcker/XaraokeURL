@@ -221,7 +221,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const retryBtn = document.createElement("button");
             retryBtn.type = "button";
             retryBtn.className = "back-btn";
-            retryBtn.textContent = "🔄 Reintentar";
+            setLabel(retryBtn, "refresh", "Reintentar");
             retryBtn.onclick = loadSongs;
             songBrowser.appendChild(errorMsg);
             songBrowser.appendChild(retryBtn);
@@ -268,7 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const remainingTime = data.duration - data.currentTime;
         const { artist, songTitle } = getSongDisplay(data);
-        currentSongTitle.textContent = `Ahora suena: 🎵 ${artist} - ${songTitle}`;
+        setLabel(currentSongTitle, "music", `Ahora suena: ${artist} - ${songTitle}`);
         currentSongTime.textContent = `${formatTime(data.currentTime)} / ${formatTime(data.duration)} (Faltan ${formatTime(remainingTime)})`;
     }
 
@@ -293,6 +293,15 @@ document.addEventListener("DOMContentLoaded", () => {
         turnBanner.classList.add("hidden");
         clearTimeout(turnBannerTimeoutId);
         turnBannerTimeoutId = null;
+    }
+
+    // Pone un ícono seguido del texto. El texto se agrega como nodo de texto (no
+    // por innerHTML), así que lo que venga de YouTube o de otros usuarios no puede
+    // inyectar HTML.
+    function setLabel(el, iconName, text) {
+        el.textContent = "";
+        el.insertAdjacentHTML("beforeend", iconSvg(iconName));
+        el.appendChild(document.createTextNode(text));
     }
 
     function formatTime(seconds) {
@@ -338,7 +347,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const artistEl = document.createElement("button");
             artistEl.type = "button";
             artistEl.className = "browser-item";
-            artistEl.textContent = `🎤 ${artist}`;
+            setLabel(artistEl, "mic", artist);
             artistEl.onclick = () => renderSongs(letter, artist);
             songBrowser.appendChild(artistEl);
         });
@@ -366,7 +375,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const songEl = document.createElement("button");
         songEl.type = "button";
         songEl.className = "browser-item";
-        songEl.textContent = `🎵 ${songTitle}`;
+        setLabel(songEl, "music", songTitle);
         songEl.onclick = () => confirmAndQueue(filename, songTitle);
         return songEl;
     }
@@ -377,7 +386,7 @@ document.addEventListener("DOMContentLoaded", () => {
         item.type = "button";
         item.className = "browser-item";
         const title = document.createElement("span");
-        title.textContent = `📥 ${download.title}`;
+        setLabel(title, "download", download.title);
         item.appendChild(title);
         const meta = document.createElement("small");
         meta.textContent = ["Ya descargado de YouTube", download.channel].filter(Boolean).join(" · ");
@@ -390,7 +399,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const backBtn = document.createElement("button");
         backBtn.type = "button";
         backBtn.className = "back-btn";
-        backBtn.textContent = "← Volver";
+        setLabel(backBtn, "arrow-left", "Volver");
         backBtn.onclick = onClickAction;
         songBrowser.appendChild(backBtn);
     }
@@ -475,7 +484,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const searchBtn = document.createElement("button");
         searchBtn.type = "button";
         searchBtn.className = "back-btn";
-        searchBtn.textContent = "🔎 Buscar en YouTube";
+        setLabel(searchBtn, "search", "Buscar en YouTube");
         searchBtn.onclick = () => searchYoutubeUI(query, selectedYtSuffix);
         songBrowser.appendChild(searchBtn);
     }
@@ -500,7 +509,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const retryBtn = document.createElement("button");
             retryBtn.type = "button";
             retryBtn.className = "back-btn";
-            retryBtn.textContent = "🔄 Reintentar";
+            setLabel(retryBtn, "refresh", "Reintentar");
             retryBtn.onclick = () => searchYoutubeUI(query, suffix);
             songBrowser.appendChild(retryBtn);
         }

@@ -200,10 +200,11 @@ function simplePage(title, contentHtml) {
 <link rel="icon" href="/img/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/css/tokens.css">
 <style>
-  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #fff; background: linear-gradient(-45deg, #1f0c2e, #4e1f70, #142142, #0d0d1e); }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #fff; background: var(--bg-gradient); }
   main { max-width: 360px; text-align: center; }
-  img { display: block; margin: 0 auto 1rem; filter: drop-shadow(0 8px 24px rgba(73, 214, 216, 0.25)); }
+  img { display: block; margin: 0 auto 1rem; filter: drop-shadow(0 8px 24px rgba(var(--accent-rgb), 0.25)); }
   h1 { margin: 0.2rem 0 0.8rem; }
   p { color: #ccc; line-height: 1.4; }
   a.btn { display: inline-block; margin-top: 1rem; padding: 12px 22px; border-radius: 8px; background: #4285F4; color: #fff; font-weight: 600; text-decoration: none; }

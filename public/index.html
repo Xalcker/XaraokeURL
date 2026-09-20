@@ -9,6 +9,8 @@
     <link rel="icon" href="img/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
     <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/icons.css">
     <link rel="stylesheet" href="css/host.css">
     <script>
         (function() {
@@ -30,7 +32,7 @@
     <div class="main-container hidden">
         <div class="sidebar-left">
             <div id="now-playing" class="sidebar-section">
-                <h3>🎤 Ahora Suena</h3>
+                <h3><span data-icon="mic"></span>Ahora Suena</h3>
                 <div id="now-playing-content">
                     <div class="info-card-title">Cargando...</div>
                     <div class="info-card-user"></div>
@@ -38,7 +40,7 @@
                 </div>
             </div>
             <div id="up-next" class="sidebar-section">
-                <h3>⏭️ A Continuación</h3>
+                <h3><span data-icon="next"></span>A Continuación</h3>
                 <div id="up-next-content">
                     <div class="info-card-title">Nadie en espera</div>
                 </div>
@@ -52,19 +54,20 @@
         
         <div class="sidebar-right">
             <div id="queue-container" class="sidebar-section">
-                <h3>🗒️ Próximas 5 Canciones</h3>
+                <h3><span data-icon="list"></span>Próximas 5 Canciones</h3>
                 <div id="songQueue"></div>
             </div>
             <div id="qr-container" class="sidebar-section">
-                <h3>📲 Control Remoto</h3>
+                <h3><span data-icon="phone"></span>Control Remoto</h3>
                 <p style="text-align: center; margin-bottom: 0.5rem; font-size: 1.2rem; font-weight: bold;">Sala:</p> 
-                <div id="room-code" style="text-align: center; font-size: 2rem; font-weight: bold; letter-spacing: 5px; margin-bottom: 1rem; color: #1DB954;">----</div>
+                <div id="room-code">----</div>
                 <p>Escanea para añadir canciones</p>
                 <img id="qrCode" alt="Código QR del control remoto">
                 <p id="qr-error" class="hidden">No se pudo generar el QR. Entra manualmente a <strong>/remote.html</strong> desde tu teléfono.</p>
             </div>
         </div>
     </div>
+    <script src="js/icons.js"></script>
     <script src="js/shared.js"></script>
     <script src="karaoke.js"></script>
 </body>

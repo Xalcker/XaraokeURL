@@ -1,0 +1,9 @@
+/* Tamaño y alineación de los íconos SVG (ver js/icons.js). Miden lo que el texto que
+   los acompaña (1.15em) y toman su color, así que se adaptan solos a cada botón. */
+.icon {
+    width: 1.15em;
+    height: 1.15em;
+    vertical-align: -0.2em;
+    margin-right: 0.45em;
+    flex-shrink: 0;
+}

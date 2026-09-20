@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const upNextContent = document.getElementById("up-next-content");
   const songQueueContainer = document.getElementById("songQueue");
   const qrCodeImg = document.getElementById("qrCode");
+  const qrError = document.getElementById("qr-error");
   const roomCodeDisplay = document.getElementById("room-code");
 
   let currentQueue = [], ws, lastTimeUpdate = 0;
@@ -14,21 +15,27 @@ document.addEventListener("DOMContentLoaded", () => {
   let hostToken = null;
 
   startBtn.addEventListener("click", async () => {
-    welcomeModal.classList.add("hidden");
-    mainContainer.classList.remove("hidden");
+    if (startBtn.disabled) return;
+    startBtn.disabled = true;
+    startBtn.textContent = "Creando sala...";
     player.play().catch(() => console.log("Permiso de audio concedido."));
     player.pause();
     try {
       const response = await fetch("/api/rooms", { method: "POST" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       roomId = data.roomId;
       hostToken = data.hostToken;
       roomCodeDisplay.textContent = roomId;
+      welcomeModal.classList.add("hidden");
+      mainContainer.classList.remove("hidden");
       connectWebSocket();
       initialize();
     } catch (error) {
       console.error("No se pudo crear la sala:", error);
-      alert("Error al crear la sala. Por favor, refresca la página.");
+      alert("Error al crear la sala. Por favor, intenta de nuevo.");
+      startBtn.disabled = false;
+      startBtn.textContent = "Comenzar";
     }
   });
 
@@ -56,12 +63,23 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!roomId) return;
     try {
       const qrRes = await fetch(`/api/qr?sala=${roomId}`);
+      if (!qrRes.ok) throw new Error(`HTTP ${qrRes.status}`);
       const qrData = await qrRes.json();
       qrCodeImg.src = qrData.qrUrl;
+      qrCodeImg.classList.remove("hidden");
+      qrError.classList.add("hidden");
     } catch (error) {
       console.error("Error durante la inicialización:", error);
+      showQrError();
     }
   }
+
+  function showQrError() {
+    qrCodeImg.classList.add("hidden");
+    qrError.classList.remove("hidden");
+  }
+
+  qrCodeImg.addEventListener("error", showQrError);
 
   function renderAllSections() {
     renderNowPlaying();

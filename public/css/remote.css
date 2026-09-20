@@ -57,6 +57,13 @@ h2 {
     display: none !important;
 }
 
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+    outline: 2px solid #1DB954;
+    outline-offset: 2px;
+}
+
 #host-status-banner {
     background-color: #c0392b;
     color: #fff;
@@ -65,6 +72,36 @@ h2 {
     text-align: center;
     font-weight: bold;
     margin-bottom: 1rem;
+}
+
+#turn-notification-banner {
+    background-color: #1DB954;
+    color: #0d0d0d;
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    animation: pulseTurnBanner 1s ease-in-out infinite;
+}
+
+@keyframes pulseTurnBanner {
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.5);
+    }
+
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 0 0 8px rgba(29, 185, 84, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #turn-notification-banner {
+        animation: none;
+    }
 }
 
 #room-modal {
@@ -110,6 +147,11 @@ h2 {
     color: white;
     background-color: #1DB954;
     cursor: pointer;
+}
+
+#joinRoomBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 #room-error {
@@ -205,6 +247,12 @@ h2 {
     background-color: #282828;
 }
 
+.queue-item.mine {
+    background-color: rgba(29, 185, 84, 0.18);
+    border-left: 3px solid #1DB954;
+    padding-left: 7px;
+}
+
 .remove-btn {
     background: #e53935;
     color: white;
@@ -215,18 +263,41 @@ h2 {
     margin-left: 10px;
 }
 
+#songSearch {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    margin-top: 1rem;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background-color: #282828;
+    color: #fff;
+    font-size: 1rem;
+}
+
 #songBrowser {
     margin-top: 1rem;
 }
 
+#songBrowser p {
+    text-align: center;
+    color: #b3b3b3;
+}
+
 .browser-item,
 .back-btn {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
     padding: 12px;
     background-color: #2c2c2c;
+    border: none;
     border-radius: 5px;
     cursor: pointer;
     text-align: left;
     margin-bottom: 5px;
+    font: inherit;
+    color: inherit;
 }
 
 .browser-item:hover,
@@ -244,9 +315,12 @@ h2 {
 .alphabet-item {
     padding: 8px 12px;
     background-color: #2c2c2c;
+    border: none;
     border-radius: 5px;
     cursor: pointer;
+    font: inherit;
     font-weight: bold;
+    color: inherit;
 }
 
 .alphabet-item:hover {
@@ -257,4 +331,48 @@ h2 {
     font-weight: bold;
     background-color: #1DB954;
     text-align: center;
+}
+
+#confirm-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+#confirm-modal-content {
+    background-color: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    padding: 1.5rem;
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+}
+
+#confirm-modal-text {
+    margin: 0 0 1.2rem;
+    font-size: 1.05rem;
+}
+
+#confirm-modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.confirm-btn-yes {
+    background-color: #1DB954;
+}
+
+.confirm-btn-cancel {
+    background-color: #555;
 }

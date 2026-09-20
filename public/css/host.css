@@ -34,6 +34,12 @@ body {
     display: none !important;
 }
 
+button:focus-visible,
+a:focus-visible {
+    outline: 2px solid #1DB954;
+    outline-offset: 2px;
+}
+
 #welcome-modal {
     position: fixed;
     top: 0;
@@ -73,6 +79,11 @@ body {
 
 #start-btn:hover {
     background-color: #1ed760;
+}
+
+#start-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .main-container {
@@ -163,6 +174,18 @@ h3 {
     margin: 0 auto;
     border: 5px solid white;
     border-radius: 5px;
+    min-height: 150px;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+#qr-container img.hidden {
+    display: none;
+}
+
+#qr-error {
+    text-align: center;
+    color: #f44336;
+    font-size: 0.85rem;
 }
 
 #queue-container {

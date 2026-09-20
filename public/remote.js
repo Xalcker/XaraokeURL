@@ -19,6 +19,16 @@ document.addEventListener("DOMContentLoaded", () => {
     let upNextSongId = null;
     let currentQueue = [];
 
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, (c) => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+        }[c]));
+    }
+
     async function initializeAppFlow() {
         try {
             const userRes = await fetch('/api/me');
@@ -103,7 +113,7 @@ document.addEventListener("DOMContentLoaded", () => {
         queue.slice(1).forEach((item) => {
             const div = document.createElement("div");
             div.className = "queue-item";
-            div.innerHTML = `<span><b>${item.song.replace(".mp4", "")}</b> (${item.name})</span>`;
+            div.innerHTML = `<span><b>${escapeHtml(item.song.replace(".mp4", ""))}</b> (${escapeHtml(item.name)})</span>`;
             if (item.name === myName && myName !== "") {
                 const removeBtn = document.createElement("button");
                 removeBtn.textContent = "Quitar";

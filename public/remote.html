@@ -13,6 +13,10 @@
             <h1>Unirse a una Sala</h1>
             <p>Introduce el código de 4 letras de la sala.</p>
             <form id="room-form">
+                <div id="dev-name-field" class="hidden">
+                    <label for="devNameInput">Tu nombre</label>
+                    <input type="text" id="devNameInput" maxlength="30" placeholder="Tu nombre" autocomplete="nickname">
+                </div>
                 <input type="text" id="roomCodeInput" maxlength="4" placeholder="ABCD" required>
                 <button type="submit" id="joinRoomBtn">Unirse</button>
             </form>

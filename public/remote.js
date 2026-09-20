@@ -3,6 +3,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const roomForm = document.getElementById("room-form");
     const roomCodeInput = document.getElementById("roomCodeInput");
     const joinRoomBtn = document.getElementById("joinRoomBtn");
+    const devNameField = document.getElementById("dev-name-field");
+    const devNameInput = document.getElementById("devNameInput");
     const roomError = document.getElementById("room-error");
     const mainContent = document.getElementById("main-content");
     const userNameDisplay = document.getElementById("userNameDisplay");
@@ -27,6 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let flatSongList = [];
     let ws;
     let myName = "";
+    let devMode = false;
     let upNextSongId = null;
     let currentQueue = [];
     let turnBannerTimeoutId = null;
@@ -71,8 +74,17 @@ document.addEventListener("DOMContentLoaded", () => {
             const userRes = await fetch('/api/me');
             if (!userRes.ok) throw new Error('No autenticado');
             const userData = await userRes.json();
-            myName = userData.name;
-            userNameDisplay.textContent = `Usuario: ${myName}`;
+            if (userData.devMode) {
+                // Modo desarrollo (sin login de Google): cada dispositivo elige
+                // su nombre. Se sugiere el guardado en su sesión, o el de .env.
+                devMode = true;
+                devNameField.classList.remove('hidden');
+                devNameInput.value = userData.name || userData.suggestedName || "";
+                myName = userData.name || "";
+            } else {
+                myName = userData.name;
+                userNameDisplay.textContent = `Usuario: ${myName}`;
+            }
         } catch {
             window.location.href = '/login';
         }
@@ -86,11 +98,30 @@ document.addEventListener("DOMContentLoaded", () => {
             roomError.textContent = "El código debe tener 4 letras.";
             return;
         }
+        if (devMode && !devNameInput.value.trim()) {
+            roomError.textContent = "Escribe tu nombre.";
+            return;
+        }
 
         roomError.textContent = "";
         joinRoomBtn.disabled = true;
         joinRoomBtn.textContent = "Verificando...";
         try {
+            if (devMode) {
+                const nameRes = await fetch('/api/dev-name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: devNameInput.value }),
+                });
+                const nameData = await nameRes.json();
+                if (!nameRes.ok) {
+                    roomError.textContent = nameData.error || "No se pudo guardar el nombre.";
+                    return;
+                }
+                myName = nameData.name;
+                devNameInput.value = myName;
+                userNameDisplay.textContent = `Usuario: ${myName}`;
+            }
             const response = await fetch(`/api/rooms/${roomCode}`);
             const data = await response.json();
             if (data.exists) {

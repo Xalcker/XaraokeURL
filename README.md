@@ -126,10 +126,12 @@ Si solo quieres probar la app en tu máquina y no quieres meterte a configurar c
 
 ```bash
 DISABLE_GOOGLE_AUTH=true
-DEV_USER_NAME=Tu Nombre   # opcional, así se ve quién agregó cada canción
+DEV_USER_NAME=Tu Nombre   # opcional, es el nombre que se sugiere por defecto
 ```
 
-Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control remoto (`/remote.html`) queda accesible directamente y las canciones que agregues se atribuyen a `DEV_USER_NAME`. Esta variable **se ignora si `NODE_ENV=production`**, así que no hay riesgo de dejarla prendida por error en un deploy real.
+Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control remoto (`/remote.html`) queda accesible directamente. Esta variable **se ignora si `NODE_ENV=production`**, así que no hay riesgo de dejarla prendida por error en un deploy real.
+
+**Cada dispositivo elige su propio nombre.** Al unirse a una sala, el control remoto pide "Tu nombre" (con `DEV_USER_NAME` como sugerencia). El nombre se guarda en la sesión del navegador, así que al recargar la página vuelve prellenado, y es el que se muestra en la cola. Así funcionan igual que con Google el "(tú)", el botón "Quitar" (solo quitas tus canciones) y el aviso de "tu turno" (solo le llega a quien sigue). Se limita a 30 caracteres y se le quitan saltos de línea y caracteres invisibles. Ten en cuenta que dos personas que elijan **el mismo nombre** se comportan como una sola.
 
 ---
 ## 💡 Cómo Usar
@@ -193,6 +195,7 @@ XaraokeURL/
 │   ├── remote.js                 # Lógica del control remoto
 │   └── notification.mp3          # Sonido de notificación
 ├── lib/
+│   ├── displayName.js            # Validación del nombre elegido en modo desarrollo (testeable)
 │   ├── network.js                # Detección de las IPs de la red local (testeable)
 │   ├── roomId.js                 # Generación de códigos de sala (testeable)
 │   └── ytdlp.js                  # Wrapper seguro sobre el binario yt-dlp

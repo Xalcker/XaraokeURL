@@ -67,21 +67,23 @@ a:focus-visible {
 #host-status-banner {
     background-color: var(--danger-banner);
     color: #fff;
-    padding: 0.6rem 1rem;
+    padding: 0.45rem 0.8rem;
     border-radius: 8px;
     text-align: center;
     font-weight: bold;
-    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
 }
 
 #turn-notification-banner {
     background-color: var(--accent);
     color: var(--on-accent);
-    padding: 0.7rem 1rem;
+    padding: 0.55rem 0.8rem;
     border-radius: 8px;
     text-align: center;
     font-weight: bold;
-    margin-bottom: 1rem;
+    font-size: 0.95rem;
+    margin: 0.5rem 0;
     animation: pulseTurnBanner 1s ease-in-out infinite;
 }
 
@@ -227,60 +229,172 @@ a:focus-visible {
     color: var(--accent);
 }
 
+/* Barra fija arriba: avisos, mini-reproductor y pestañas. Se queda a la vista aunque se
+   baje por la lista de canciones. Ocupa todo el ancho de la tarjeta (márgenes negativos). */
+#sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: 0 -1.5rem 1rem;
+    padding: 0.5rem 1.5rem 0;
+    /* Opaco: con transparencia, el texto de la lista se ve a través de la barra al bajar. */
+    background-color: #1e1e1e;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 12px -10px rgba(0, 0, 0, 0.7);
+}
+
+#mini-player {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.35rem 0 0.7rem;
+}
+
 #now-playing-info {
-    text-align: center;
-    margin-bottom: 1rem;
-    min-height: 4em;
-    background-color: #1f1f1f;
-    padding: 10px;
-    border-radius: 8px;
+    flex: 1;
+    min-width: 0;
+    text-align: left;
 }
 
 #current-song-title {
     font-weight: bold;
+    font-size: 0.95rem;
+    line-height: 1.25;
+    /* Como mucho dos líneas; el resto se corta con "…". */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
 }
 
 #current-song-time {
-    font-size: 0.9em;
+    margin-top: 2px;
+    font-size: 0.8rem;
     color: var(--text-muted);
 }
 
 #controls {
     display: flex;
     gap: 0.75rem;
-    margin-bottom: 1.5rem;
+    flex-shrink: 0;
 }
 
-/* Icono (SVG) con una palabra corta debajo. Los dos botones se reparten el ancho
-   por igual y el texto no se parte en varias líneas, en cualquier ancho de celular.
-   Va acotado a #controls porque .control-btn también lo usa el modal de confirmación. */
+/* Botones redondos, solo con el ícono (el nombre va en aria-label y title). Acotado a
+   #controls porque .control-btn también lo usa el modal de confirmación. */
 #controls .control-btn {
-    flex: 1 1 0;
-    min-width: 0;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border-radius: 50%;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    min-height: 68px;
-    padding: 10px 8px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    line-height: 1.2;
-    text-align: center;
     touch-action: manipulation;
 }
 
 #controls .control-btn svg {
-    width: 30px;
-    height: 30px;
+    width: 24px;
+    height: 24px;
     fill: currentColor;
     flex-shrink: 0;
 }
 
-#controls .control-btn span {
+/* Avance de la canción: una línea fina en el borde inferior del mini-reproductor. */
+#progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+}
+
+#progress-bar {
+    width: 0;
+    height: 100%;
+    background-color: var(--accent);
+    transition: width 1s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #progress-bar {
+        transition: none;
+    }
+}
+
+/* Pestañas Buscar | Mi cola */
+#tabs {
+    display: flex;
+}
+
+.tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 46px;
+    padding: 8px 4px;
     white-space: nowrap;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.tab[aria-selected="true"] {
+    color: #fff;
+    border-bottom-color: var(--accent);
+}
+
+.tab[aria-selected="true"] .icon {
+    color: var(--accent);
+}
+
+/* Cantidad de canciones tuyas en la cola. */
+.tab-badge {
+    min-width: 1.4em;
+    margin-left: 0.5em;
+    padding: 0 0.4em;
+    border-radius: 999px;
+    background-color: var(--accent);
+    color: var(--on-accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.5em;
+    text-align: center;
+}
+
+.tab-badge.bump {
+    animation: badgeBump 0.45s ease-out;
+}
+
+@keyframes badgeBump {
+    0% {
+        transform: scale(1);
+    }
+
+    40% {
+        transform: scale(1.5);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tab-badge.bump {
+        animation: none;
+    }
 }
 
 .control-btn {
@@ -301,8 +415,15 @@ a:focus-visible {
     background-color: var(--danger);
 }
 
-#queue-container {
-    margin-top: 1.5rem;
+#queue-summary {
+    margin: 0 0 1rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+#queue-container .empty-hint {
+    text-align: center;
+    color: var(--text-muted);
 }
 
 .queue-item {
@@ -567,6 +688,22 @@ a:focus-visible {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+#toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.25rem;
+    transform: translateX(-50%);
+    z-index: 30;
+    max-width: calc(100% - 2rem);
+    padding: 0.6rem 1.2rem;
+    border-radius: 999px;
+    background-color: var(--accent);
+    color: var(--on-accent);
+    font-weight: 700;
+    text-align: center;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 }
 
 #yt-download-modal {

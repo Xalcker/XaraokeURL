@@ -24,6 +24,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const confirmModalCancel = document.getElementById("confirm-modal-cancel");
     const turnBanner = document.getElementById("turn-notification-banner");
     const ytDownloadModal = document.getElementById("yt-download-modal");
+    const stickyTop = document.getElementById("sticky-top");
+    const progressBar = document.getElementById("progress-bar");
+    const tabsBar = document.getElementById("tabs");
+    const tabSearch = document.getElementById("tab-search");
+    const tabQueue = document.getElementById("tab-queue");
+    const searchPanel = document.getElementById("search-panel");
+    const queuePanel = document.getElementById("queue-container");
+    const queueBadge = document.getElementById("queue-badge");
+    const queueSummary = document.getElementById("queue-summary");
+    const toast = document.getElementById("toast");
 
     let songData = {};
     let flatSongList = [];
@@ -39,6 +49,11 @@ document.addEventListener("DOMContentLoaded", () => {
     let lastYtQuery = "";
     let lastYtSuffix = "karaoke";
     let lastYtResults = [];
+    let lastProgress = null;
+    let shownHeadId = null;
+    let lastMineCount = 0;
+    let queueSeen = false;
+    let toastTimeoutId = null;
 
     const songDisplay = (item) => getSongDisplay(item, t("song.unknownArtist"));
 
@@ -165,10 +180,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const message = JSON.parse(event.data);
             if (message.type === "queueUpdate") {
                 renderQueue(message.payload);
-                if (message.payload.length === 0) {
-                    currentSongTitle.textContent = t("remote.queue.empty");
-                    currentSongTime.textContent = "";
-                }
+                if (message.payload.length === 0) showEmptyNowPlaying();
+                else showQueueHead(message.payload[0]);
             }
             if (message.type === "timeUpdate") {
                 updateNowPlaying(message.payload);
@@ -265,6 +278,13 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             songQueueContainer.appendChild(div);
         });
+        if (queue.length <= 1) {
+            const hint = document.createElement("p");
+            hint.className = "empty-hint";
+            hint.textContent = t("queue.emptyList");
+            songQueueContainer.appendChild(hint);
+        }
+        updateQueueTab();
         const nextSongIsMine = queue.length > 1 && queue[1].name === myName;
         if (!nextSongIsMine) {
             upNextSongId = null;
@@ -274,8 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updateNowPlaying(data) {
         if (!data || !data.song) {
-            currentSongTitle.textContent = t("remote.queue.empty");
-            currentSongTime.textContent = "";
+            showEmptyNowPlaying();
             return;
         }
         const remainingTime = data.duration - data.currentTime;
@@ -286,6 +305,7 @@ document.addEventListener("DOMContentLoaded", () => {
             total: formatTime(data.duration),
             remaining: formatTime(remainingTime),
         });
+        setProgress(data.duration > 0 ? (data.currentTime / data.duration) * 100 : 0);
     }
 
     function notifyUser() {
@@ -309,6 +329,81 @@ document.addEventListener("DOMContentLoaded", () => {
         turnBanner.classList.add("hidden");
         clearTimeout(turnBannerTimeoutId);
         turnBannerTimeoutId = null;
+    }
+
+    function showEmptyNowPlaying() {
+        currentSongTitle.textContent = t("remote.queue.empty");
+        currentSongTime.textContent = "";
+        setProgress(0);
+        lastProgress = null; // sin canción: la próxima posición que llegue se coloca de golpe
+        shownHeadId = null;
+    }
+
+    // El mini-reproductor sigue a la cola: cuando cambia la canción de arriba (se añadió la primera
+    // o se saltó) se muestra de inmediato, sin esperar a que el host mande el tiempo. Mientras sea la
+    // misma, el título y el tiempo los mantiene la actualización del host.
+    function showQueueHead(head) {
+        if (head.id === shownHeadId) return;
+        shownHeadId = head.id;
+        const { artist, songTitle } = songDisplay(head);
+        setLabel(currentSongTitle, "music", t("remote.nowPlaying", { artist, title: songTitle }));
+        currentSongTime.textContent = "";
+        setProgress(0);
+        lastProgress = null;
+    }
+
+    // La barra avanza con una transición suave, pero la primera vez y cuando retrocede (canción
+    // nueva) se coloca de golpe, para que no recorra todo el camino de vuelta.
+    function setProgress(percent) {
+        const value = Math.min(100, Math.max(0, percent));
+        progressBar.style.transition = lastProgress === null || value < lastProgress ? "none" : "";
+        progressBar.style.width = value + "%";
+        lastProgress = value;
+    }
+
+    // Contador de "Mi cola" (cuántas canciones tuyas hay en la cola, la que suena incluida) y
+    // resumen de cuánto falta para tu turno. El contador se anima cuando sube, salvo en la
+    // primera lista que llega (por ejemplo, al reconectar con canciones que ya estaban).
+    function updateQueueTab() {
+        const mine = (item) => myName !== "" && item.name === myName;
+        const mineCount = currentQueue.filter(mine).length;
+        queueBadge.textContent = String(mineCount);
+        queueBadge.classList.toggle("hidden", mineCount === 0);
+        if (queueSeen && mineCount > lastMineCount) {
+            queueBadge.classList.remove("bump");
+            void queueBadge.offsetWidth; // reinicia la animación si ya estaba en marcha
+            queueBadge.classList.add("bump");
+        }
+        lastMineCount = mineCount;
+        queueSeen = true;
+
+        const firstMine = currentQueue.findIndex(mine);
+        if (firstMine === -1) queueSummary.textContent = t("queue.summary.none");
+        else if (firstMine === 0) queueSummary.textContent = t("queue.summary.playing");
+        else if (firstMine === 1) queueSummary.textContent = t("queue.summary.next");
+        else queueSummary.textContent = t("queue.summary.ahead", { n: firstMine });
+    }
+
+    function selectTab(name, { focus = false } = {}) {
+        const showQueue = name === "queue";
+        tabSearch.setAttribute("aria-selected", String(!showQueue));
+        tabQueue.setAttribute("aria-selected", String(showQueue));
+        tabSearch.tabIndex = showQueue ? -1 : 0;
+        tabQueue.tabIndex = showQueue ? 0 : -1;
+        searchPanel.classList.toggle("hidden", showQueue);
+        queuePanel.classList.toggle("hidden", !showQueue);
+        if (focus) (showQueue ? tabQueue : tabSearch).focus();
+        // Si se había bajado por la lista, se vuelve al inicio del panel nuevo (justo bajo la barra fija).
+        const panel = showQueue ? queuePanel : searchPanel;
+        const top = panel.getBoundingClientRect().top + window.scrollY - stickyTop.offsetHeight;
+        if (window.scrollY > top) window.scrollTo(0, Math.max(0, top));
+    }
+
+    function showToast(messageKey) {
+        toast.textContent = t(messageKey);
+        toast.classList.remove("hidden");
+        clearTimeout(toastTimeoutId);
+        toastTimeoutId = setTimeout(() => toast.classList.add("hidden"), 2500);
     }
 
     // Pone un ícono seguido del texto. El texto se agrega como nodo de texto (no
@@ -381,6 +476,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const confirmed = await showConfirm(t("confirm.addSong", { title }));
         if (confirmed) {
             ws.send(JSON.stringify({ type: "addSong", payload: { song: filename } }));
+            showToast("toast.added");
             songSearch.value = "";
             renderAlphabet();
         }
@@ -598,6 +694,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await res.json();
             if (!res.ok) throw failedRequest(data);
             ws.send(JSON.stringify({ type: "addSong", payload: { song: data.filename } }));
+            showToast("toast.added");
             loadDownloads();
             songSearch.value = "";
             renderAlphabet();
@@ -674,6 +771,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     skipBtn.addEventListener("click", () => {
         if (currentQueue.length > 0) ws.send(JSON.stringify({ type: "controlAction", payload: { action: "skip" } }));
+    });
+
+    tabSearch.addEventListener("click", () => selectTab("search"));
+    tabQueue.addEventListener("click", () => selectTab("queue"));
+
+    // Con el teclado: flechas para pasar de una pestaña a otra, Inicio y Fin para ir a la primera o a la última.
+    const tabKeyTargets = { ArrowLeft: "search", Home: "search", ArrowRight: "queue", End: "queue" };
+    tabsBar.addEventListener("keydown", (e) => {
+        if (!(e.key in tabKeyTargets)) return;
+        e.preventDefault();
+        selectTab(tabKeyTargets[e.key], { focus: true });
     });
 
     initializeAppFlow();

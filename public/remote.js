@@ -34,6 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const queueBadge = document.getElementById("queue-badge");
     const queueSummary = document.getElementById("queue-summary");
     const toast = document.getElementById("toast");
+    const miniPlayer = document.getElementById("mini-player");
+    const pausedTag = document.getElementById("paused-tag");
 
     let songData = {};
     let flatSongList = [];
@@ -54,6 +56,11 @@ document.addEventListener("DOMContentLoaded", () => {
     let lastMineCount = 0;
     let queueSeen = false;
     let toastTimeoutId = null;
+    let playbackPaused = false;   // lo informa el host
+    let hostConnected = true;
+    let confirmSkipId = null;     // canción por la que se está pidiendo confirmación para saltar
+    let skipPendingId = null;     // canción cuyo salto ya se pidió y aún no se ve reflejado en la cola
+    let skipPendingTimerId = null;
 
     const songDisplay = (item) => getSongDisplay(item, t("song.unknownArtist"));
 
@@ -61,6 +68,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // persona (el servidor lo elige con Accept-Language). Si la petición ni llegó
     // (sin red) o la respuesta no tiene mensaje, quien lo muestre usa un texto
     // propio en lugar del "Failed to fetch" del navegador.
+    // Envía por el WebSocket. Devuelve false si no hay conexión en este momento (por ejemplo, mientras
+    // reconecta): enviar entonces lanzaría una excepción y la persona creería que se hizo.
+    function sendMessage(type, payload) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+        ws.send(JSON.stringify({ type, payload }));
+        return true;
+    }
+
     function failedRequest(data) {
         const err = new Error(data && data.error ? data.error : "request failed");
         err.fromServer = !!(data && data.error);
@@ -196,6 +211,10 @@ document.addEventListener("DOMContentLoaded", () => {
             if (message.type === "hostStatus") {
                 updateHostStatusBanner(message.payload?.connected !== false);
             }
+            if (message.type === "playbackState") {
+                playbackPaused = message.payload?.paused === true;
+                updateControls();
+            }
         };
     }
 
@@ -256,6 +275,29 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateHostStatusBanner(connected) {
         if (!hostStatusBanner) return;
         hostStatusBanner.classList.toggle("hidden", connected);
+        hostConnected = connected;
+        updateControls();
+    }
+
+    // Los botones y la etiqueta de pausa reflejan el estado real: play/pausa según lo que informó el
+    // host, y sin nada que controlar (cola vacía o host desconectado) quedan deshabilitados.
+    function updateControls() {
+        const active = hostConnected && currentQueue.length > 0;
+        const paused = active && playbackPaused;
+        playPauseBtn.disabled = !active;
+        skipBtn.disabled = !active || skipPendingId !== null;
+        playPauseBtn.dataset.state = paused ? "paused" : "playing";
+        const label = t(paused ? "remote.play" : "remote.pause");
+        playPauseBtn.setAttribute("aria-label", label);
+        playPauseBtn.title = label;
+        miniPlayer.classList.toggle("is-paused", paused);
+        pausedTag.classList.toggle("hidden", !paused);
+    }
+
+    function clearSkipPending() {
+        clearTimeout(skipPendingTimerId);
+        skipPendingId = null;
+        updateControls();
     }
 
     function renderQueue(queue) {
@@ -272,7 +314,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 removeBtn.textContent = t("remote.queue.remove");
                 removeBtn.className = "remove-btn";
                 removeBtn.onclick = () => {
-                    ws.send(JSON.stringify({ type: "removeSong", payload: { id: item.id } }));
+                    if (!sendMessage("removeSong", { id: item.id })) showToast("toast.offline");
                 };
                 div.appendChild(removeBtn);
             }
@@ -285,6 +327,11 @@ document.addEventListener("DOMContentLoaded", () => {
             songQueueContainer.appendChild(hint);
         }
         updateQueueTab();
+        // Si la canción de arriba ya no es aquella por la que se pidió saltar, el salto ya ocurrió (o
+        // ya no aplica): se libera el botón y se cierra la confirmación que quedara abierta.
+        if (skipPendingId && queue[0]?.id !== skipPendingId) clearSkipPending();
+        if (confirmSkipId && queue[0]?.id !== confirmSkipId) confirmModalCancel.click();
+        updateControls();
         const nextSongIsMine = queue.length > 1 && queue[1].name === myName;
         if (!nextSongIsMine) {
             upNextSongId = null;
@@ -475,7 +522,10 @@ document.addEventListener("DOMContentLoaded", () => {
     async function confirmAndQueue(filename, title) {
         const confirmed = await showConfirm(t("confirm.addSong", { title }));
         if (confirmed) {
-            ws.send(JSON.stringify({ type: "addSong", payload: { song: filename } }));
+            if (!sendMessage("addSong", { song: filename })) {
+                showToast("toast.offline");
+                return;
+            }
             showToast("toast.added");
             songSearch.value = "";
             renderAlphabet();
@@ -693,8 +743,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             const data = await res.json();
             if (!res.ok) throw failedRequest(data);
-            ws.send(JSON.stringify({ type: "addSong", payload: { song: data.filename } }));
-            showToast("toast.added");
+            showToast(sendMessage("addSong", { song: data.filename }) ? "toast.added" : "toast.offline");
             loadDownloads();
             songSearch.value = "";
             renderAlphabet();
@@ -746,9 +795,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    function showConfirm(message) {
+    // `danger`: el botón de confirmar va en rojo (acciones que afectan a todos, como saltar una canción).
+    function showConfirm(message, { confirmKey = "confirm.add", danger = false } = {}) {
         return new Promise((resolve) => {
             confirmModalText.textContent = message;
+            confirmModalYes.textContent = t(confirmKey);
+            confirmModalYes.classList.toggle("confirm-btn-danger", danger);
+            confirmModalYes.classList.toggle("confirm-btn-yes", !danger);
             confirmModal.classList.remove("hidden");
 
             function cleanup(result) {
@@ -765,12 +818,39 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // Se pide la acción explícita según el estado que se ve ("pause" o "play"), no "alternar": si dos
+    // personas pulsan a la vez, las dos piden lo mismo y no se cancelan entre sí.
     playPauseBtn.addEventListener("click", () => {
-        if (currentQueue.length > 0) ws.send(JSON.stringify({ type: "controlAction", payload: { action: "playPause" } }));
+        if (playPauseBtn.disabled) return;
+        if (!sendMessage("controlAction", { action: playbackPaused ? "play" : "pause" })) showToast("toast.offline");
     });
 
-    skipBtn.addEventListener("click", () => {
-        if (currentQueue.length > 0) ws.send(JSON.stringify({ type: "controlAction", payload: { action: "skip" } }));
+    // Saltar afecta a todos (se salta la canción de quien esté cantando): antes de hacerlo se confirma,
+    // diciendo cuál es y de quién. Se pide saltar esa canción concreta (por su id): si mientras se
+    // decidía ya cambió, no se salta la siguiente por error.
+    skipBtn.addEventListener("click", async () => {
+        const head = currentQueue[0];
+        if (!head || skipBtn.disabled) return;
+        const { artist, songTitle } = songDisplay(head);
+        const song = t("remote.nowPlaying", { artist, title: songTitle });
+        const mine = myName !== "" && head.name === myName;
+        confirmSkipId = head.id;
+        const confirmed = await showConfirm(
+            mine ? t("confirm.skipMine", { song }) : t("confirm.skipOther", { song, name: head.name }),
+            { confirmKey: "confirm.skipYes", danger: true }
+        );
+        confirmSkipId = null;
+        if (!confirmed || currentQueue[0]?.id !== head.id) return;
+        if (!sendMessage("controlAction", { action: "skip", id: head.id })) {
+            showToast("toast.offline");
+            return;
+        }
+        // Hasta que la cola refleje el salto, el botón queda deshabilitado (evita el doble toque);
+        // si el host no responde, se libera solo a los pocos segundos.
+        skipPendingId = head.id;
+        clearTimeout(skipPendingTimerId);
+        skipPendingTimerId = setTimeout(clearSkipPending, 4000);
+        updateControls();
     });
 
     tabSearch.addEventListener("click", () => selectTab("search"));
@@ -784,5 +864,6 @@ document.addEventListener("DOMContentLoaded", () => {
         selectTab(tabKeyTargets[e.key], { focus: true });
     });
 
+    updateControls();
     initializeAppFlow();
 });

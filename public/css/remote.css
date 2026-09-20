@@ -302,6 +302,36 @@ a:focus-visible {
     flex-shrink: 0;
 }
 
+/* Play/pausa: el ícono es la acción que hará el botón (pausa mientras suena, play si está en pausa). */
+#playPauseBtn[data-state="playing"] .icon-play,
+#playPauseBtn[data-state="paused"] .icon-pause {
+    display: none;
+}
+
+/* Sin canción o sin host no hay nada que controlar. */
+#controls .control-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* Etiqueta bajo el tiempo cuando el video está en pausa. */
+#paused-tag {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 1px 8px;
+    border: 1px solid var(--text-muted);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+#mini-player.is-paused #progress-bar {
+    background-color: var(--text-muted);
+}
+
 /* Avance de la canción: una línea fina en el borde inferior del mini-reproductor. */
 #progress {
     position: absolute;
@@ -611,6 +641,13 @@ a:focus-visible {
 
 .confirm-btn-cancel {
     background-color: #555;
+}
+
+/* Acción que afecta a todos (saltar la canción de la sala): en rojo, con blanco legible (5,4:1). */
+.confirm-btn-danger {
+    background-color: var(--danger-banner);
+    color: #fff;
+    font-weight: 600;
 }
 
 #songBrowser label {

@@ -29,6 +29,7 @@ const {
 } = require("./lib/ytdlp");
 const { openDownloadsStore } = require("./lib/downloadsStore");
 const { hardenSessionStore } = require("./lib/sessionStore");
+const { isAllowed, sanitizeControlAction, sanitizePlaybackState } = require("./lib/wsPolicy");
 const {
   parseDownloadTtl,
   sweepIntervalMs,
@@ -796,6 +797,9 @@ wss.on("connection", (ws, req) => {
         payload: { connected: !!room.hostWs },
       })
     );
+    if (typeof room.paused === "boolean") {
+      ws.send(JSON.stringify({ type: "playbackState", payload: { paused: room.paused } }));
+    }
 
     if (isHost) {
       room.hostWs = ws;
@@ -820,6 +824,8 @@ wss.on("connection", (ws, req) => {
 
       const currentRoom = rooms[ws.roomId];
       if (!currentRoom) return;
+
+      if (!isAllowed(data.type, isHost)) return;
 
       if (
         isAuthenticated &&
@@ -872,7 +878,19 @@ wss.on("connection", (ws, req) => {
           if (currentRoom.songQueue.length > 0) currentRoom.songQueue.shift();
           updateQueue = true;
           break;
-        case "controlAction":
+        case "controlAction": {
+          // Al host solo le llega una orden válida y sin campos de más.
+          const action = sanitizeControlAction(data.payload);
+          if (!action) return;
+          return broadcastToRoom(ws.roomId, JSON.stringify({ type: "controlAction", payload: action }));
+        }
+        case "playbackState":
+          // Lo informa el host cuando el video se pausa o se reanuda; se recuerda para quien entre después.
+          currentRoom.paused = sanitizePlaybackState(data.payload).paused;
+          return broadcastToRoom(
+            ws.roomId,
+            JSON.stringify({ type: "playbackState", payload: { paused: currentRoom.paused } })
+          );
         case "timeUpdate":
           return broadcastToRoom(ws.roomId, JSON.stringify(data));
         case "getQueue":
@@ -903,6 +921,7 @@ wss.on("connection", (ws, req) => {
         );
         if (room.hostWs === ws) {
           room.hostWs = null;
+          room.paused = undefined;
           broadcastToRoom(
             roomId,
             JSON.stringify({ type: "hostStatus", payload: { connected: false } })

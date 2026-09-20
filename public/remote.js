@@ -183,14 +183,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Si falla se conserva la última lista conocida: es un extra de la búsqueda,
     // no debe impedir usar el resto.
+    // Devuelve true si la lista cambió respecto a la que ya se tenía.
     async function loadDownloads() {
         try {
             const res = await fetch("/api/downloads");
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            downloadList = await res.json();
+            const fresh = await res.json();
+            const changed =
+                fresh.map((d) => d.filename).join("|") !== downloadList.map((d) => d.filename).join("|");
+            downloadList = fresh;
+            return changed;
         } catch (error) {
             console.error("No se pudo cargar la lista de descargas:", error);
+            return false;
         }
+    }
+
+    // ¿Está en pantalla el aviso "no hay coincidencias, buscar en YouTube"?
+    function showingYoutubePrompt() {
+        return !!songBrowser.querySelector("#ytSuffixSelect");
     }
 
     async function loadSongs() {
@@ -591,21 +602,30 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Otras personas pueden haber descargado videos desde que se abrió esta
-    // pantalla: al ir a buscar se refresca la lista (no bloquea; si llega tarde,
-    // el servidor igual reutiliza el archivo y no lo descarga otra vez).
-    songSearch.addEventListener("focus", loadDownloads);
+    // pantalla: al ir a buscar se refresca la lista. Si la respuesta llega
+    // cuando ya se buscó (por ejemplo, al pegar el texto) y en pantalla está el
+    // aviso de "buscar en YouTube", se vuelve a dibujar por si ya hay coincidencia.
+    songSearch.addEventListener("focus", async () => {
+        const changed = await loadDownloads();
+        const query = songSearch.value.trim();
+        if (changed && query && showingYoutubePrompt()) renderSearchResults(query);
+    });
 
     // Enter (o la tecla "Ir/Buscar" del teclado del celular) busca directo en
     // YouTube cuando no hay coincidencias locales (ni en el catálogo ni entre
     // los videos ya descargados); con la biblioteca vacía eso ocurre siempre.
-    // Si hay coincidencias locales no hace nada.
-    songSearchForm.addEventListener("submit", (e) => {
+    // Si hay coincidencias locales no hace nada. Antes de decidir se actualiza la
+    // lista de descargas, para no mandar a YouTube algo que otra persona ya bajó.
+    songSearchForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const query = songSearch.value.trim();
         if (!query) return;
+        await loadDownloads();
         const { songs, downloads } = findLocalMatches(query);
         if (songs.length === 0 && downloads.length === 0) {
             searchYoutubeUI(query, selectedYtSuffix);
+        } else if (showingYoutubePrompt()) {
+            renderSearchResults(query);
         }
     });
 

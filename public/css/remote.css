@@ -74,6 +74,36 @@ a:focus-visible {
     margin-bottom: 1rem;
 }
 
+#turn-notification-banner {
+    background-color: #1DB954;
+    color: #0d0d0d;
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    animation: pulseTurnBanner 1s ease-in-out infinite;
+}
+
+@keyframes pulseTurnBanner {
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.5);
+    }
+
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 0 0 8px rgba(29, 185, 84, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #turn-notification-banner {
+        animation: none;
+    }
+}
+
 #room-modal {
     position: fixed;
     top: 0;

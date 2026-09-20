@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const confirmModalText = document.getElementById("confirm-modal-text");
     const confirmModalYes = document.getElementById("confirm-modal-yes");
     const confirmModalCancel = document.getElementById("confirm-modal-cancel");
+    const turnBanner = document.getElementById("turn-notification-banner");
 
     let songData = {};
     let flatSongList = [];
@@ -26,6 +27,32 @@ document.addEventListener("DOMContentLoaded", () => {
     let myName = "";
     let upNextSongId = null;
     let currentQueue = [];
+    let turnBannerTimeoutId = null;
+
+    // El audio de notificación se crea una sola vez y se "desbloquea" en la
+    // primera interacción real del usuario (tap/click). Los navegadores
+    // (sobre todo mobile) bloquean silenciosamente el play() automático que
+    // dispara el WebSocket si nunca hubo un gesto del usuario de por medio.
+    const notificationAudio = new Audio("/notification.mp3");
+    notificationAudio.preload = "auto";
+    let audioUnlocked = false;
+
+    function unlockAudio() {
+        if (audioUnlocked) return;
+        notificationAudio
+            .play()
+            .then(() => {
+                audioUnlocked = true;
+                notificationAudio.pause();
+                notificationAudio.currentTime = 0;
+            })
+            .catch(() => {
+                // No se pudo desbloquear con este gesto; se reintenta con el
+                // próximo click/tap (el listener sigue activo hasta lograrlo).
+            });
+    }
+    document.addEventListener("click", unlockAudio);
+    document.addEventListener("touchend", unlockAudio);
 
     roomCodeInput.addEventListener("input", () => {
         const cursorPos = roomCodeInput.selectionStart;
@@ -166,6 +193,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const nextSongIsMine = queue.length > 1 && queue[1].name === myName;
         if (!nextSongIsMine) {
             upNextSongId = null;
+            hideTurnBanner();
         }
     }
 
@@ -183,8 +211,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function notifyUser() {
         if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
-        const audio = new Audio("/notification.mp3");
-        audio.play().catch(e => console.error("No se pudo reproducir el sonido.", e));
+        notificationAudio.currentTime = 0;
+        notificationAudio.play().catch(e => console.error("No se pudo reproducir el sonido.", e));
+        showTurnBanner();
+    }
+
+    function showTurnBanner() {
+        if (!turnBanner) return;
+        turnBanner.classList.remove("hidden");
+        clearTimeout(turnBannerTimeoutId);
+        // Red de seguridad por si el próximo queueUpdate no llega a limpiarlo
+        // (por ejemplo, si se pierde la conexión justo después del aviso).
+        turnBannerTimeoutId = setTimeout(hideTurnBanner, 15000);
+    }
+
+    function hideTurnBanner() {
+        if (!turnBanner) return;
+        turnBanner.classList.add("hidden");
+        clearTimeout(turnBannerTimeoutId);
+        turnBannerTimeoutId = null;
     }
 
     function formatTime(seconds) {

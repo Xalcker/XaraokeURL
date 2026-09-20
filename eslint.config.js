@@ -31,6 +31,9 @@ module.exports = [
         getSongDisplay: "readonly",
         // Definida por public/js/icons.js.
         iconSvg: "readonly",
+        // Definidas por public/js/i18n.js: traductor y idioma elegido.
+        t: "readonly",
+        currentLang: "readonly",
       },
     },
   },

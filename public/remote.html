@@ -17,52 +17,52 @@
     <div id="room-modal">
         <div id="room-modal-content">
             <img class="brand-logo" src="img/logo.svg" alt="" width="88" height="88">
-            <h1>Unirse a una Sala</h1>
-            <p>Introduce el código de 4 letras de la sala.</p>
+            <h1 data-i18n="remote.join.title">Unirse a una Sala</h1>
+            <p data-i18n="remote.join.hint">Introduce el código de 4 letras de la sala.</p>
             <form id="room-form">
                 <div id="dev-name-field" class="hidden">
-                    <label for="devNameInput">Tu nombre</label>
-                    <input type="text" id="devNameInput" maxlength="30" placeholder="Tu nombre" autocomplete="nickname">
+                    <label for="devNameInput" data-i18n="remote.join.nameLabel">Tu nombre</label>
+                    <input type="text" id="devNameInput" maxlength="30" placeholder="Tu nombre" data-i18n-placeholder="remote.join.nameLabel" autocomplete="nickname">
                 </div>
                 <input type="text" id="roomCodeInput" maxlength="4" placeholder="ABCD" required>
-                <button type="submit" id="joinRoomBtn">Unirse</button>
+                <button type="submit" id="joinRoomBtn" data-i18n="remote.join.button">Unirse</button>
             </form>
             <p id="room-error"></p>
         </div>
     </div>
 
     <div id="main-content" class="container hidden">
-        <h1 class="app-header"><img src="img/logo.svg" alt="" width="40" height="40"> Control Remoto</h1>
+        <h1 class="app-header"><img src="img/logo.svg" alt="" width="40" height="40"> <span data-i18n="remote.header">Control Remoto</span></h1>
         <div id="remote-room-code">SALA: ----</div>
-        <div id="host-status-banner" class="hidden"><span data-icon="warning"></span>El host se desconectó. La reproducción está pausada hasta que vuelva a conectarse.</div>
-        <div id="turn-notification-banner" class="hidden" role="alert"><span data-icon="mic"></span>¡Prepárate! Tu canción está por empezar...</div>
+        <div id="host-status-banner" class="hidden"><span data-icon="warning"></span><span data-i18n="remote.hostDisconnected">El host se desconectó. La reproducción está pausada hasta que vuelva a conectarse.</span></div>
+        <div id="turn-notification-banner" class="hidden" role="alert"><span data-icon="mic"></span><span data-i18n="remote.turnBanner">¡Prepárate! Tu canción está por empezar...</span></div>
         <div id="now-playing-info">
-            <div id="current-song-title">Cargando...</div>
+            <div id="current-song-title" data-i18n="remote.loading">Cargando...</div>
             <div id="current-song-time"></div>
         </div>
         <div id="controls">
-            <button id="playPauseBtn" class="control-btn" type="button" aria-label="Reproducir o pausar" title="Reproducir o pausar">
+            <button id="playPauseBtn" class="control-btn" type="button" aria-label="Reproducir o pausar" title="Reproducir o pausar" data-i18n-aria-label="remote.playPauseLabel" data-i18n-title="remote.playPauseLabel">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5v14l9-7z"/><path d="M14 5h3v14h-3zM19 5h3v14h-3z"/></svg>
-                <span>Play / Pausa</span>
+                <span data-i18n="remote.playPause">Play / Pausa</span>
             </button>
-            <button id="skipBtn" class="control-btn" type="button" aria-label="Saltar canción" title="Saltar canción">
+            <button id="skipBtn" class="control-btn" type="button" aria-label="Saltar canción" title="Saltar canción" data-i18n-aria-label="remote.skip" data-i18n-title="remote.skip">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5v14l10-7z"/><path d="M17 5h2.5v14H17z"/></svg>
-                <span>Saltar canción</span>
+                <span data-i18n="remote.skip">Saltar canción</span>
             </button>
         </div>
         <div id="user-display">
-            <span id="userNameDisplay">Cargando usuario...</span>
-            <a id="logout-link" href="/logout">Salir</a>
+            <span id="userNameDisplay" data-i18n="remote.userLoading">Cargando usuario...</span>
+            <a id="logout-link" href="/logout" data-i18n="remote.logout">Salir</a>
         </div>
         <form id="song-search-form" role="search">
             <div class="search-field">
                 <span data-icon="search"></span>
-                <input type="search" id="songSearch" placeholder="Buscar canción o artista..." aria-label="Buscar canción o artista" autocomplete="off" enterkeyhint="search">
+                <input type="search" id="songSearch" placeholder="Buscar canción o artista..." aria-label="Buscar canción o artista" data-i18n-placeholder="remote.search.placeholder" data-i18n-aria-label="remote.search.label" autocomplete="off" enterkeyhint="search">
             </div>
         </form>
         <div id="songBrowser"></div>
         <div id="queue-container">
-            <h2>Cola Actual</h2>
+            <h2 data-i18n="remote.queue.title">Cola Actual</h2>
             <div id="songQueue"></div>
         </div>
     </div>
@@ -70,8 +70,8 @@
         <div id="confirm-modal-content">
             <p id="confirm-modal-text"></p>
             <div id="confirm-modal-actions">
-                <button type="button" id="confirm-modal-cancel" class="control-btn confirm-btn-cancel">Cancelar</button>
-                <button type="button" id="confirm-modal-yes" class="control-btn confirm-btn-yes">Añadir</button>
+                <button type="button" id="confirm-modal-cancel" class="control-btn confirm-btn-cancel" data-i18n="confirm.cancel">Cancelar</button>
+                <button type="button" id="confirm-modal-yes" class="control-btn confirm-btn-yes" data-i18n="confirm.add">Añadir</button>
             </div>
         </div>
     </div>
@@ -79,11 +79,12 @@
     <div id="yt-download-modal" class="hidden">
         <div id="yt-download-modal-content">
             <div class="spinner"></div>
-            <p id="yt-download-modal-text">Descargando desde YouTube, esto puede tardar unos segundos...</p>
+            <p id="yt-download-modal-text" data-i18n="yt.downloading">Descargando desde YouTube, esto puede tardar unos segundos...</p>
         </div>
     </div>
 
     <script src="js/icons.js"></script>
+    <script src="js/i18n.js"></script>
     <script src="js/shared.js"></script>
     <script src="remote.js"></script>
 </body>

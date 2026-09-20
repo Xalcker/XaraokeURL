@@ -150,13 +150,14 @@ Si el host se desconecta (por ejemplo, alguien cierra la pestaña de la pantalla
 
 Si buscas una canción y no aparece en la biblioteca, el control remoto ofrece buscarla en YouTube:
 
-1. Al no haber resultados en la búsqueda local, aparece la opción de buscar en YouTube con un sufijo (Karaoke, Instrumental, Pista o sin sufijo).
+1. Al no haber resultados en la búsqueda local, aparece la opción de buscar en YouTube con un sufijo (Karaoke, Instrumental, Pista o sin sufijo). Basta con pulsar **Enter** (o la tecla "Ir/Buscar" del teclado del celular) para buscar directamente con el sufijo elegido, "Karaoke" por defecto. Si hay coincidencias en la biblioteca local, Enter no hace nada.
 2. Se muestran hasta 4 resultados (miniatura, título, canal y duración) para elegir manualmente — nunca se reproduce el primer resultado a ciegas.
 3. Al elegir uno, se descarga (video + audio, hasta 720p) y se agrega a la cola de esa sesión. Se prefiere el códec H.264, que casi cualquier dispositivo reproduce con aceleración por hardware (TVs, Safari/iOS, navegadores sin soporte de AV1); si el video no lo ofrece, se usa AV1 u otro MP4 disponible.
 
 Detalles a tener en cuenta:
 
-* **Funciona sin biblioteca.** Si no existe `karaoke.db` (no ejecutaste `npm run import`), el servidor arranca igual y deja un aviso en los logs: el catálogo local aparece vacío y la única forma de agregar canciones es buscarlas en YouTube. Al ejecutar `npm run import` y reiniciar el servidor, la biblioteca local queda disponible junto con la búsqueda en YouTube.
+* **Funciona sin biblioteca.** Si no existe `karaoke.db` (no ejecutaste `npm run import`), el servidor arranca igual y deja un aviso en los logs: el catálogo local aparece vacío (con el selector de sufijo ya visible) y la única forma de agregar canciones es escribir el nombre y pulsar Enter para buscarlas en YouTube. Al ejecutar `npm run import` y reiniciar el servidor, la biblioteca local queda disponible junto con la búsqueda en YouTube.
+* **Cómo se ve en la cola.** Las canciones de YouTube se muestran con el título del video (y "YouTube" como artista), tanto en la pantalla principal como en el control remoto, en lugar del nombre interno del archivo.
 * **Es efímero, no permanente.** El video descargado no se guarda en `karaoke.db`; vive en `DOWNLOADS_PATH` (`./downloads` en desarrollo, `/data/downloads` en producción) y se borra automáticamente 6 horas después de descargado.
 * **Límites anti-abuso:** máximo 20 búsquedas/min y 5 descargas/min por IP, como mucho 3 descargas corriendo a la vez, y se rechazan videos de más de 10 minutos.
 * **Requiere `yt-dlp` y `ffmpeg`** instalados en el servidor (ver Pre-requisitos). Sin ellos, la búsqueda/descarga devuelve error pero el resto de la app sigue funcionando normal.

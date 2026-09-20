@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { escapeHtml, parseSongFilename } = require("../public/js/shared");
+const { escapeHtml, parseSongFilename, getSongDisplay } = require("../public/js/shared");
 
 test("escapeHtml neutraliza caracteres especiales de HTML", () => {
   assert.equal(
@@ -30,4 +30,27 @@ test("parseSongFilename maneja un filename sin separador", () => {
     artist: "Desconocido",
     songTitle: "cancion-sin-formato",
   });
+});
+
+test("getSongDisplay usa el título de YouTube cuando el ítem lo trae", () => {
+  assert.deepEqual(
+    getSongDisplay({ song: "b1cb4b3e-eade-4727-b804-06937d8b7561.mp4", title: "Me at the zoo" }),
+    { artist: "YouTube", songTitle: "Me at the zoo" }
+  );
+});
+
+test("getSongDisplay deriva artista y título del filename en canciones del catálogo", () => {
+  assert.deepEqual(getSongDisplay({ song: "Queen - Bohemian Rhapsody.mp4" }), {
+    artist: "Queen",
+    songTitle: "Bohemian Rhapsody",
+  });
+});
+
+test("getSongDisplay ignora un título vacío, nulo o solo con espacios", () => {
+  for (const title of ["", "   ", null, undefined]) {
+    assert.deepEqual(getSongDisplay({ song: "Queen - Bohemian Rhapsody.mp4", title }), {
+      artist: "Queen",
+      songTitle: "Bohemian Rhapsody",
+    });
+  }
 });

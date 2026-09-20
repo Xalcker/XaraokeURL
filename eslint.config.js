@@ -28,6 +28,7 @@ module.exports = [
         // Definidas por public/js/shared.js, cargado antes de estos scripts.
         escapeHtml: "readonly",
         parseSongFilename: "readonly",
+        getSongDisplay: "readonly",
       },
     },
   },

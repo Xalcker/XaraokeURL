@@ -97,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderNowPlaying() {
     const nowPlaying = currentQueue.length > 0 ? currentQueue[0] : null;
     if (nowPlaying) {
-      const { artist, songTitle } = parseSongFilename(nowPlaying.song);
+      const { artist, songTitle } = getSongDisplay(nowPlaying);
       nowPlayingContent.innerHTML = `<div class="info-card-title">${escapeHtml(artist)}</div><div class="info-card-subtitle">${escapeHtml(songTitle)}</div><div class="info-card-user">por ${escapeHtml(nowPlaying.name)}</div><div class="info-card-subtitle" id="song-duration"></div>`;
     } else {
       nowPlayingContent.innerHTML = '<div class="info-card-title">La cola está vacía</div>';
@@ -109,7 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderUpNext() {
     const upNext = currentQueue.length > 1 ? currentQueue[1] : null;
     if (upNext) {
-      const { artist, songTitle } = parseSongFilename(upNext.song);
+      const { artist, songTitle } = getSongDisplay(upNext);
       upNextContent.innerHTML = `<div class="info-card-title">${escapeHtml(artist)}</div><div class="info-card-subtitle">${escapeHtml(songTitle)}</div><div class="info-card-user">por ${escapeHtml(upNext.name)}</div>`;
     } else {
       upNextContent.innerHTML = '<div class="info-card-title">Nadie en espera</div>';
@@ -120,7 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
     songQueueContainer.innerHTML = "";
     const upcoming = currentQueue.slice(2, 7);
     upcoming.forEach((item) => {
-      const { artist, songTitle } = parseSongFilename(item.song);
+      const { artist, songTitle } = getSongDisplay(item);
       const div = document.createElement("div");
       div.className = "queue-item";
       div.innerHTML = `<span class="song-name">${escapeHtml(songTitle)}</span><span class="user-name">(${escapeHtml(artist)}) por ${escapeHtml(item.name)}</span>`;
@@ -187,6 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
             currentTime: player.currentTime,
             duration: player.duration,
             song: currentQueue.length > 0 ? currentQueue[0].song : null,
+            title: currentQueue.length > 0 ? currentQueue[0].title ?? null : null,
           },
         }));
       }

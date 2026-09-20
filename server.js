@@ -415,6 +415,24 @@ function broadcastToRoom(roomId, data) {
   }
 }
 
+// Agrega una canción a la cola de la sala y la difunde a todos los clientes.
+// El ítem se arma solo con los campos esperados (no se copia el payload
+// completo del cliente); `title` únicamente lo aporta el servidor.
+function enqueueSong(roomId, payload, title) {
+  const room = rooms[roomId];
+  if (!room) return;
+  room.songQueue.push({
+    song: payload.song,
+    name: payload.name,
+    id: crypto.randomUUID(),
+    ...(title ? { title } : {}),
+  });
+  broadcastToRoom(
+    roomId,
+    JSON.stringify({ type: "queueUpdate", payload: room.songQueue })
+  );
+}
+
 wss.on("connection", (ws, req) => {
   // Reject cross-site WebSocket handshakes: browsers always send Origin,
   // so only same-origin connections (or non-browser clients with none) pass.
@@ -505,17 +523,9 @@ wss.on("connection", (ws, req) => {
           // arbitrario que no exista (rompería /api/song-url al intentar
           // reproducirlo para todos).
           if (downloadedVideos[filename]) {
-            currentRoom.songQueue.push({
-              ...data.payload,
-              id: crypto.randomUUID(),
-            });
-            broadcastToRoom(
-              ws.roomId,
-              JSON.stringify({
-                type: "queueUpdate",
-                payload: currentRoom.songQueue,
-              })
-            );
+            // El título de YouTube lo pone el servidor (nunca el cliente) para
+            // mostrar algo legible en la cola en lugar del UUID del archivo.
+            enqueueSong(ws.roomId, data.payload, downloadedVideos[filename].title);
             return;
           }
 
@@ -525,19 +535,7 @@ wss.on("connection", (ws, req) => {
             [filename],
             (err, row) => {
               if (err || !row) return;
-              const roomNow = rooms[ws.roomId];
-              if (!roomNow) return;
-              roomNow.songQueue.push({
-                ...data.payload,
-                id: crypto.randomUUID(),
-              });
-              broadcastToRoom(
-                ws.roomId,
-                JSON.stringify({
-                  type: "queueUpdate",
-                  payload: roomNow.songQueue,
-                })
-              );
+              enqueueSong(ws.roomId, data.payload);
             }
           );
           return;

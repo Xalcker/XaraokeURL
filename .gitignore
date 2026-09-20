@@ -20,6 +20,9 @@ karaoke.db-journal
 songs.csv
 /data/
 
+# Descargas efímeras de YouTube
+downloads/
+
 # Sesiones
 sessions/
 /data/sessions/

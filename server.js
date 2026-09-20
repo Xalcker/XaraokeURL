@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
 const http = require("http");
 const crypto = require("crypto");
 const { URL } = require("url");
@@ -14,6 +15,13 @@ const FileStore = require("session-file-store")(session);
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const { generateRoomId } = require("./lib/roomId");
+const {
+  YOUTUBE_ID_RE,
+  checkYtdlpAvailable,
+  searchYoutube,
+  getVideoDurationSeconds,
+  downloadYoutubeVideo,
+} = require("./lib/ytdlp");
 
 const app = express();
 
@@ -21,6 +29,7 @@ const app = express();
 // scripts inline existentes en public/index.html. El resto de headers
 // (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, etc.) sí aplican.
 app.use(helmet({ contentSecurityPolicy: false }));
+app.use(express.json({ limit: "10kb" }));
 
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1); // Trust the first proxy hop (Nginx)
@@ -46,6 +55,18 @@ const DB_PATH =
 const SESSIONS_PATH =
   process.env.SESSIONS_PATH ||
   (process.env.NODE_ENV === "production" ? "/data/sessions" : "./sessions");
+const DOWNLOADS_PATH =
+  process.env.DOWNLOADS_PATH ||
+  (process.env.NODE_ENV === "production" ? "/data/downloads" : "./downloads");
+fs.mkdirSync(DOWNLOADS_PATH, { recursive: true });
+
+checkYtdlpAvailable().then((available) => {
+  if (!available) {
+    console.warn(
+      "⚠️  yt-dlp no está disponible en el PATH del servidor: la búsqueda/descarga desde YouTube no funcionará hasta que se instale."
+    );
+  }
+});
 
 const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
   if (err) {
@@ -57,6 +78,10 @@ const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
 });
 
 let rooms = {};
+// Registro efímero de videos descargados de YouTube: filename -> { url, title, addedAt }.
+// Nunca se escriben en karaoke.db (que se abre en modo solo-lectura); un
+// barrido periódico los borra del disco después de un tiempo (ver más abajo).
+let downloadedVideos = {};
 
 const sessionMiddleware = session({
   store: new FileStore({
@@ -177,12 +202,122 @@ app.get("/api/song-url", (req, res) => {
   const { song } = req.query;
   if (!song)
     return res.status(400).json({ error: "Falta el nombre de la canción." });
+  if (downloadedVideos[song]) {
+    return res.json({ url: downloadedVideos[song].url });
+  }
   db.get("SELECT url FROM songs WHERE filename = ?", [song], (err, row) => {
     if (err || !row)
       return res.status(404).json({ error: "Canción no encontrada." });
     res.json({ url: row.url });
   });
 });
+
+const youtubeSearchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiadas búsquedas en YouTube. Espera un minuto." },
+});
+
+const youtubeDownloadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiadas descargas. Espera un minuto." },
+});
+
+const MAX_CONCURRENT_DOWNLOADS = 3;
+const MAX_YOUTUBE_DURATION_SECONDS = 10 * 60; // 10 minutos
+let activeDownloads = 0;
+
+app.get(
+  "/api/youtube/search",
+  ensureAuthenticated,
+  youtubeSearchLimiter,
+  async (req, res) => {
+    const query = (req.query.q || "").toString().trim();
+    const suffix = (req.query.suffix || "karaoke").toString();
+    if (!query) {
+      return res.status(400).json({ error: "Falta el término de búsqueda." });
+    }
+    if (query.length > 100) {
+      return res.status(400).json({ error: "Búsqueda demasiado larga." });
+    }
+    try {
+      const results = await searchYoutube(query, { limit: 4, suffix });
+      res.json({ results });
+    } catch (err) {
+      console.error("Error buscando en YouTube:", err.message);
+      res.status(502).json({ error: "No se pudo buscar en YouTube." });
+    }
+  }
+);
+
+app.post(
+  "/api/youtube/download",
+  ensureAuthenticated,
+  youtubeDownloadLimiter,
+  async (req, res) => {
+    const { videoId, title } = req.body || {};
+    if (typeof videoId !== "string" || !YOUTUBE_ID_RE.test(videoId)) {
+      return res.status(400).json({ error: "ID de video inválido." });
+    }
+    if (activeDownloads >= MAX_CONCURRENT_DOWNLOADS) {
+      return res
+        .status(429)
+        .json({ error: "Ya hay demasiadas descargas en curso, intenta en un momento." });
+    }
+
+    activeDownloads++;
+    try {
+      // Chequeo autoritativo de duración: nunca confiar en la que haya
+      // devuelto la búsqueda (puede faltar o estar desactualizada).
+      const duration = await getVideoDurationSeconds(videoId);
+      if (duration !== null && duration > MAX_YOUTUBE_DURATION_SECONDS) {
+        return res
+          .status(400)
+          .json({ error: "El video es demasiado largo (máximo 10 minutos)." });
+      }
+
+      const filename = `${crypto.randomUUID()}.mp4`;
+      const destPath = path.join(DOWNLOADS_PATH, filename);
+      await downloadYoutubeVideo(videoId, destPath);
+
+      downloadedVideos[filename] = {
+        url: `/downloads/${filename}`,
+        title: typeof title === "string" && title ? title.slice(0, 200) : "Video de YouTube",
+        addedAt: Date.now(),
+      };
+      res.json({ filename, title: downloadedVideos[filename].title });
+    } catch (err) {
+      console.error("Error descargando de YouTube:", err.message);
+      res.status(502).json({ error: "No se pudo descargar el video." });
+    } finally {
+      activeDownloads--;
+    }
+  }
+);
+
+// Borra las descargas de YouTube después de un tiempo: son efímeras por
+// diseño (nunca se agregan a karaoke.db) y si no se limpiaran el disco
+// crecería sin límite con cada canción que alguien busque y agregue.
+const DOWNLOAD_TTL_MS = 6 * 60 * 60 * 1000; // 6 horas
+setInterval(() => {
+  const now = Date.now();
+  for (const [filename, info] of Object.entries(downloadedVideos)) {
+    if (now - info.addedAt > DOWNLOAD_TTL_MS) {
+      delete downloadedVideos[filename];
+      fs.unlink(path.join(DOWNLOADS_PATH, filename), (err) => {
+        if (err && err.code !== "ENOENT") {
+          console.error(`No se pudo borrar la descarga ${filename}:`, err.message);
+        }
+      });
+      console.log(`Descarga ${filename} eliminada por antigüedad.`);
+    }
+  }
+}, 30 * 60 * 1000).unref();
 
 // Sin este límite, cualquiera podía crear salas sin autenticarse y sin
 // límite alguno; combinado con la limpieza de abajo, una sala que nunca
@@ -247,6 +382,11 @@ app.get("/api/qr", (req, res) => {
 app.get("/favicon.ico", (req, res) => res.status(204).send());
 app.use("/remote.html", ensureAuthenticated);
 app.use(express.static(path.join(__dirname, "public")));
+// Sin auth a propósito: el host (pantalla principal) reproduce estos
+// archivos sin sesión de Google, igual que ya pasa con las URLs externas
+// del catálogo. La protección real es que el nombre es un UUID v4 al que
+// solo se llega habiendo pasado por /api/youtube/download (autenticado).
+app.use("/downloads", express.static(DOWNLOADS_PATH));
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -344,9 +484,26 @@ wss.on("connection", (ws, req) => {
         case "addSong": {
           const filename = data.payload?.song;
           if (typeof filename !== "string" || !filename) return;
-          // Se valida contra la DB para que un cliente no pueda meter en la
-          // cola un "filename" arbitrario que no exista (rompería /api/song-url
-          // al intentar reproducirlo para todos).
+
+          // Se valida contra la DB (o el registro de descargas de YouTube)
+          // para que un cliente no pueda meter en la cola un "filename"
+          // arbitrario que no exista (rompería /api/song-url al intentar
+          // reproducirlo para todos).
+          if (downloadedVideos[filename]) {
+            currentRoom.songQueue.push({
+              ...data.payload,
+              id: crypto.randomUUID(),
+            });
+            broadcastToRoom(
+              ws.roomId,
+              JSON.stringify({
+                type: "queueUpdate",
+                payload: currentRoom.songQueue,
+              })
+            );
+            return;
+          }
+
           db.get(
             "SELECT 1 FROM songs WHERE filename = ?",
             [filename],

@@ -20,6 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const confirmModalYes = document.getElementById("confirm-modal-yes");
     const confirmModalCancel = document.getElementById("confirm-modal-cancel");
     const turnBanner = document.getElementById("turn-notification-banner");
+    const ytDownloadModal = document.getElementById("yt-download-modal");
 
     let songData = {};
     let flatSongList = [];
@@ -28,6 +29,9 @@ document.addEventListener("DOMContentLoaded", () => {
     let upNextSongId = null;
     let currentQueue = [];
     let turnBannerTimeoutId = null;
+    let lastYtQuery = "";
+    let lastYtSuffix = "karaoke";
+    let lastYtResults = [];
 
     // El audio de notificación se crea una sola vez y se "desbloquea" en la
     // primera interacción real del usuario (tap/click). Los navegadores
@@ -318,14 +322,156 @@ document.addEventListener("DOMContentLoaded", () => {
             );
         });
         if (matches.length === 0) {
-            const emptyMsg = document.createElement("p");
-            emptyMsg.textContent = "No se encontraron canciones.";
-            songBrowser.appendChild(emptyMsg);
+            renderYoutubeSearchPrompt(query);
             return;
         }
         matches.slice(0, 50).forEach((filename) => {
             songBrowser.appendChild(createSongItem(filename));
         });
+    }
+
+    function renderYoutubeSearchPrompt(query) {
+        songBrowser.innerHTML = "";
+
+        const emptyMsg = document.createElement("p");
+        emptyMsg.textContent = "No se encontraron canciones en la biblioteca.";
+        songBrowser.appendChild(emptyMsg);
+
+        const suffixLabel = document.createElement("label");
+        suffixLabel.setAttribute("for", "ytSuffixSelect");
+        suffixLabel.textContent = "Buscar en YouTube como:";
+        songBrowser.appendChild(suffixLabel);
+
+        const suffixSelect = document.createElement("select");
+        suffixSelect.id = "ytSuffixSelect";
+        [
+            ["karaoke", "Karaoke"],
+            ["instrumental", "Instrumental"],
+            ["pista", "Pista"],
+            ["none", "Sin sufijo"],
+        ].forEach(([value, label]) => {
+            const opt = document.createElement("option");
+            opt.value = value;
+            opt.textContent = label;
+            suffixSelect.appendChild(opt);
+        });
+        songBrowser.appendChild(suffixSelect);
+
+        const searchBtn = document.createElement("button");
+        searchBtn.type = "button";
+        searchBtn.className = "back-btn";
+        searchBtn.textContent = "🔎 Buscar en YouTube";
+        searchBtn.onclick = () => searchYoutubeUI(query, suffixSelect.value);
+        songBrowser.appendChild(searchBtn);
+    }
+
+    async function searchYoutubeUI(query, suffix) {
+        songBrowser.innerHTML = "";
+        const loadingMsg = document.createElement("p");
+        loadingMsg.textContent = "Buscando en YouTube...";
+        songBrowser.appendChild(loadingMsg);
+
+        try {
+            const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}&suffix=${encodeURIComponent(suffix)}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Error de búsqueda");
+            renderYoutubeResults(data.results, query, suffix);
+        } catch (error) {
+            songBrowser.innerHTML = "";
+            const errMsg = document.createElement("p");
+            errMsg.className = "yt-error";
+            errMsg.textContent = error.message || "No se pudo buscar en YouTube. Intenta de nuevo.";
+            songBrowser.appendChild(errMsg);
+            const retryBtn = document.createElement("button");
+            retryBtn.type = "button";
+            retryBtn.className = "back-btn";
+            retryBtn.textContent = "🔄 Reintentar";
+            retryBtn.onclick = () => searchYoutubeUI(query, suffix);
+            songBrowser.appendChild(retryBtn);
+        }
+    }
+
+    function renderYoutubeResults(results, query, suffix) {
+        lastYtQuery = query;
+        lastYtSuffix = suffix;
+        lastYtResults = results || [];
+
+        songBrowser.innerHTML = "";
+        addBackButton(() => renderYoutubeSearchPrompt(query));
+
+        if (lastYtResults.length === 0) {
+            const noResults = document.createElement("p");
+            noResults.textContent = "No se encontraron resultados en YouTube.";
+            songBrowser.appendChild(noResults);
+            return;
+        }
+
+        lastYtResults.forEach((video) => {
+            songBrowser.appendChild(createYoutubeResultItem(video));
+        });
+    }
+
+    function createYoutubeResultItem(video) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "yt-result-item";
+
+        if (video.thumbnail) {
+            const thumb = document.createElement("img");
+            thumb.src = video.thumbnail;
+            thumb.alt = "";
+            thumb.className = "yt-result-thumb";
+            item.appendChild(thumb);
+        }
+
+        const info = document.createElement("div");
+        info.className = "yt-result-info";
+
+        const titleEl = document.createElement("span");
+        titleEl.className = "yt-result-title";
+        titleEl.textContent = video.title;
+        info.appendChild(titleEl);
+
+        const metaEl = document.createElement("span");
+        metaEl.className = "yt-result-meta";
+        const durationText = video.duration ? formatTime(video.duration) : "";
+        metaEl.textContent = [video.channel, durationText].filter(Boolean).join(" · ");
+        info.appendChild(metaEl);
+
+        item.appendChild(info);
+
+        item.onclick = async () => {
+            const confirmed = await showConfirm(`¿Descargar "${video.title}" desde YouTube y agregarla a la cola? Puede tardar unos segundos.`);
+            if (confirmed) {
+                downloadAndQueueYoutube(video);
+            }
+        };
+
+        return item;
+    }
+
+    async function downloadAndQueueYoutube(video) {
+        ytDownloadModal.classList.remove("hidden");
+        try {
+            const res = await fetch("/api/youtube/download", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ videoId: video.id, title: video.title }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "No se pudo descargar el video.");
+            ws.send(JSON.stringify({ type: "addSong", payload: { song: data.filename } }));
+            songSearch.value = "";
+            renderAlphabet();
+        } catch (error) {
+            renderYoutubeResults(lastYtResults, lastYtQuery, lastYtSuffix);
+            const errMsg = document.createElement("p");
+            errMsg.className = "yt-error";
+            errMsg.textContent = error.message || "No se pudo descargar el video. Intenta de nuevo.";
+            songBrowser.insertBefore(errMsg, songBrowser.firstChild);
+        } finally {
+            ytDownloadModal.classList.add("hidden");
+        }
     }
 
     songSearch.addEventListener("input", () => {

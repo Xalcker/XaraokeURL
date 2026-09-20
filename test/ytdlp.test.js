@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   YOUTUBE_ID_RE,
+  VIDEO_FORMAT,
   buildSearchQuery,
   parseSearchOutput,
 } = require("../lib/ytdlp");
@@ -56,4 +57,17 @@ test("parseSearchOutput usa 'Sin título' si falta el título", () => {
   const stdout = JSON.stringify({ id: "dQw4w9WgXcQ" });
   const results = parseSearchOutput(stdout);
   assert.equal(results[0].title, "Sin título");
+});
+
+test("VIDEO_FORMAT prefiere H.264, cae a cualquier MP4 (AV1) y termina en 'best'", () => {
+  const options = VIDEO_FORMAT.split("/");
+  assert.match(options[0], /vcodec\^=avc1/);
+  assert.doesNotMatch(options[1], /vcodec/);
+  assert.equal(options[options.length - 1], "best");
+});
+
+test("VIDEO_FORMAT limita la resolución a 720p en las opciones de video separado", () => {
+  const separateVideo = VIDEO_FORMAT.split("/").filter((o) => o.startsWith("bestvideo"));
+  assert.equal(separateVideo.length, 2);
+  separateVideo.forEach((o) => assert.match(o, /height<=720/));
 });

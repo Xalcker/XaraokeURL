@@ -68,14 +68,26 @@ checkYtdlpAvailable().then((available) => {
   }
 });
 
-const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
-  if (err) {
-    console.error("Error al conectar con la base de datos:", err.message);
-    process.exit(1);
-  } else {
-    console.log("Conectado a la base de datos de canciones en modo lectura.");
-  }
-});
+// Si karaoke.db no existe (todavía no se importó songs.csv), el servidor
+// arranca igual en "modo sin biblioteca": el catálogo local queda vacío y
+// solo se pueden agregar canciones buscándolas en YouTube. Si el archivo sí
+// existe pero no se puede abrir (por ejemplo, sin permisos de lectura), el
+// error sigue siendo fatal para no ocultar un problema real.
+let db = null;
+if (fs.existsSync(DB_PATH)) {
+  db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
+    if (err) {
+      console.error("Error al conectar con la base de datos:", err.message);
+      process.exit(1);
+    } else {
+      console.log("Conectado a la base de datos de canciones en modo lectura.");
+    }
+  });
+} else {
+  console.warn(
+    `⚠️  No se encontró la base de datos (${DB_PATH}): la biblioteca local queda vacía y solo se podrán agregar canciones buscándolas en YouTube. Ejecuta "npm run import" para crearla.`
+  );
+}
 
 let rooms = {};
 // Registro efímero de videos descargados de YouTube: filename -> { url, title, addedAt }.
@@ -176,6 +188,7 @@ app.get("/api/me", ensureAuthenticated, (req, res) => {
 });
 
 app.get("/api/songs", ensureAuthenticated, (req, res) => {
+  if (!db) return res.json({});
   db.all(
     "SELECT artist, filename FROM songs ORDER BY artist, title",
     [],
@@ -205,6 +218,7 @@ app.get("/api/song-url", (req, res) => {
   if (downloadedVideos[song]) {
     return res.json({ url: downloadedVideos[song].url });
   }
+  if (!db) return res.status(404).json({ error: "Canción no encontrada." });
   db.get("SELECT url FROM songs WHERE filename = ?", [song], (err, row) => {
     if (err || !row)
       return res.status(404).json({ error: "Canción no encontrada." });
@@ -504,6 +518,7 @@ wss.on("connection", (ws, req) => {
             return;
           }
 
+          if (!db) return; // Sin biblioteca local: solo valen las descargas de YouTube.
           db.get(
             "SELECT 1 FROM songs WHERE filename = ?",
             [filename],

@@ -245,6 +245,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderAlphabet() {
         songBrowser.innerHTML = "";
+        if (flatSongList.length === 0) {
+            const emptyHint = document.createElement("p");
+            emptyHint.textContent = "La biblioteca local está vacía. Escribe el nombre de una canción en el buscador para buscarla en YouTube.";
+            songBrowser.appendChild(emptyHint);
+            return;
+        }
         const container = document.createElement("div");
         container.className = "alphabet-container";
         "#ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach(letter => {

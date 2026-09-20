@@ -11,8 +11,16 @@ const session = require("express-session");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FileStore = require("session-file-store")(session);
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const { generateRoomId } = require("./lib/roomId");
 
 const app = express();
+
+// CSP se deja desactivado: la config por defecto de helmet rompería los
+// scripts inline existentes en public/index.html. El resto de headers
+// (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, etc.) sí aplican.
+app.use(helmet({ contentSecurityPolicy: false }));
 
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1); // Trust the first proxy hop (Nginx)
@@ -20,6 +28,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const PORT = process.env.PORT || 8081;
+const ALLOWED_DOMAIN = process.env.ALLOWED_DOMAIN || "xalcker.xyz";
 const DB_PATH =
   process.env.DB_PATH ||
   (process.env.NODE_ENV === "production" ? "/data/karaoke.db" : "./karaoke.db");
@@ -68,7 +77,7 @@ passport.use(
     },
     (accessToken, refreshToken, profile, done) => {
       const userEmail = profile.emails?.[0]?.value;
-      if (userEmail && userEmail.endsWith("@xalcker.xyz")) {
+      if (userEmail && userEmail.endsWith(`@${ALLOWED_DOMAIN}`)) {
         return done(null, profile);
       } else {
         return done(null, false, { message: "Acceso denegado." });
@@ -115,21 +124,13 @@ app.get("/login-failed", (req, res) => {
   res
     .status(403)
     .send(
-      "<h1>Acceso denegado</h1><p>Debes usar una cuenta del dominio xalcker.xyz para acceder.</p>"
+      `<h1>Acceso denegado</h1><p>Debes usar una cuenta del dominio ${ALLOWED_DOMAIN} para acceder.</p>`
     );
 });
 
 app.get("/api/me", ensureAuthenticated, (req, res) => {
   res.json({ name: req.user.displayName || "Usuario" });
 });
-
-function generateRoomId() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  let result = "";
-  for (let i = 0; i < 4; i++)
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  return rooms[result] ? generateRoomId() : result;
-}
 
 app.get("/api/songs", ensureAuthenticated, (req, res) => {
   db.all(
@@ -165,13 +166,44 @@ app.get("/api/song-url", (req, res) => {
   });
 });
 
-app.post("/api/rooms", (req, res) => {
-  const roomId = generateRoomId();
+// Sin este límite, cualquiera podía crear salas sin autenticarse y sin
+// límite alguno; combinado con la limpieza de abajo, una sala que nunca
+// recibe conexiones se quedaba en memoria para siempre (fuga de memoria/DoS).
+const createRoomLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiadas salas creadas. Intenta de nuevo en un minuto." },
+});
+
+app.post("/api/rooms", createRoomLimiter, (req, res) => {
+  const roomId = generateRoomId(rooms);
   const hostToken = crypto.randomUUID();
-  rooms[roomId] = { songQueue: [], clients: new Set(), hostToken };
+  rooms[roomId] = {
+    songQueue: [],
+    clients: new Set(),
+    hostToken,
+    hostWs: null,
+    createdAt: Date.now(),
+  };
   console.log(`Sala creada: ${roomId}`);
   res.json({ roomId, hostToken });
 });
+
+// Elimina salas que nunca llegaron a tener un cliente conectado (el host
+// nunca abrió el WebSocket). Las salas activas se limpian de inmediato al
+// desconectarse el último cliente, así que esto solo cubre ese caso huérfano.
+const ROOM_IDLE_TTL_MS = 10 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [roomId, room] of Object.entries(rooms)) {
+    if (room.clients.size === 0 && now - room.createdAt > ROOM_IDLE_TTL_MS) {
+      delete rooms[roomId];
+      console.log(`Sala ${roomId} eliminada por inactividad (nadie se conectó).`);
+    }
+  }
+}, 60 * 1000).unref();
 
 app.get("/api/rooms/:roomId", (req, res) => {
   res.json({ exists: !!rooms[req.params.roomId.toUpperCase()] });
@@ -249,11 +281,26 @@ wss.on("connection", (ws, req) => {
     }
 
     ws.roomId = roomId;
+    ws.isHost = isHost;
     room.clients.add(ws);
     console.log(
       `Client connected to room ${roomId}. Total clients: ${room.clients.size}`
     );
     ws.send(JSON.stringify({ type: "queueUpdate", payload: room.songQueue }));
+    ws.send(
+      JSON.stringify({
+        type: "hostStatus",
+        payload: { connected: !!room.hostWs },
+      })
+    );
+
+    if (isHost) {
+      room.hostWs = ws;
+      broadcastToRoom(
+        roomId,
+        JSON.stringify({ type: "hostStatus", payload: { connected: true } })
+      );
+    }
 
     ws.on("message", (message) => {
       let data;
@@ -274,13 +321,34 @@ wss.on("connection", (ws, req) => {
 
       let updateQueue = false;
       switch (data.type) {
-        case "addSong":
-          currentRoom.songQueue.push({
-            ...data.payload,
-            id: crypto.randomUUID(),
-          });
-          updateQueue = true;
-          break;
+        case "addSong": {
+          const filename = data.payload?.song;
+          if (typeof filename !== "string" || !filename) return;
+          // Se valida contra la DB para que un cliente no pueda meter en la
+          // cola un "filename" arbitrario que no exista (rompería /api/song-url
+          // al intentar reproducirlo para todos).
+          db.get(
+            "SELECT 1 FROM songs WHERE filename = ?",
+            [filename],
+            (err, row) => {
+              if (err || !row) return;
+              const roomNow = rooms[ws.roomId];
+              if (!roomNow) return;
+              roomNow.songQueue.push({
+                ...data.payload,
+                id: crypto.randomUUID(),
+              });
+              broadcastToRoom(
+                ws.roomId,
+                JSON.stringify({
+                  type: "queueUpdate",
+                  payload: roomNow.songQueue,
+                })
+              );
+            }
+          );
+          return;
+        }
         case "removeSong":
           currentRoom.songQueue = currentRoom.songQueue.filter(
             (song) =>
@@ -321,6 +389,13 @@ wss.on("connection", (ws, req) => {
         console.log(
           `Client disconnected from room ${roomId}. Remaining: ${room.clients.size}`
         );
+        if (room.hostWs === ws) {
+          room.hostWs = null;
+          broadcastToRoom(
+            roomId,
+            JSON.stringify({ type: "hostStatus", payload: { connected: false } })
+          );
+        }
         if (room.clients.size === 0) {
           delete rooms[roomId];
           console.log(`Room ${roomId} deleted.`);

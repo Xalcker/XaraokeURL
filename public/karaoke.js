@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   startBtn.addEventListener("click", async () => {
     welcomeModal.classList.add("hidden");
     mainContainer.classList.remove("hidden");
-    player.play().catch((e) => console.log("Permiso de audio concedido."));
+    player.play().catch(() => console.log("Permiso de audio concedido."));
     player.pause();
     try {
       const response = await fetch("/api/rooms", { method: "POST" });
@@ -76,28 +76,10 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${mins}:${secs}`;
   }
 
-  function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;",
-    }[c]));
-  }
-
-  function formatSongTitleForDisplay(fullFilename) {
-    const parts = fullFilename.replace(".mp4", "").split(" - ");
-    if (parts.length >= 2) {
-      return { artist: parts[0].trim(), songTitle: parts.slice(1).join(" - ").trim() };
-    }
-    return { artist: "Desconocido", songTitle: fullFilename.replace(".mp4", "") };
-  }
-
   function renderNowPlaying() {
     const nowPlaying = currentQueue.length > 0 ? currentQueue[0] : null;
     if (nowPlaying) {
-      const { artist, songTitle } = formatSongTitleForDisplay(nowPlaying.song);
+      const { artist, songTitle } = parseSongFilename(nowPlaying.song);
       nowPlayingContent.innerHTML = `<div class="info-card-title">${escapeHtml(artist)}</div><div class="info-card-subtitle">${escapeHtml(songTitle)}</div><div class="info-card-user">por ${escapeHtml(nowPlaying.name)}</div><div class="info-card-subtitle" id="song-duration"></div>`;
     } else {
       nowPlayingContent.innerHTML = '<div class="info-card-title">La cola está vacía</div>';
@@ -109,7 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderUpNext() {
     const upNext = currentQueue.length > 1 ? currentQueue[1] : null;
     if (upNext) {
-      const { artist, songTitle } = formatSongTitleForDisplay(upNext.song);
+      const { artist, songTitle } = parseSongFilename(upNext.song);
       upNextContent.innerHTML = `<div class="info-card-title">${escapeHtml(artist)}</div><div class="info-card-subtitle">${escapeHtml(songTitle)}</div><div class="info-card-user">por ${escapeHtml(upNext.name)}</div>`;
     } else {
       upNextContent.innerHTML = '<div class="info-card-title">Nadie en espera</div>';
@@ -120,7 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
     songQueueContainer.innerHTML = "";
     const upcoming = currentQueue.slice(2, 7);
     upcoming.forEach((item) => {
-      const { artist, songTitle } = formatSongTitleForDisplay(item.song);
+      const { artist, songTitle } = parseSongFilename(item.song);
       const div = document.createElement("div");
       div.className = "queue-item";
       div.innerHTML = `<span class="song-name">${escapeHtml(songTitle)}</span><span class="user-name">(${escapeHtml(artist)}) por ${escapeHtml(item.name)}</span>`;

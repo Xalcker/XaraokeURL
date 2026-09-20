@@ -18,16 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let myName = "";
     let upNextSongId = null;
     let currentQueue = [];
-
-    function escapeHtml(str) {
-        return String(str).replace(/[&<>"']/g, (c) => ({
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#39;",
-        }[c]));
-    }
+    const hostStatusBanner = document.getElementById("host-status-banner");
 
     async function initializeAppFlow() {
         try {
@@ -36,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const userData = await userRes.json();
             myName = userData.name;
             userNameDisplay.textContent = `Usuario: ${myName}`;
-        } catch (error) {
+        } catch {
             window.location.href = '/login';
         }
     }
@@ -59,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 roomError.textContent = `La sala "${roomCode}" no existe.`;
             }
-        } catch (error) {
+        } catch {
             roomError.textContent = "Error al verificar la sala.";
         }
     });
@@ -91,6 +82,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     notifyUser();
                 }
             }
+            if (message.type === "hostStatus") {
+                updateHostStatusBanner(message.payload?.connected !== false);
+            }
         };
     }
 
@@ -107,13 +101,19 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function updateHostStatusBanner(connected) {
+        if (!hostStatusBanner) return;
+        hostStatusBanner.classList.toggle("hidden", connected);
+    }
+
     function renderQueue(queue) {
         currentQueue = queue;
         songQueueContainer.innerHTML = "";
         queue.slice(1).forEach((item) => {
+            const { songTitle } = parseSongFilename(item.song);
             const div = document.createElement("div");
             div.className = "queue-item";
-            div.innerHTML = `<span><b>${escapeHtml(item.song.replace(".mp4", ""))}</b> (${escapeHtml(item.name)})</span>`;
+            div.innerHTML = `<span><b>${escapeHtml(songTitle)}</b> (${escapeHtml(item.name)})</span>`;
             if (item.name === myName && myName !== "") {
                 const removeBtn = document.createElement("button");
                 removeBtn.textContent = "Quitar";
@@ -138,7 +138,8 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         const remainingTime = data.duration - data.currentTime;
-        currentSongTitle.textContent = `Ahora suena: 🎵 ${data.song.replace(".mp4", "")}`;
+        const { artist, songTitle } = parseSongFilename(data.song);
+        currentSongTitle.textContent = `Ahora suena: 🎵 ${artist} - ${songTitle}`;
         currentSongTime.textContent = `${formatTime(data.currentTime)} / ${formatTime(data.duration)} (Faltan ${formatTime(remainingTime)})`;
     }
 
@@ -187,7 +188,7 @@ document.addEventListener("DOMContentLoaded", () => {
         songBrowser.innerHTML = "";
         addBackButton(() => renderArtists(letter));
         songData[letter][artist].forEach(filename => {
-            const songTitle = filename.split(" - ")[1].replace(".mp4", "");
+            const { songTitle } = parseSongFilename(filename);
             const songEl = document.createElement("div");
             songEl.className = "browser-item";
             songEl.textContent = `🎵 ${songTitle}`;

@@ -40,12 +40,26 @@ Sigue estos pasos para ejecutar el proyecto en tu máquina local.
 * Node.js v20.17 o superior (lo exige `sqlite3@6`)
 * npm
 * Cuenta de Google Cloud con OAuth 2.0 configurado (para autenticación)
-* (Opcional) `yt-dlp` y `ffmpeg` instalados y en el `PATH` del sistema, solo si quieres usar la búsqueda/descarga desde YouTube:
+* (Opcional) `yt-dlp` y `ffmpeg` instalados y en el `PATH` del sistema, solo si quieres usar la búsqueda/descarga desde YouTube. Sin estos binarios, el resto de la app funciona normal — la búsqueda/descarga de YouTube simplemente devuelve error y el servidor arranca igual (queda un aviso en los logs).
+
+  **Linux (Debian/Ubuntu):**
   ```bash
   sudo apt-get install -y ffmpeg
   pip install --break-system-packages yt-dlp
   ```
-  Sin estos binarios, el resto de la app funciona normal — la búsqueda/descarga de YouTube simplemente devuelve error y el servidor arranca igual (queda un aviso en los logs).
+
+  **macOS (con [Homebrew](https://brew.sh/)):**
+  ```bash
+  brew install ffmpeg yt-dlp
+  ```
+
+  **Windows (con [winget](https://learn.microsoft.com/windows/package-manager/winget/), incluido en Windows 10/11):**
+  ```powershell
+  winget install ffmpeg
+  winget install yt-dlp
+  ```
+
+  Verifica que ambos quedaron en el `PATH` con `ffmpeg -version` y `yt-dlp --version`. Si el servidor corre en un lugar distinto de donde instalaste los binarios (por ejemplo, un contenedor o un servicio systemd), asegúrate de instalarlos ahí también.
 
 ### Instalación
 

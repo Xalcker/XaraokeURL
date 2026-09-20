@@ -25,24 +25,24 @@
     <div id="welcome-modal">
         <img class="brand-logo" src="img/logo.svg" alt="" width="128" height="128">
         <h1>XaraokeURL</h1>
-        <p>Haz clic para iniciar la sesión</p>
-        <button id="start-btn">Comenzar</button>
+        <p data-i18n="host.welcome">Haz clic para iniciar la sesión</p>
+        <button id="start-btn" data-i18n="host.start">Comenzar</button>
     </div>
 
     <div class="main-container hidden">
         <div class="sidebar-left">
             <div id="now-playing" class="sidebar-section">
-                <h3><span data-icon="mic"></span>Ahora Suena</h3>
+                <h3><span data-icon="mic"></span><span data-i18n="host.nowPlaying">Ahora Suena</span></h3>
                 <div id="now-playing-content">
-                    <div class="info-card-title">Cargando...</div>
+                    <div class="info-card-title" data-i18n="host.loading">Cargando...</div>
                     <div class="info-card-user"></div>
                     <div class="info-card-subtitle"></div>
                 </div>
             </div>
             <div id="up-next" class="sidebar-section">
-                <h3><span data-icon="next"></span>A Continuación</h3>
+                <h3><span data-icon="next"></span><span data-i18n="host.upNext">A Continuación</span></h3>
                 <div id="up-next-content">
-                    <div class="info-card-title">Nadie en espera</div>
+                    <div class="info-card-title" data-i18n="host.nobodyWaiting">Nadie en espera</div>
                 </div>
             </div>
         </div>
@@ -54,20 +54,21 @@
         
         <div class="sidebar-right">
             <div id="queue-container" class="sidebar-section">
-                <h3><span data-icon="list"></span>Próximas 5 Canciones</h3>
+                <h3><span data-icon="list"></span><span data-i18n="host.upcoming">Próximas 5 Canciones</span></h3>
                 <div id="songQueue"></div>
             </div>
             <div id="qr-container" class="sidebar-section">
-                <h3><span data-icon="phone"></span>Control Remoto</h3>
-                <p style="text-align: center; margin-bottom: 0.5rem; font-size: 1.2rem; font-weight: bold;">Sala:</p> 
+                <h3><span data-icon="phone"></span><span data-i18n="host.remote">Control Remoto</span></h3>
+                <p style="text-align: center; margin-bottom: 0.5rem; font-size: 1.2rem; font-weight: bold;" data-i18n="host.room">Sala:</p> 
                 <div id="room-code">----</div>
-                <p>Escanea para añadir canciones</p>
-                <img id="qrCode" alt="Código QR del control remoto">
-                <p id="qr-error" class="hidden">No se pudo generar el QR. Entra manualmente a <strong>/remote.html</strong> desde tu teléfono.</p>
+                <p data-i18n="host.scan">Escanea para añadir canciones</p>
+                <img id="qrCode" alt="Código QR del control remoto" data-i18n-alt="host.qrAlt">
+                <p id="qr-error" class="hidden" data-i18n-html="host.qrError.html">No se pudo generar el QR. Entra manualmente a <strong>/remote.html</strong> desde tu teléfono.</p>
             </div>
         </div>
     </div>
     <script src="js/icons.js"></script>
+    <script src="js/i18n.js"></script>
     <script src="js/shared.js"></script>
     <script src="karaoke.js"></script>
 </body>

@@ -14,10 +14,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let roomId = null;
   let hostToken = null;
 
+  const songDisplay = (item) => getSongDisplay(item, t("song.unknownArtist"));
+
   startBtn.addEventListener("click", async () => {
     if (startBtn.disabled) return;
     startBtn.disabled = true;
-    startBtn.textContent = "Creando sala...";
+    startBtn.textContent = t("host.creating");
     player.play().catch(() => console.log("Permiso de audio concedido."));
     player.pause();
     try {
@@ -33,9 +35,9 @@ document.addEventListener("DOMContentLoaded", () => {
       initialize();
     } catch (error) {
       console.error("No se pudo crear la sala:", error);
-      alert("Error al crear la sala. Por favor, intenta de nuevo.");
+      alert(t("host.createFailed"));
       startBtn.disabled = false;
-      startBtn.textContent = "Comenzar";
+      startBtn.textContent = t("host.start");
     }
   });
 
@@ -97,10 +99,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderNowPlaying() {
     const nowPlaying = currentQueue.length > 0 ? currentQueue[0] : null;
     if (nowPlaying) {
-      const { artist, songTitle } = getSongDisplay(nowPlaying);
-      nowPlayingContent.innerHTML = `<div class="info-card-title">${escapeHtml(artist)}</div><div class="info-card-subtitle">${escapeHtml(songTitle)}</div><div class="info-card-user">por ${escapeHtml(nowPlaying.name)}</div><div class="info-card-subtitle" id="song-duration"></div>`;
+      const { artist, songTitle } = songDisplay(nowPlaying);
+      nowPlayingContent.innerHTML = `<div class="info-card-title">${escapeHtml(artist)}</div><div class="info-card-subtitle">${escapeHtml(songTitle)}</div><div class="info-card-user">${escapeHtml(t("host.by", { name: nowPlaying.name }))}</div><div class="info-card-subtitle" id="song-duration"></div>`;
     } else {
-      nowPlayingContent.innerHTML = '<div class="info-card-title">La cola está vacía</div>';
+      nowPlayingContent.innerHTML = `<div class="info-card-title">${escapeHtml(t("host.queueEmpty"))}</div>`;
       const durationEl = document.getElementById("song-duration");
       if (durationEl) durationEl.textContent = "";
     }
@@ -109,10 +111,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderUpNext() {
     const upNext = currentQueue.length > 1 ? currentQueue[1] : null;
     if (upNext) {
-      const { artist, songTitle } = getSongDisplay(upNext);
-      upNextContent.innerHTML = `<div class="info-card-title">${escapeHtml(artist)}</div><div class="info-card-subtitle">${escapeHtml(songTitle)}</div><div class="info-card-user">por ${escapeHtml(upNext.name)}</div>`;
+      const { artist, songTitle } = songDisplay(upNext);
+      upNextContent.innerHTML = `<div class="info-card-title">${escapeHtml(artist)}</div><div class="info-card-subtitle">${escapeHtml(songTitle)}</div><div class="info-card-user">${escapeHtml(t("host.by", { name: upNext.name }))}</div>`;
     } else {
-      upNextContent.innerHTML = '<div class="info-card-title">Nadie en espera</div>';
+      upNextContent.innerHTML = `<div class="info-card-title">${escapeHtml(t("host.nobodyWaiting"))}</div>`;
     }
   }
 
@@ -120,16 +122,16 @@ document.addEventListener("DOMContentLoaded", () => {
     songQueueContainer.innerHTML = "";
     const upcoming = currentQueue.slice(2, 7);
     upcoming.forEach((item) => {
-      const { artist, songTitle } = getSongDisplay(item);
+      const { artist, songTitle } = songDisplay(item);
       const div = document.createElement("div");
       div.className = "queue-item";
-      div.innerHTML = `<span class="song-name">${escapeHtml(songTitle)}</span><span class="user-name">(${escapeHtml(artist)}) por ${escapeHtml(item.name)}</span>`;
+      div.innerHTML = `<span class="song-name">${escapeHtml(songTitle)}</span><span class="user-name">(${escapeHtml(artist)}) ${escapeHtml(t("host.by", { name: item.name }))}</span>`;
       songQueueContainer.appendChild(div);
     });
     if (upcoming.length === 0 && currentQueue.length <= 2) {
       const div = document.createElement("div");
       div.className = "queue-item";
-      div.textContent = "No hay más canciones en cola.";
+      div.textContent = t("host.noMoreSongs");
       songQueueContainer.appendChild(div);
     }
   }
@@ -172,7 +174,7 @@ document.addEventListener("DOMContentLoaded", () => {
   player.addEventListener("loadedmetadata", () => {
     const durationEl = document.getElementById("song-duration");
     if (durationEl) {
-      durationEl.textContent = `Duración: ${formatTime(player.duration)}`;
+      durationEl.textContent = t("host.duration", { time: formatTime(player.duration) });
     }
   });
 

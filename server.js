@@ -18,6 +18,7 @@ const { generateRoomId } = require("./lib/roomId");
 const { getLanAddresses, formatAccessLines } = require("./lib/network");
 const { sanitizeDisplayName } = require("./lib/displayName");
 const { escapeHtml } = require("./public/js/shared");
+const { pickLanguage, translate } = require("./public/js/i18n");
 const {
   YOUTUBE_ID_RE,
   checkYtdlpAvailable,
@@ -53,7 +54,16 @@ const ALLOWED_DOMAIN = process.env.ALLOWED_DOMAIN || "xalcker.xyz";
 const AUTH_DISABLED =
   process.env.NODE_ENV !== "production" &&
   process.env.DISABLE_GOOGLE_AUTH === "true";
-const DEV_USER_NAME = process.env.DEV_USER_NAME || "Usuario Local";
+// Nombre sugerido en modo desarrollo. Si no se fija en .env, depende del idioma
+// del navegador de quien pide (ver devUserName).
+const DEV_USER_NAME = process.env.DEV_USER_NAME;
+
+// Idioma de quien hace la petición (header Accept-Language) y texto traducido:
+// los mensajes de error de la API y las pantallas de acceso salen en su idioma.
+// Los registros de la consola del servidor siguen en español.
+const langOf = (req) => pickLanguage(req.headers["accept-language"]);
+const tr = (req, key, params) => translate(langOf(req), key, params);
+const devUserName = (req) => DEV_USER_NAME || tr(req, "dev.defaultName");
 if (AUTH_DISABLED) {
   console.warn(
     "⚠️  DISABLE_GOOGLE_AUTH=true: autenticación de Google desactivada (solo dev local)."
@@ -188,9 +198,9 @@ function ensureAuthenticated(req, res, next) {
 // Página completa (con viewport, título e iconos) para las pantallas de acceso.
 // Antes eran un <div> suelto sin <head>, que en un celular se veía diminuto.
 // Viven aquí y no en public/ porque dependen de la configuración.
-function simplePage(title, contentHtml) {
+function simplePage(lang, title, contentHtml) {
   return `<!DOCTYPE html>
-<html lang="es">
+<html lang="${lang}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -221,10 +231,12 @@ ${contentHtml}
 
 app.get("/login", (req, res) => {
   if (AUTH_DISABLED) return res.redirect("/remote.html");
-  res.send(
+  const lang = langOf(req);
+  res.vary("Accept-Language").send(
     simplePage(
+      lang,
       "XaraokeURL",
-      `<h1>XaraokeURL</h1><p>Necesitas iniciar sesión para acceder al control remoto.</p><a class="btn" href="/auth/google">Iniciar sesión con Google</a>`
+      `<h1>XaraokeURL</h1><p>${escapeHtml(translate(lang, "login.prompt"))}</p><a class="btn" href="/auth/google">${escapeHtml(translate(lang, "login.google"))}</a>`
     )
   );
 });
@@ -237,12 +249,16 @@ app.get("/logout", (req, res, next) => {
 });
 
 app.get("/login-failed", (req, res) => {
+  const lang = langOf(req);
+  const title = escapeHtml(translate(lang, "login.deniedTitle"));
   res
     .status(403)
+    .vary("Accept-Language")
     .send(
       simplePage(
-        "Acceso denegado",
-        `<h1>Acceso denegado</h1><p>Debes usar una cuenta del dominio ${escapeHtml(ALLOWED_DOMAIN)} para acceder.</p><a class="btn" href="/login">Volver a intentar</a>`
+        lang,
+        translate(lang, "login.deniedTitle"),
+        `<h1>${title}</h1><p>${escapeHtml(translate(lang, "login.deniedBody", { domain: ALLOWED_DOMAIN }))}</p><a class="btn" href="/login">${escapeHtml(translate(lang, "login.retry"))}</a>`
       )
     );
 });
@@ -254,10 +270,10 @@ app.get("/api/me", ensureAuthenticated, (req, res) => {
     return res.json({
       devMode: true,
       name: req.session.devName || null,
-      suggestedName: DEV_USER_NAME,
+      suggestedName: devUserName(req),
     });
   }
-  res.json({ name: req.user.displayName || "Usuario" });
+  res.json({ name: req.user.displayName || tr(req, "user.default") });
 });
 
 if (AUTH_DISABLED) {
@@ -265,7 +281,7 @@ if (AUTH_DISABLED) {
   app.post("/api/dev-name", (req, res) => {
     const name = sanitizeDisplayName(req.body?.name);
     if (!name) {
-      return res.status(400).json({ error: "Escribe un nombre." });
+      return res.status(400).json({ error: tr(req, "api.nameRequired") });
     }
     req.session.devName = name;
     res.json({ name });
@@ -281,7 +297,7 @@ app.get("/api/songs", ensureAuthenticated, (req, res) => {
       if (err)
         return res
           .status(500)
-          .json({ error: "No se pudieron obtener las canciones." });
+          .json({ error: tr(req, "api.songsFailed") });
       const structuredSongs = {};
       rows.forEach(({ artist, filename }) => {
         let firstLetter = artist.charAt(0).toUpperCase();
@@ -299,14 +315,14 @@ app.get("/api/songs", ensureAuthenticated, (req, res) => {
 app.get("/api/song-url", (req, res) => {
   const { song } = req.query;
   if (!song)
-    return res.status(400).json({ error: "Falta el nombre de la canción." });
+    return res.status(400).json({ error: tr(req, "api.songNameMissing") });
   if (downloadedVideos[song]) {
     return res.json({ url: downloadedVideos[song].url });
   }
-  if (!db) return res.status(404).json({ error: "Canción no encontrada." });
+  if (!db) return res.status(404).json({ error: tr(req, "api.songNotFound") });
   db.get("SELECT url FROM songs WHERE filename = ?", [song], (err, row) => {
     if (err || !row)
-      return res.status(404).json({ error: "Canción no encontrada." });
+      return res.status(404).json({ error: tr(req, "api.songNotFound") });
     res.json({ url: row.url });
   });
 });
@@ -316,7 +332,7 @@ const youtubeSearchLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Demasiadas búsquedas en YouTube. Espera un minuto." },
+  message: (req) => ({ error: tr(req, "api.tooManySearches") }),
 });
 
 const youtubeDownloadLimiter = rateLimit({
@@ -324,7 +340,7 @@ const youtubeDownloadLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Demasiadas descargas. Espera un minuto." },
+  message: (req) => ({ error: tr(req, "api.tooManyDownloads") }),
 });
 
 const MAX_CONCURRENT_DOWNLOADS = 3;
@@ -339,26 +355,29 @@ app.get(
     const query = (req.query.q || "").toString().trim();
     const suffix = (req.query.suffix || "karaoke").toString();
     if (!query) {
-      return res.status(400).json({ error: "Falta el término de búsqueda." });
+      return res.status(400).json({ error: tr(req, "api.queryMissing") });
     }
     if (query.length > 100) {
-      return res.status(400).json({ error: "Búsqueda demasiado larga." });
+      return res.status(400).json({ error: tr(req, "api.queryTooLong") });
     }
     try {
       const results = await searchYoutube(query, { limit: 4, suffix });
       res.json({ results });
     } catch (err) {
       console.error("Error buscando en YouTube:", err.message);
-      res.status(502).json({ error: "No se pudo buscar en YouTube." });
+      res.status(502).json({ error: tr(req, "api.searchFailed") });
     }
   }
 );
 
-// Error con el código HTTP con el que se debe responder al cliente.
+// Error con el código HTTP con el que se debe responder al cliente. Lleva la
+// clave del mensaje (y sus parámetros), no el texto: se traduce al responder.
 class DownloadError extends Error {
-  constructor(status, message) {
-    super(message);
+  constructor(status, messageKey, params) {
+    super(messageKey);
     this.status = status;
+    this.messageKey = messageKey;
+    this.params = params;
   }
 }
 
@@ -372,8 +391,8 @@ function findDownloadByVideoId(videoId) {
 
 // Quién hace la petición, para dejarlo registrado junto a la descarga.
 function getRequestUserName(req) {
-  if (AUTH_DISABLED) return req.session?.devName || DEV_USER_NAME;
-  return req.user?.displayName || "Usuario";
+  if (AUTH_DISABLED) return req.session?.devName || devUserName(req);
+  return req.user?.displayName || tr(req, "user.default");
 }
 
 // Borra el archivo, el registro en la base y la copia en memoria.
@@ -407,7 +426,7 @@ async function downloadNewVideo({ videoId, searchQuery, searchSuffix, requestedB
   // tope, y el título y el canal que se guardan (no se confía en el cliente).
   const info = await getVideoInfo(videoId);
   if (info.duration !== null && info.duration > MAX_YOUTUBE_DURATION_SECONDS) {
-    throw new DownloadError(400, "El video es demasiado largo (máximo 10 minutos).");
+    throw new DownloadError(400, "api.videoTooLong", { minutes: MAX_YOUTUBE_DURATION_SECONDS / 60 });
   }
 
   const uuid = crypto.randomUUID();
@@ -456,7 +475,7 @@ async function ensureDownloaded(params) {
   if (running) return { entry: await running, reused: true };
 
   if (activeDownloads >= MAX_CONCURRENT_DOWNLOADS) {
-    throw new DownloadError(429, "Ya hay demasiadas descargas en curso, intenta en un momento.");
+    throw new DownloadError(429, "api.downloadsBusy");
   }
   activeDownloads++;
   const promise = downloadNewVideo(params).finally(() => {
@@ -474,7 +493,7 @@ app.post(
   async (req, res) => {
     const { videoId, query, suffix } = req.body || {};
     if (typeof videoId !== "string" || !YOUTUBE_ID_RE.test(videoId)) {
-      return res.status(400).json({ error: "ID de video inválido." });
+      return res.status(400).json({ error: tr(req, "api.invalidVideoId") });
     }
     try {
       const { entry, reused } = await ensureDownloaded({
@@ -486,10 +505,10 @@ app.post(
       res.json({ filename: entry.filename, title: entry.title, reused });
     } catch (err) {
       if (err instanceof DownloadError) {
-        return res.status(err.status).json({ error: err.message });
+        return res.status(err.status).json({ error: tr(req, err.messageKey, err.params) });
       }
       console.error("Error descargando de YouTube:", err.message);
-      res.status(502).json({ error: "No se pudo descargar el video." });
+      res.status(502).json({ error: tr(req, "api.downloadFailed") });
     }
   }
 );
@@ -611,7 +630,7 @@ const createRoomLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Demasiadas salas creadas. Intenta de nuevo en un minuto." },
+  message: (req) => ({ error: tr(req, "api.tooManyRooms") }),
 });
 
 app.post("/api/rooms", createRoomLimiter, (req, res) => {
@@ -788,7 +807,7 @@ wss.on("connection", (ws, req) => {
         // El nombre lo pone siempre el servidor (nunca el cliente). En modo
         // desarrollo es el que la persona eligió en su sesión.
         data.payload.name = AUTH_DISABLED
-          ? req.session?.devName || DEV_USER_NAME
+          ? req.session?.devName || devUserName(req)
           : req.session.passport.user.displayName;
       }
 

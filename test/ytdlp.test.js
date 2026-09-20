@@ -16,6 +16,7 @@ test("buildSearchQuery agrega el sufijo karaoke por defecto", () => {
 test("buildSearchQuery soporta instrumental y pista", () => {
   assert.equal(buildSearchQuery("hey jude", "instrumental"), "hey jude instrumental");
   assert.equal(buildSearchQuery("hey jude", "pista"), "hey jude pista");
+  assert.equal(buildSearchQuery("hey jude", "backing"), "hey jude backing track");
 });
 
 test("buildSearchQuery sin sufijo deja la query intacta", () => {
@@ -97,7 +98,7 @@ test("parseVideoInfoOutput devuelve null en los datos que faltan o no son válid
 });
 
 test("normalizeSearchSuffix acepta solo los sufijos conocidos", () => {
-  for (const suffix of ["karaoke", "instrumental", "pista", "none"]) {
+  for (const suffix of ["karaoke", "instrumental", "pista", "backing", "none"]) {
     assert.equal(normalizeSearchSuffix(suffix), suffix);
   }
   for (const suffix of ["otro", "", undefined, null, 5, "__proto__", "toString"]) {

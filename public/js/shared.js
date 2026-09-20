@@ -34,5 +34,16 @@
     return { artist: "Desconocido", songTitle: fullFilename.replace(/\.mp4$/, "") };
   }
 
-  return { escapeHtml, parseSongFilename };
+  // Nombre para mostrar de un ítem de la cola (o del payload de timeUpdate).
+  // Las descargas de YouTube traen un `title` con el título del video, porque
+  // su filename es un UUID sin significado; las del catálogo se derivan del
+  // filename "Artista - Titulo.mp4".
+  function getSongDisplay(item) {
+    if (typeof item.title === "string" && item.title.trim()) {
+      return { artist: "YouTube", songTitle: item.title.trim() };
+    }
+    return parseSongFilename(item.song);
+  }
+
+  return { escapeHtml, parseSongFilename, getSongDisplay };
 });

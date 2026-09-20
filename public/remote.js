@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const songQueueContainer = document.getElementById("songQueue");
     const songBrowser = document.getElementById("songBrowser");
     const songSearch = document.getElementById("songSearch");
+    const songSearchForm = document.getElementById("song-search-form");
     const currentSongTitle = document.getElementById("current-song-title");
     const currentSongTime = document.getElementById("current-song-time");
     const playPauseBtn = document.getElementById("playPauseBtn");
@@ -29,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let upNextSongId = null;
     let currentQueue = [];
     let turnBannerTimeoutId = null;
+    let selectedYtSuffix = "karaoke";
     let lastYtQuery = "";
     let lastYtSuffix = "karaoke";
     let lastYtResults = [];
@@ -178,7 +180,7 @@ document.addEventListener("DOMContentLoaded", () => {
         currentQueue = queue;
         songQueueContainer.innerHTML = "";
         queue.slice(1).forEach((item) => {
-            const { songTitle } = parseSongFilename(item.song);
+            const { songTitle } = getSongDisplay(item);
             const isMine = myName !== "" && item.name === myName;
             const div = document.createElement("div");
             div.className = isMine ? "queue-item mine" : "queue-item";
@@ -208,7 +210,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         const remainingTime = data.duration - data.currentTime;
-        const { artist, songTitle } = parseSongFilename(data.song);
+        const { artist, songTitle } = getSongDisplay(data);
         currentSongTitle.textContent = `Ahora suena: 🎵 ${artist} - ${songTitle}`;
         currentSongTime.textContent = `${formatTime(data.currentTime)} / ${formatTime(data.duration)} (Faltan ${formatTime(remainingTime)})`;
     }
@@ -247,8 +249,9 @@ document.addEventListener("DOMContentLoaded", () => {
         songBrowser.innerHTML = "";
         if (flatSongList.length === 0) {
             const emptyHint = document.createElement("p");
-            emptyHint.textContent = "La biblioteca local está vacía. Escribe el nombre de una canción en el buscador para buscarla en YouTube.";
+            emptyHint.textContent = "La biblioteca local está vacía. Escribe el nombre de una canción y pulsa Enter para buscarla en YouTube.";
             songBrowser.appendChild(emptyHint);
+            appendYoutubeSuffixSelect();
             return;
         }
         const container = document.createElement("div");
@@ -317,16 +320,20 @@ document.addEventListener("DOMContentLoaded", () => {
         return str.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     }
 
-    function renderSearchResults(query) {
+    function findLocalMatches(query) {
         const normalizedQuery = normalizeForSearch(query);
-        songBrowser.innerHTML = "";
-        const matches = flatSongList.filter((filename) => {
+        return flatSongList.filter((filename) => {
             const { artist, songTitle } = parseSongFilename(filename);
             return (
                 normalizeForSearch(artist).includes(normalizedQuery) ||
                 normalizeForSearch(songTitle).includes(normalizedQuery)
             );
         });
+    }
+
+    function renderSearchResults(query) {
+        songBrowser.innerHTML = "";
+        const matches = findLocalMatches(query);
         if (matches.length === 0) {
             renderYoutubeSearchPrompt(query);
             return;
@@ -336,13 +343,10 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function renderYoutubeSearchPrompt(query) {
-        songBrowser.innerHTML = "";
-
-        const emptyMsg = document.createElement("p");
-        emptyMsg.textContent = "No se encontraron canciones en la biblioteca.";
-        songBrowser.appendChild(emptyMsg);
-
+    // Selector de sufijo (Karaoke / Instrumental / Pista / Sin sufijo). La
+    // opción elegida se recuerda en `selectedYtSuffix`, porque el panel se
+    // vuelve a dibujar con cada tecla y si no se reiniciaría a "Karaoke".
+    function appendYoutubeSuffixSelect() {
         const suffixLabel = document.createElement("label");
         suffixLabel.setAttribute("for", "ytSuffixSelect");
         suffixLabel.textContent = "Buscar en YouTube como:";
@@ -361,13 +365,27 @@ document.addEventListener("DOMContentLoaded", () => {
             opt.textContent = label;
             suffixSelect.appendChild(opt);
         });
+        suffixSelect.value = selectedYtSuffix;
+        suffixSelect.onchange = () => { selectedYtSuffix = suffixSelect.value; };
         songBrowser.appendChild(suffixSelect);
+    }
+
+    function renderYoutubeSearchPrompt(query) {
+        songBrowser.innerHTML = "";
+
+        const emptyMsg = document.createElement("p");
+        emptyMsg.textContent = flatSongList.length === 0
+            ? "Pulsa Enter para buscar en YouTube."
+            : "No se encontraron canciones en la biblioteca. Pulsa Enter para buscarla en YouTube.";
+        songBrowser.appendChild(emptyMsg);
+
+        appendYoutubeSuffixSelect();
 
         const searchBtn = document.createElement("button");
         searchBtn.type = "button";
         searchBtn.className = "back-btn";
         searchBtn.textContent = "🔎 Buscar en YouTube";
-        searchBtn.onclick = () => searchYoutubeUI(query, suffixSelect.value);
+        searchBtn.onclick = () => searchYoutubeUI(query, selectedYtSuffix);
         songBrowser.appendChild(searchBtn);
     }
 
@@ -487,6 +505,17 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         renderSearchResults(query);
+    });
+
+    // Enter (o la tecla "Ir/Buscar" del teclado del celular) busca directo en
+    // YouTube cuando no hay coincidencias en la biblioteca local; con la
+    // biblioteca vacía eso ocurre siempre. Si hay coincidencias locales no hace nada.
+    songSearchForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const query = songSearch.value.trim();
+        if (query && findLocalMatches(query).length === 0) {
+            searchYoutubeUI(query, selectedYtSuffix);
+        }
     });
 
     function showConfirm(message) {

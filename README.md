@@ -16,6 +16,7 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Autenticación Google OAuth:** Acceso seguro al control remoto mediante autenticación con cuentas de Google (dominio configurable).
 * **Gestión de Sesiones:** Sesiones persistentes almacenadas en archivos para mantener usuarios autenticados.
 * **Redirección Automática:** Los dispositivos móviles son redirigidos automáticamente al control remoto.
+* **Búsqueda y Descarga desde YouTube:** Si una canción no está en la biblioteca, se puede buscar en YouTube (con sufijos como "karaoke", "instrumental" o "pista"), descargarla y agregarla a la cola de forma efímera.
 
 ---
 ## 🛠️ Stack Tecnológico
@@ -24,7 +25,8 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Frontend:** HTML5, CSS3, JavaScript (Vanilla)
 * **Autenticación:** Passport.js con Google OAuth 2.0
 * **Sesiones:** express-session con almacenamiento en archivos (session-file-store)
-* **Dependencias Clave:** `sqlite3`, `qrcode`, `ws`, `passport`, `passport-google-oauth20`, `express-session`, `dotenv`
+* **Dependencias Clave:** `sqlite3`, `qrcode`, `ws`, `passport`, `passport-google-oauth20`, `express-session`, `dotenv`, `helmet`, `express-rate-limit`
+* **Búsqueda/descarga de YouTube:** `yt-dlp` + `ffmpeg` (binarios del sistema, no son paquetes de npm)
 
 ---
 ## 🚀 Cómo Empezar
@@ -36,6 +38,12 @@ Sigue estos pasos para ejecutar el proyecto en tu máquina local.
 * Node.js (v16 o superior)
 * npm
 * Cuenta de Google Cloud con OAuth 2.0 configurado (para autenticación)
+* (Opcional) `yt-dlp` y `ffmpeg` instalados y en el `PATH` del sistema, solo si quieres usar la búsqueda/descarga desde YouTube:
+  ```bash
+  sudo apt-get install -y ffmpeg
+  pip install --break-system-packages yt-dlp
+  ```
+  Sin estos binarios, el resto de la app funciona normal — la búsqueda/descarga de YouTube simplemente devuelve error y el servidor arranca igual (queda un aviso en los logs).
 
 ### Instalación
 
@@ -107,6 +115,21 @@ Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control r
 8.  Recibirás una notificación (vibración y sonido) 10 segundos antes de que empiece tu canción.
 9.  ¡Espera tu turno y canta!
 
+## 🔎 Búsqueda y descarga desde YouTube
+
+Si buscas una canción y no aparece en la biblioteca, el control remoto ofrece buscarla en YouTube:
+
+1. Al no haber resultados en la búsqueda local, aparece la opción de buscar en YouTube con un sufijo (Karaoke, Instrumental, Pista o sin sufijo).
+2. Se muestran hasta 4 resultados (miniatura, título, canal y duración) para elegir manualmente — nunca se reproduce el primer resultado a ciegas.
+3. Al elegir uno, se descarga (video + audio, hasta 720p) y se agrega a la cola de esa sesión.
+
+Detalles a tener en cuenta:
+
+* **Es efímero, no permanente.** El video descargado no se guarda en `karaoke.db`; vive en `DOWNLOADS_PATH` (`./downloads` en desarrollo, `/data/downloads` en producción) y se borra automáticamente 6 horas después de descargado.
+* **Límites anti-abuso:** máximo 20 búsquedas/min y 5 descargas/min por IP, como mucho 3 descargas corriendo a la vez, y se rechazan videos de más de 10 minutos.
+* **Requiere `yt-dlp` y `ffmpeg`** instalados en el servidor (ver Pre-requisitos). Sin ellos, la búsqueda/descarga devuelve error pero el resto de la app sigue funcionando normal.
+* **Consideración legal:** descargar contenido de YouTube puede estar en conflicto con sus Términos de Servicio. Esta función se ofrece para uso personal/privado (la misma sala cerrada por autenticación que ya protege al resto de la app); usarla es criterio y responsabilidad de quien despliega el servidor.
+
 ## 🔒 Seguridad
 
 * El acceso al control remoto requiere autenticación con Google OAuth 2.0
@@ -130,7 +153,8 @@ XaraokeURL/
 │   ├── remote.js             # Lógica del control remoto
 │   └── notification.mp3      # Sonido de notificación
 ├── lib/
-│   └── roomId.js             # Generación de códigos de sala (testeable)
+│   ├── roomId.js              # Generación de códigos de sala (testeable)
+│   └── ytdlp.js               # Wrapper seguro sobre el binario yt-dlp
 ├── test/                     # Pruebas unitarias (node --test)
 ├── server.js                 # Servidor principal con WebSockets y OAuth
 ├── import_csv.js             # Script para importar canciones desde CSV
@@ -138,7 +162,8 @@ XaraokeURL/
 ├── .env.example              # Plantilla de variables de entorno
 ├── .env                      # Variables de entorno (no incluido en git)
 ├── songs.csv                 # Catálogo de canciones (no incluido en git)
-└── karaoke.db                # Base de datos SQLite (generada automáticamente)
+├── karaoke.db                 # Base de datos SQLite (generada automáticamente)
+└── downloads/                 # Descargas efímeras de YouTube (no incluido en git)
 ```
 
 ## 🚀 Despliegue en Producción
@@ -150,7 +175,9 @@ Para desplegar en producción:
 3. Configura las rutas de datos persistentes:
    - Base de datos: `/data/karaoke.db`
    - Sesiones: `/data/sessions`
+   - Descargas de YouTube: `/data/downloads`
 4. Actualiza las URLs de callback de Google OAuth con tu dominio de producción
+5. Si vas a usar la búsqueda/descarga de YouTube, instala `yt-dlp` y `ffmpeg` en el host de producción (no se instalan solos con `npm install`)
 
 ## 🛠️ Scripts Disponibles
 

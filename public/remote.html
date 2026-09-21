@@ -99,6 +99,16 @@
         </div>
     </div>
 
+    <div id="rating-card" class="hidden" role="group" aria-labelledby="rating-title">
+        <p id="rating-title"></p>
+        <p id="rating-hint" data-i18n="rating.hint">Califica el video y la música, no cómo cantaste.</p>
+        <div id="rating-actions">
+            <button type="button" id="rating-up" class="rating-btn rating-btn-up"><span data-icon="thumb-up"></span><span data-i18n="rating.up">Bien</span></button>
+            <button type="button" id="rating-down" class="rating-btn rating-btn-down"><span data-icon="thumb-down"></span><span data-i18n="rating.down">Mal</span></button>
+        </div>
+        <button type="button" id="rating-skip" data-i18n="rating.skip">Ahora no</button>
+    </div>
+
     <div id="toast" class="hidden" role="status" aria-live="polite"></div>
 
     <script src="js/icons.js"></script>

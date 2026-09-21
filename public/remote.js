@@ -36,6 +36,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const toast = document.getElementById("toast");
     const miniPlayer = document.getElementById("mini-player");
     const pausedTag = document.getElementById("paused-tag");
+    const ratingCard = document.getElementById("rating-card");
+    const ratingTitle = document.getElementById("rating-title");
+    const ratingUp = document.getElementById("rating-up");
+    const ratingDown = document.getElementById("rating-down");
+    const ratingSkip = document.getElementById("rating-skip");
 
     let songData = {};
     let flatSongList = [];
@@ -61,6 +66,8 @@ document.addEventListener("DOMContentLoaded", () => {
     let confirmSkipId = null;     // canción por la que se está pidiendo confirmación para saltar
     let skipPendingId = null;     // canción cuyo salto ya se pidió y aún no se ve reflejado en la cola
     let skipPendingTimerId = null;
+    // Canciones tuyas que ya terminaron y esperan que califiques su karaoke; se muestra una a la vez.
+    let ratingRequests = [];
 
     const songDisplay = (item) => getSongDisplay(item, t("song.unknownArtist"));
 
@@ -215,6 +222,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 playbackPaused = message.payload?.paused === true;
                 updateControls();
             }
+            if (message.type === "ratingRequest") addRatingRequest(message.payload);
+            if (message.type === "ratingResolved") resolveRating(message.payload?.id);
         };
     }
 
@@ -301,26 +310,69 @@ document.addEventListener("DOMContentLoaded", () => {
         updateControls();
     }
 
+    // Botón de solo ícono para subir o bajar una de tus canciones. El servidor intercambia su lugar con
+    // otra tuya (nunca mueve las de los demás), así que solo se ofrece si hay otra tuya hacia ese lado.
+    function createMoveButton(item, direction, iconName, labelKey, enabled) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "move-btn";
+        btn.dataset.id = item.id;
+        btn.dataset.direction = direction;
+        btn.disabled = !enabled;
+        btn.insertAdjacentHTML("beforeend", iconSvg(iconName));
+        const label = t(labelKey);
+        btn.setAttribute("aria-label", label);
+        btn.title = label;
+        btn.onclick = () => {
+            if (!sendMessage("moveSong", { id: item.id, direction })) showToast("toast.offline");
+        };
+        return btn;
+    }
+
     function renderQueue(queue) {
         currentQueue = queue;
+        // Si el foco estaba en un botón de mover, se le devuelve al mismo (la lista se dibuja de nuevo
+        // y, sin esto, quien usa el teclado tendría que volver a buscarlo tras cada movimiento).
+        const focused = document.activeElement;
+        const refocus = focused && focused.classList.contains("move-btn")
+            ? { id: focused.dataset.id, direction: focused.dataset.direction }
+            : null;
         songQueueContainer.innerHTML = "";
-        queue.slice(1).forEach((item) => {
+        const waiting = queue.slice(1);   // la primera es la que suena: no se mueve
+        const isMineItem = (item) => myName !== "" && item.name === myName;
+        const mineAt = waiting.flatMap((item, index) => (isMineItem(item) ? [index] : []));
+        waiting.forEach((item, index) => {
             const { songTitle } = songDisplay(item);
-            const isMine = myName !== "" && item.name === myName;
+            const isMine = isMineItem(item);
             const div = document.createElement("div");
             div.className = isMine ? "queue-item mine" : "queue-item";
             div.innerHTML = `<span><b>${escapeHtml(songTitle)}</b> (${escapeHtml(isMine ? t("remote.queue.you") : item.name)})</span>`;
             if (isMine) {
+                const actions = document.createElement("div");
+                actions.className = "queue-actions";
+                if (mineAt.length > 1) {
+                    const position = mineAt.indexOf(index);
+                    actions.appendChild(createMoveButton(item, "up", "arrow-up", "remote.queue.moveUp", position > 0));
+                    actions.appendChild(createMoveButton(item, "down", "arrow-down", "remote.queue.moveDown", position < mineAt.length - 1));
+                }
                 const removeBtn = document.createElement("button");
                 removeBtn.textContent = t("remote.queue.remove");
                 removeBtn.className = "remove-btn";
                 removeBtn.onclick = () => {
                     if (!sendMessage("removeSong", { id: item.id })) showToast("toast.offline");
                 };
-                div.appendChild(removeBtn);
+                actions.appendChild(removeBtn);
+                div.appendChild(actions);
             }
             songQueueContainer.appendChild(div);
         });
+        if (refocus) {
+            const buttons = [...songQueueContainer.querySelectorAll(".move-btn")]
+                .filter((btn) => btn.dataset.id === refocus.id && !btn.disabled);
+            // Si ya no puede moverse hacia ese lado (llegó al extremo), el foco pasa al otro botón.
+            const target = buttons.find((btn) => btn.dataset.direction === refocus.direction) || buttons[0];
+            if (target) target.focus();
+        }
         if (queue.length <= 1) {
             const hint = document.createElement("p");
             hint.className = "empty-hint";
@@ -408,6 +460,46 @@ document.addEventListener("DOMContentLoaded", () => {
         progressBar.style.width = value + "%";
         lastProgress = value;
     }
+
+    // Calificación del karaoke (el video y la música, no cómo cantó la persona) de una canción tuya que
+    // acaba de terminar. Es una tarjeta abajo que se puede ignorar; si hay varias pendientes se
+    // muestran una tras otra.
+    function renderRatingCard() {
+        const current = ratingRequests[0];
+        ratingCard.classList.toggle("hidden", !current);
+        document.body.classList.toggle("has-rating-card", !!current);
+        if (!current) return;
+        const { artist, songTitle } = songDisplay(current);
+        ratingTitle.textContent = t("rating.title", { song: t("remote.nowPlaying", { artist, title: songTitle }) });
+    }
+
+    function addRatingRequest(request) {
+        if (!request || typeof request.id !== "string" || typeof request.song !== "string") return;
+        if (ratingRequests.some((r) => r.id === request.id)) return;   // el servidor la reenvía al reconectar
+        ratingRequests.push(request);
+        renderRatingCard();
+    }
+
+    function resolveRating(id) {
+        ratingRequests = ratingRequests.filter((r) => r.id !== id);
+        renderRatingCard();
+    }
+
+    // value: 1 (bien), -1 (mal) o 0 ("ahora no": se descarta sin calificar).
+    function answerRating(value) {
+        const current = ratingRequests[0];
+        if (!current) return;
+        if (!sendMessage("rateSong", { id: current.id, value })) {
+            showToast("toast.offline");
+            return;
+        }
+        resolveRating(current.id);
+        if (value !== 0) showToast("toast.rated");
+    }
+
+    ratingUp.addEventListener("click", () => answerRating(1));
+    ratingDown.addEventListener("click", () => answerRating(-1));
+    ratingSkip.addEventListener("click", () => answerRating(0));
 
     // Contador de "Mi cola" (cuántas canciones tuyas hay en la cola, la que suena incluida) y
     // resumen de cuánto falta para tu turno. El contador se anima cuando sube, salvo en la

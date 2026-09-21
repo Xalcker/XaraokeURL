@@ -224,7 +224,12 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     ws.onerror = (err) => console.error("Error de WebSocket en Host:", err);
     ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
+      let message;
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        return; // el servidor no debería mandar esto, pero no vale la pena romper por ello
+      }
       if (message.type === "queueUpdate") {
         currentQueue = message.payload;
         renderAllSections();

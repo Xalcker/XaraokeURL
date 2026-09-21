@@ -46,6 +46,7 @@
 
         <div id="sticky-top">
             <div id="host-status-banner" class="hidden"><span data-icon="warning"></span><span data-i18n="remote.hostDisconnected">El host se desconectó. La reproducción está pausada hasta que vuelva a conectarse.</span></div>
+            <div id="connection-banner" class="hidden" role="status"><span data-icon="warning"></span><span id="connection-banner-text"></span></div>
             <div id="mini-player" role="group" aria-label="Ahora suena" data-i18n-aria-label="remote.nowPlayingLabel">
                 <div id="now-playing-info">
                     <div id="current-song-title" data-i18n="remote.loading">Cargando...</div>
@@ -132,6 +133,7 @@
     <script src="js/icons.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/shared.js"></script>
+    <script src="js/reconnect.js"></script>
     <script src="js/tour.js"></script>
     <script src="remote.js"></script>
 </body>

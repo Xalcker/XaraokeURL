@@ -64,7 +64,8 @@ a:focus-visible {
     outline-offset: 2px;
 }
 
-#host-status-banner {
+#host-status-banner,
+#connection-banner {
     background-color: var(--danger-banner);
     color: #fff;
     padding: 0.45rem 0.8rem;

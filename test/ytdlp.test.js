@@ -7,6 +7,8 @@ const {
   normalizeSearchSuffix,
   parseSearchOutput,
   parseVideoInfoOutput,
+  parseSearchResultLimit,
+  rankByKnownChannels,
 } = require("../lib/ytdlp");
 
 test("buildSearchQuery agrega el sufijo karaoke por defecto", () => {
@@ -103,5 +105,66 @@ test("normalizeSearchSuffix acepta solo los sufijos conocidos", () => {
   }
   for (const suffix of ["otro", "", undefined, null, 5, "__proto__", "toString"]) {
     assert.equal(normalizeSearchSuffix(suffix), null);
+  }
+});
+
+const video = (id, channel) => ({ id, title: id, channel, duration: 200, thumbnail: null });
+
+test("rankByKnownChannels sube los canales ya descargados y conserva el orden dentro de cada grupo", () => {
+  const results = [video("a", "Otro"), video("b", "Karaoke XD"), video("c", "Nuevo"), video("d", "Karaoke XD")];
+  const ranked = rankByKnownChannels(results, ["Karaoke XD"]);
+  assert.deepEqual(ranked.map((r) => r.id), ["b", "d", "a", "c"]);
+});
+
+test("rankByKnownChannels pone primero el canal con más descargas", () => {
+  const results = [video("a", "Canal A"), video("b", "Canal B"), video("c", "Canal C")];
+  const ranked = rankByKnownChannels(results, ["Canal B", "Canal A", "Canal B"]);
+  assert.deepEqual(ranked.map((r) => r.id), ["b", "a", "c"]);
+});
+
+test("rankByKnownChannels ignora mayúsculas y acentos del nombre del canal", () => {
+  const results = [video("a", "Otro"), video("b", "KARAOKÉ xd ")];
+  assert.deepEqual(rankByKnownChannels(results, ["karaoke XD"]).map((r) => r.id), ["b", "a"]);
+});
+
+test("rankByKnownChannels no cambia nada sin descargas previas o con canales vacíos", () => {
+  const results = [video("a", "Canal A"), video("b", "")];
+  assert.deepEqual(rankByKnownChannels(results, []).map((r) => r.id), ["a", "b"]);
+  assert.deepEqual(rankByKnownChannels(results, [null, "", undefined]).map((r) => r.id), ["a", "b"]);
+});
+
+test("rankByKnownChannels no modifica el arreglo original", () => {
+  const results = [video("a", "Otro"), video("b", "Karaoke XD")];
+  rankByKnownChannels(results, ["Karaoke XD"]);
+  assert.deepEqual(results.map((r) => r.id), ["a", "b"]);
+});
+
+test("parseSearchResultLimit usa 5 si la variable no está definida o está vacía", () => {
+  for (const value of [undefined, null, "", "   "]) {
+    assert.deepEqual(parseSearchResultLimit(value), { limit: 5, warning: null });
+  }
+});
+
+test("parseSearchResultLimit acepta enteros de 5 a 10", () => {
+  for (const n of [5, 6, 7, 8, 9, 10]) {
+    assert.deepEqual(parseSearchResultLimit(String(n)), { limit: n, warning: null });
+  }
+  assert.deepEqual(parseSearchResultLimit(" 8 "), { limit: 8, warning: null });
+});
+
+test("parseSearchResultLimit ajusta al rango y avisa si el número queda fuera", () => {
+  const low = parseSearchResultLimit("3");
+  assert.equal(low.limit, 5);
+  assert.match(low.warning, /SEARCH_RESULTS/);
+  const high = parseSearchResultLimit("25");
+  assert.equal(high.limit, 10);
+  assert.match(high.warning, /SEARCH_RESULTS/);
+});
+
+test("parseSearchResultLimit vuelve a 5 y avisa si el valor no es un entero", () => {
+  for (const value of ["abc", "7.5", "-1x", "1e1x"]) {
+    const result = parseSearchResultLimit(value);
+    assert.equal(result.limit, 5, `valor: ${value}`);
+    assert.match(result.warning, /SEARCH_RESULTS/);
   }
 });

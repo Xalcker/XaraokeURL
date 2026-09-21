@@ -165,8 +165,8 @@ La pantalla principal está pensada para verse de lejos:
 
 Si buscas una canción y no aparece en la biblioteca, el control remoto ofrece buscarla en YouTube:
 
-1. Al no haber resultados en la búsqueda local, aparece la opción de buscar en YouTube con un sufijo (Karaoke, Instrumental, Pista o sin sufijo; en inglés, "Backing track" en lugar de "Pista"). Basta con pulsar **Enter** (o la tecla "Ir/Buscar" del teclado del celular) para buscar directamente con el sufijo elegido, "Karaoke" por defecto. Si hay coincidencias en la biblioteca local, Enter no hace nada.
-2. Se muestran hasta 4 resultados (miniatura, título, canal y duración) para elegir manualmente — nunca se reproduce el primer resultado a ciegas.
+1. Al no haber resultados en la búsqueda local, aparece la opción de buscar en YouTube con un sufijo (Karaoke, Instrumental, Pista o sin sufijo; en inglés, "Backing track" en lugar de "Pista"). Basta con pulsar **Enter** (o la tecla "Ir/Buscar" del teclado del celular) para buscar directamente con el sufijo elegido, "Karaoke" por defecto. Si hay coincidencias en la biblioteca local, Enter no hace nada, pero el selector de sufijo y el botón **Buscar en YouTube** aparecen igual arriba de la lista, para buscar otra versión aunque ya haya algo descargado del mismo artista.
+2. Se muestran 5 resultados por defecto (miniatura, título, canal y duración), configurable de 5 a 10 con `SEARCH_RESULTS` en el `.env`, para elegir manualmente — nunca se reproduce el primer resultado a ciegas. Los videos de canales de los que ya descargaste algo salen primero (el canal con más descargas, arriba); dentro de cada grupo se respeta el orden de YouTube.
 3. Al elegir uno, se descarga (video + audio, hasta 720p) y se agrega a la cola de esa sesión. Se prefiere el códec H.264, que casi cualquier dispositivo reproduce con aceleración por hardware (TVs, Safari/iOS, navegadores sin soporte de AV1); si el video no lo ofrece, se usa AV1 u otro MP4 disponible.
 
 Detalles a tener en cuenta:

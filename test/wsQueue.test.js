@@ -27,14 +27,38 @@ const crearSala = async (server) => {
 
 // Un control remoto con nombre propio. En modo desarrollo el nombre vive en la sesión, así que
 // primero se pide con /api/dev-name y después se lleva la cookie al handshake del WebSocket.
+//
+// No se da por hecho que el nombre haya quedado guardado: se comprueba con /api/me antes de
+// conectar, y si no cuajó se reintenta. Un 200 en /api/dev-name no garantiza que la sesión se
+// escribiera en disco (express-session responde igual si el almacén falla), y cuando eso pasa
+// el servidor ve a esa persona como "Usuario Local" y el test falla mucho más adelante, con un
+// mensaje que no señala la causa. Pasó una vez en CI, bajo carga, y no se reproduce en local.
+async function fijarNombre(server, nombre) {
+  let ultimoVisto = null;
+  for (let intento = 0; intento < 3; intento++) {
+    const res = await fetch(`${server.baseUrl}/api/dev-name`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: nombre }),
+    });
+    assert.equal(res.status, 200, `no se pudo fijar el nombre ${nombre}`);
+    const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    if (cookie) {
+      const me = await fetch(`${server.baseUrl}/api/me`, { headers: { Cookie: cookie } }).then((r) => r.json());
+      if (me.name === nombre) return cookie;
+      ultimoVisto = me.name;
+    } else {
+      ultimoVisto = "(sin cookie de sesión)";
+    }
+  }
+  throw new Error(
+    `la sesión no conservó el nombre "${nombre}" tras 3 intentos (el servidor ve ${JSON.stringify(ultimoVisto)}). ` +
+      "Sin esto el servidor encolaría a nombre del usuario por defecto y el fallo aparecería más tarde."
+  );
+}
+
 async function remotoLlamado(server, roomId, nombre) {
-  const res = await fetch(`${server.baseUrl}/api/dev-name`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: nombre }),
-  });
-  assert.equal(res.status, 200, `no se pudo fijar el nombre ${nombre}`);
-  const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const cookie = await fijarNombre(server, nombre);
   return connectToRoom(`${server.wsUrl}/?sala=${roomId}`, { headers: { Cookie: cookie } });
 }
 
@@ -322,12 +346,7 @@ test("lo que se manda nada más abrir el WebSocket no se pierde (#42)", async (t
   t.after(() => server.stop());
 
   const { roomId } = await crearSala(server);
-  const res = await fetch(`${server.baseUrl}/api/dev-name`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "Ana" }),
-  });
-  const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const cookie = await fijarNombre(server, "Ana");
 
   // connect() a secas, no connectToRoom(): aquí se manda sin esperar al primer mensaje del
   // servidor, que es justo lo que hace la pantalla principal en su onopen (public/karaoke.js).

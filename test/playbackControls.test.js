@@ -1,6 +1,10 @@
-// Controles de reproducción: estado real de play/pausa, confirmación al saltar y quién puede mandar qué.
-// Son comprobaciones sobre el código fuente: que la regla siga estando donde debe. El comportamiento
-// completo (con un video real y varios dispositivos) se probó a mano y con un navegador.
+// Controles de reproducción en la interfaz: qué se ve y qué se puede tocar en el host y en el
+// control remoto. Son comprobaciones sobre el código fuente de las pantallas.
+//
+// Lo que hace cumplir el servidor (solo el host manda playNext/timeUpdate/playbackState, solo
+// quien canta puede pausar o saltar, el estado de pausa que se recuerda para quien entre
+// después) ya no se comprueba aquí: se ejercita de verdad en test/wsQueue.test.js, contra un
+// servidor real y con varios clientes conectados.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -13,7 +17,6 @@ const remoteJs = read("public", "remote.js");
 const remoteCss = read("public", "css", "remote.css");
 const hostHtml = read("public", "index.html");
 const hostJs = read("public", "karaoke.js");
-const serverJs = read("server.js");
 
 // Cuerpo de una función `function nombre(...) { ... }` o de un listener `xxx.addEventListener("evento", ... => { ... })`.
 function bodyFrom(source, marker) {
@@ -155,35 +158,3 @@ test("el aviso 'En pausa' del host va sobre el video, debajo de la pantalla de e
 
 // ---------- servidor
 
-test("el servidor aplica la política: solo el host manda playNext, timeUpdate y playbackState", () => {
-  assert.match(serverJs, /require\("\.\/lib\/wsPolicy"\)/);
-  assert.match(serverJs, /if \(!isAllowed\(data\.type, isHost\)\) return;/);
-});
-
-test("el servidor rechaza pausar, reanudar y saltar a quien no canta la canción que suena", () => {
-  const handler = serverJs.slice(serverJs.indexOf('case "controlAction"'), serverJs.indexOf('case "playbackState"'));
-  assert.ok(handler.includes("sanitizeControlAction"), "no se encontró el manejo de controlAction");
-  const sanitize = handler.indexOf("sanitizeControlAction(data.payload)");
-  const rule = handler.indexOf("!canControlPlayback(currentRoom.songQueue, ws.userName, roomPresentNames(currentRoom))");
-  const forward = handler.indexOf("broadcastToRoom(");
-  assert.ok(sanitize >= 0 && rule > sanitize, "la regla debe comprobarse después de limpiar la orden");
-  assert.ok(forward > rule, "la orden se reenvía al host antes de comprobar quién la manda");
-  assert.match(handler.slice(rule - 20, rule), /!isHost && /, "el host (la pantalla) queda fuera de la regla");
-});
-
-test("el servidor avisa a cada remoto si puede controlar cada vez que cambia la cola o quién está conectado", () => {
-  assert.match(bodyFrom(serverJs, "function broadcastQueue("), /sendControlAccess\(room\)/);
-  // Toda difusión de la cola pasa por broadcastQueue: una directa dejaría a los remotos con permisos viejos.
-  assert.equal([...serverJs.matchAll(/broadcastToRoom\([^;]*queueUpdate/gs)].length, 1, "la cola solo se difunde dentro de broadcastQueue");
-  assert.match(bodyFrom(serverJs, "function enqueueSong("), /broadcastQueue\(roomId\)/);
-  assert.match(serverJs, /if \(updateQueue\) broadcastQueue\(ws\.roomId\);/);
-  assert.match(serverJs, /sendControlAccess\(room\);\s*ws\.send\(\s*JSON\.stringify\(\{\s*type: "hostStatus"/, "al conectarse alguien, todos reciben su permiso");
-  assert.match(serverJs.slice(serverJs.indexOf('ws.on("close"')), /if \(!ws\.isHost\) sendControlAccess\(room\)/, "al irse alguien, los demás reciben su permiso");
-});
-
-test("el servidor reenvía al host solo una orden limpia y recuerda el estado para quien entre después", () => {
-  assert.match(serverJs, /const action = sanitizeControlAction\(data\.payload\);\s*if \(!action\) return;/);
-  assert.match(serverJs, /currentRoom\.paused = sanitizePlaybackState\(data\.payload\)\.paused;/);
-  assert.match(serverJs, /typeof room\.paused === "boolean"\)\s*\{\s*ws\.send\(JSON\.stringify\(\{ type: "playbackState"/);
-  assert.match(serverJs, /room\.hostWs = null;\s*room\.paused = undefined;/, "sin host ya no se sabe cómo va el video");
-});

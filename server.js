@@ -33,6 +33,7 @@ const { openDownloadsStore } = require("./lib/downloadsStore");
 const { openRatingsStore } = require("./lib/ratingsStore");
 const { moveOwnSong } = require("./lib/queuePolicy");
 const { hardenSessionStore } = require("./lib/sessionStore");
+const { checkSessionSecret } = require("./lib/config");
 const {
   isAllowed,
   presentNames,
@@ -197,6 +198,18 @@ function warnSessionTouchFailed(err) {
     `⚠️  No se pudo renovar una sesión (${err.code || err.message}). Suele ser un antivirus o un sincronizador usando la carpeta ${SESSIONS_PATH}; se reintenta solo.`
   );
 }
+
+// express-session no lanza si falta el secreto: arrancaría entero y después respondería 500 en
+// todas las peticiones. Se comprueba antes para fallar con un mensaje claro y no a medias.
+const { error: sessionSecretError, warning: sessionSecretWarning } = checkSessionSecret(
+  process.env.SESSION_SECRET,
+  { production: process.env.NODE_ENV === "production" }
+);
+if (sessionSecretError) {
+  console.error(`❌ ${sessionSecretError}`);
+  process.exit(1);
+}
+if (sessionSecretWarning) console.warn(`⚠️  ${sessionSecretWarning}`);
 
 const sessionMiddleware = session({
   store: hardenSessionStore(

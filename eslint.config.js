@@ -40,6 +40,9 @@ module.exports = [
         // Definidas por public/js/i18n.js: traductor y idioma elegido.
         t: "readonly",
         currentLang: "readonly",
+        // Definidas por public/js/reconnect.js: qué hacer al cerrarse el WebSocket.
+        reconnectPolicy: "readonly",
+        nextRetryDelay: "readonly",
       },
     },
   },

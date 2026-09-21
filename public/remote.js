@@ -18,6 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const skipBtn = document.getElementById("skipBtn");
     const remoteRoomCodeDisplay = document.getElementById("remote-room-code");
     const hostStatusBanner = document.getElementById("host-status-banner");
+    const connectionBanner = document.getElementById("connection-banner");
+    const connectionBannerText = document.getElementById("connection-banner-text");
     const confirmModal = document.getElementById("confirm-modal");
     const confirmModalText = document.getElementById("confirm-modal-text");
     const confirmModalYes = document.getElementById("confirm-modal-yes");
@@ -72,6 +74,9 @@ document.addEventListener("DOMContentLoaded", () => {
     let toastTimeoutId = null;
     let playbackPaused = false;   // lo informa el host
     let hostConnected = true;
+    let reconnectAttempt = 0;   // cuántos intentos seguidos fallidos llevamos (para la espera)
+    let reconnectTimerId = null;
+    let givenUp = false;        // ya no tiene sentido reintentar (sala perdida, sesión vencida)
     // Lo decide el servidor: pausar, reanudar y saltar son de quien canta la canción que suena (o de
     // cualquiera si esa persona ya no está conectada).
     let controlAllowed = false;
@@ -220,16 +225,49 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // Muestra u oculta el aviso de conexión. Sin clave, se oculta.
+    function showConnectionBanner(messageKey) {
+        if (!connectionBanner) return;
+        if (messageKey) connectionBannerText.textContent = t(messageKey);
+        connectionBanner.classList.toggle("hidden", !messageKey);
+    }
+
     function connectWebSocket(roomId) {
+        if (givenUp) return;
+        clearTimeout(reconnectTimerId);
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
         ws = new WebSocket(`${protocol}://${window.location.host}?sala=${roomId}`);
 
-        ws.onopen = () => console.log(`Remoto conectado a la sala: ${roomId}`);
-        ws.onclose = () => setTimeout(() => connectWebSocket(roomId), 3000);
+        ws.onopen = () => {
+            console.log(`Remoto conectado a la sala: ${roomId}`);
+            reconnectAttempt = 0;
+            showConnectionBanner(null);
+        };
+
+        // Antes se reintentaba siempre, cada 3 s y para siempre, sin mirar el código de cierre:
+        // con la sala ya borrada o la sesión vencida eso era un bucle infinito y mudo, con la
+        // pantalla congelada mostrando una cola que no iba a cambiar nunca (ver public/js/reconnect.js).
+        ws.onclose = (event) => {
+            const { action, messageKey } = reconnectPolicy(event.code);
+            showConnectionBanner(messageKey);
+            if (action === "retry") {
+                const delay = nextRetryDelay(reconnectAttempt++);
+                reconnectTimerId = setTimeout(() => connectWebSocket(roomId), delay);
+                return;
+            }
+            givenUp = true;
+            updateControls();
+            if (action === "login") setTimeout(() => { window.location.href = "/login"; }, 2000);
+        };
         ws.onerror = (error) => console.error("Error de WebSocket:", error);
 
         ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
+            let message;
+            try {
+                message = JSON.parse(event.data);
+            } catch {
+                return; // el servidor no debería mandar esto, pero no vale la pena romper por ello
+            }
             if (message.type === "queueUpdate") {
                 renderQueue(message.payload);
                 if (message.payload.length === 0) showEmptyNowPlaying();

@@ -1,7 +1,8 @@
 /* Los tamaños se miden en rem: al crecer la pantalla, crece todo en proporción.
-   De 16 px en una ventana pequeña a unos 22 px en una TV de 1920 px y 26 px como máximo. */
+   De 15 px en una ventana pequeña a unos 17-18 px en una TV de 1920 px y 26 px como máximo: las
+   barras laterales son información de apoyo y no deben quitarle sitio al video. */
 html {
-    font-size: clamp(16px, calc(0.95vw + 4px), 26px);
+    font-size: clamp(15px, calc(0.45vw + 9px), 26px);
 }
 
 body {
@@ -123,20 +124,20 @@ a:focus-visible {
 
 .main-container {
     display: flex;
-    gap: 1.5rem;
+    gap: 1rem;
     width: 98%;
-    height: 95vh;
+    height: 96vh;
     background-color: transparent;
 }
 
 .sidebar-left,
 .sidebar-right {
     /* Ancho proporcional a la pantalla, sin bajar de lo que necesitan los textos. */
-    flex: 0 0 clamp(210px, 18vw, 520px);
+    flex: 0 0 clamp(220px, 14vw, 440px);
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
 }
 
 /* "Ahora suena" y "A continuación" no llenan la barra: el logo aprovecha el
@@ -161,7 +162,7 @@ a:focus-visible {
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
-    padding: 1.5rem;
+    padding: 1.1rem;
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
@@ -178,10 +179,10 @@ video {
 
 h3 {
     margin-top: 0;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
     color: #ccc;
     text-transform: uppercase;
-    font-size: 1rem;
+    font-size: 0.95rem;
     letter-spacing: 1px;
     text-align: center;
 }
@@ -197,19 +198,19 @@ h3 .icon {
 
 .info-card-title {
     font-weight: bold;
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     text-wrap: balance;
     color: #fff;
 }
 
 .info-card-subtitle {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     color: var(--text-muted);
 }
 
 /* Quién canta: es lo que más importa saber desde lejos. */
 .info-card-user {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     font-weight: 600;
     color: var(--accent);
     margin-top: 6px;
@@ -217,10 +218,10 @@ h3 .icon {
 
 #room-code {
     text-align: center;
-    font-size: 2.6rem;
+    font-size: 2.1rem;
     font-weight: bold;
     letter-spacing: 5px;
-    margin-bottom: 1rem;
+    margin-bottom: 0.6rem;
     color: var(--accent);
 }
 
@@ -232,8 +233,9 @@ h3 .icon {
 }
 
 #qr-container img {
-    /* Tan grande como quepa a lo ancho de la barra y sin pasar del 26 % del alto de la pantalla. */
-    width: min(100%, 26vh);
+    /* Lo bastante grande para escanearlo desde el sillón, sin pasar del 18 % del alto de la pantalla:
+       el QR grande está en la pantalla de espera; aquí solo debe dejar sitio a la cola y al video. */
+    width: min(100%, 18vh);
     height: auto;
     aspect-ratio: 1;
     display: block;
@@ -270,10 +272,10 @@ h3 .icon {
 .queue-item {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 8px;
+    gap: 1px;
+    padding: 6px 8px;
     border-radius: 5px;
-    font-size: 1.05rem;
+    font-size: 0.95rem;
 }
 
 .queue-item:nth-child(odd) {
@@ -406,11 +408,11 @@ body.ui-idle #fullscreen-btn:not(:focus-visible) {
     }
 }
 
-/* Pantallas bajas: el QR lateral ocupa menos para dejar sitio a la cola (el QR grande de la
-   pantalla de espera sigue ahí, y la dirección va en su pista). */
-@media (max-height: 700px) {
+/* Pantallas bajas (como las TV de 1366x768): el QR lateral ocupa menos para dejar sitio a la cola
+   (el QR grande de la pantalla de espera sigue ahí, y la dirección va en su pista). */
+@media (max-height: 800px) {
     #qr-container img {
-        width: min(100%, 20vh);
+        width: min(100%, 14vh);
     }
 
     #qr-container #remote-url {
@@ -418,8 +420,8 @@ body.ui-idle #fullscreen-btn:not(:focus-visible) {
     }
 
     #room-code {
-        font-size: 2rem;
-        margin-bottom: 0.5rem;
+        font-size: 1.8rem;
+        margin-bottom: 0.4rem;
     }
 }
 

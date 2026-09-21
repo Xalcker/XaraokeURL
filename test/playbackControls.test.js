@@ -84,6 +84,17 @@ test("la confirmación abierta se cierra sola si la canción de arriba cambia, y
   assert.match(bodyFrom(remoteJs, "function updateControls()"), /skipBtn\.disabled = !active \|\| skipPendingId !== null/);
 });
 
+test("quitar una canción de tu cola pide confirmación ANTES de enviar la orden y se cierra si la canción ya no espera", () => {
+  const handler = bodyFrom(remoteJs, "async function confirmAndRemove(item)");
+  const confirm = handler.indexOf("const confirmed = await showConfirm(");
+  const send = handler.indexOf('sendMessage("removeSong", { id: item.id })');
+  assert.ok(confirm >= 0, "el botón de quitar ya no pide confirmación");
+  assert.ok(send > confirm, "la orden de quitar se envía antes de confirmar");
+  assert.match(handler, /!confirmed \|\|/);
+  assert.match(remoteJs, /removeBtn\.onclick = \(\) => confirmAndRemove\(item\)/, "el botón no debe enviar removeSong directo");
+  assert.match(bodyFrom(remoteJs, "function renderQueue(queue)"), /confirmRemoveId && !waiting\.some\(\(item\) => item\.id === confirmRemoveId\)\) confirmModalCancel\.click\(\)/);
+});
+
 test("el botón de confirmar de una acción que afecta a todos es rojo y con texto blanco legible", () => {
   const rule = /\.confirm-btn-danger\s*\{([^}]*)\}/.exec(remoteCss);
   assert.ok(rule, "falta .confirm-btn-danger");

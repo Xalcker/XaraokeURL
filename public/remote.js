@@ -66,6 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let playbackPaused = false;   // lo informa el host
     let hostConnected = true;
     let confirmSkipId = null;     // canción por la que se está pidiendo confirmación para saltar
+    let confirmRemoveId = null;   // canción tuya por la que se está pidiendo confirmación para quitarla de la cola
     let skipPendingId = null;     // canción cuyo salto ya se pidió y aún no se ve reflejado en la cola
     let skipPendingTimerId = null;
     // Canciones tuyas que ya terminaron y esperan que califiques su karaoke; se muestra una a la vez.
@@ -417,9 +418,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const removeBtn = document.createElement("button");
                 removeBtn.textContent = t("remote.queue.remove");
                 removeBtn.className = "remove-btn";
-                removeBtn.onclick = () => {
-                    if (!sendMessage("removeSong", { id: item.id })) showToast("toast.offline");
-                };
+                removeBtn.onclick = () => confirmAndRemove(item);
                 actions.appendChild(removeBtn);
                 div.appendChild(actions);
             }
@@ -443,6 +442,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // ya no aplica): se libera el botón y se cierra la confirmación que quedara abierta.
         if (skipPendingId && queue[0]?.id !== skipPendingId) clearSkipPending();
         if (confirmSkipId && queue[0]?.id !== confirmSkipId) confirmModalCancel.click();
+        // Igual con quitar: si la canción ya no está esperando (sonó, se quitó desde otro lado), se cierra.
+        if (confirmRemoveId && !waiting.some((item) => item.id === confirmRemoveId)) confirmModalCancel.click();
         updateControls();
         const nextSongIsMine = queue.length > 1 && queue[1].name === myName;
         if (!nextSongIsMine) {
@@ -987,6 +988,20 @@ document.addEventListener("DOMContentLoaded", () => {
         if (playPauseBtn.disabled) return;
         if (!sendMessage("controlAction", { action: playbackPaused ? "play" : "pause" })) showToast("toast.offline");
     });
+
+    // Quitar una canción de tu cola se confirma, diciendo cuál es (un toque sin querer no la pierde).
+    // Se quita esa canción concreta (por su id), así que no hay riesgo de quitar otra si la cola cambia.
+    async function confirmAndRemove(item) {
+        const { songTitle } = songDisplay(item);
+        confirmRemoveId = item.id;
+        const confirmed = await showConfirm(
+            t("confirm.remove", { title: songTitle }),
+            { confirmKey: "confirm.removeYes", danger: true }
+        );
+        confirmRemoveId = null;
+        if (!confirmed || !currentQueue.some((queued) => queued.id === item.id)) return;
+        if (!sendMessage("removeSong", { id: item.id })) showToast("toast.offline");
+    }
 
     // Saltar afecta a todos (se salta la canción de quien esté cantando): antes de hacerlo se confirma,
     // diciendo cuál es y de quién. Se pide saltar esa canción concreta (por su id): si mientras se

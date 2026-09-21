@@ -205,6 +205,7 @@ Detalles a tener en cuenta:
 ## 🔒 Seguridad
 
 * El acceso al control remoto requiere autenticación con Google OAuth 2.0.
+* **La pantalla principal (host) NO pide sesión, a propósito.** Es un televisor o un proyector que nadie va a tener logueado, así que `/` (y con ella `/api/rooms`, `/api/song-url`, `/api/qr` y `/api/rooms/:id/resume`) está abierta a quien pueda alcanzar el servidor. En una red local es justo lo que se quiere; **si expones el servidor a internet, ponlo detrás de una autenticación propia del proxy** (Basic Auth en Nginx, por ejemplo), porque cualquiera podría abrir la pantalla y crear salas. Lo que sí está protegido en todos los casos es el catálogo (`/api/songs`), la lista de descargas, las calificaciones y el control remoto.
 * Por defecto, solo se permiten cuentas del dominio `@xalcker.xyz` (configurable con la variable de entorno `ALLOWED_DOMAIN`).
 * Las sesiones se almacenan de forma segura en el servidor; en producción, las cookies usan el flag `secure` para HTTPS.
 * **El host de una sala se autentica con un token secreto** (`hostToken`, generado al crear la sala), no con un flag que el cliente pueda falsificar — solo quien creó la sala puede controlar la reproducción o suplantar el nombre en la cola.
@@ -213,6 +214,7 @@ Detalles a tener en cuenta:
 * **El WebSocket valida el header `Origin`** en el handshake, rechazando conexiones cross-site que intenten aprovechar la cookie de sesión del navegador.
 * **Headers de seguridad HTTP** vía `helmet` (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.).
 * **Rate limiting** en los endpoints más sensibles: creación de salas (10/min), búsqueda en YouTube (20/min) y descarga de YouTube (5/min, máximo 3 descargas simultáneas).
+* **Consultar si una sala existe está limitado** (60/min): un código son 4 letras, así que sin tope se podían barrer las 456.976 combinaciones y listar las salas activas. Unirse sigue requiriendo sesión.
 * **Topes en el WebSocket**: la cola de una sala tiene un máximo (`MAX_QUEUE_LENGTH`, 100 por defecto), cada persona puede tener un número limitado de canciones esperando (`MAX_SONGS_PER_PERSON`, 5 por defecto) y cada conexión tiene un tope de mensajes por ventana de tiempo. Sin esto, un control remoto podía encolar sin límite, y cada canción difundía la cola entera a toda la sala.
 * **Salas y descargas se limpian solas:** una sala sin conexiones se borra al pasar su tiempo de gracia (`ROOM_GRACE_MINUTES`, 10 minutos por defecto; ver más abajo), y las descargas de YouTube tras `DOWNLOAD_TTL_HOURS` horas sin usarse (6 por defecto) — nada queda creciendo en memoria o disco indefinidamente, salvo que se desactive el borrado a propósito con `DOWNLOAD_TTL_HOURS=0`.
 * **Contenido generado por usuarios escapado antes de insertarse en el DOM** (nombres de perfil, títulos de canciones) para evitar XSS.
@@ -312,6 +314,7 @@ Para desplegar en producción:
    - Calificaciones del karaoke: `/data/ratings.db` (necesita permiso de escritura; si no se puede abrir, el servidor arranca igual pero no pide calificar)
 4. Actualiza las URLs de callback de Google OAuth con tu dominio de producción
 5. Si vas a usar la búsqueda/descarga de YouTube, instala `yt-dlp` y `ffmpeg` en el host de producción (no se instalan solos con `npm install`)
+6. El servidor cierra ordenadamente con `SIGTERM` o `SIGINT`: deja de aceptar conexiones, cierra las que haya y cierra las bases de datos antes de salir, para no cortar una escritura a medias en un despliegue. Si algo se cuelga, se sale igual a los 10 segundos.
 
 ## 🛠️ Scripts Disponibles
 

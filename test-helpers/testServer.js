@@ -101,6 +101,21 @@ async function startServer({ auth = false, songs = [], env = {} } = {}) {
     fs.rmSync(dataDir, { recursive: true, force: true });
   };
 
+  // Manda una señal y espera a que el proceso salga por su cuenta, para poder comprobar el
+  // apagado ordenado. Devuelve { code, signal }; null en `code` si lo mató la señal sin más.
+  const signalAndWait = (senal = "SIGTERM", timeoutMs = 15000) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`el servidor no salió tras ${senal} en ${timeoutMs} ms.\n${output}`)),
+        timeoutMs
+      );
+      child.once("exit", (code, signal) => {
+        clearTimeout(timer);
+        resolve({ code, signal });
+      });
+      child.kill(senal);
+    });
+
   try {
     await new Promise((resolve, reject) => {
       const timer = setTimeout(
@@ -130,6 +145,7 @@ async function startServer({ auth = false, songs = [], env = {} } = {}) {
     baseUrl: `http://127.0.0.1:${port}`,
     wsUrl: `ws://127.0.0.1:${port}`,
     output: () => output,
+    signalAndWait,
     stop,
   };
 }

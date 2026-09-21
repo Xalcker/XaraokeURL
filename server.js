@@ -805,7 +805,19 @@ setInterval(() => {
   }
 }, roomSweepIntervalMs(ROOM_GRACE_MS)).unref();
 
-app.get("/api/rooms/:roomId", (req, res) => {
+// Un código de sala son 4 letras: 456.976 combinaciones. Sin límite, esta ruta permitía
+// barrerlas todas y listar las salas activas. Unirse sigue requiriendo sesión, así que el
+// riesgo era bajo, pero el barrido no tiene por qué salir gratis. El tope es holgado: al
+// unirse se consulta una o dos veces.
+const roomLookupLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: (req) => ({ error: tr(req, "api.tooManyRooms") }),
+});
+
+app.get("/api/rooms/:roomId", roomLookupLimiter, (req, res) => {
   res.json({ exists: !!rooms[req.params.roomId.toUpperCase()] });
 });
 
@@ -1369,6 +1381,49 @@ async function initRatings() {
     );
   }
 }
+
+// Apagado ordenado: un despliegue o un reinicio manda SIGTERM/SIGINT y, sin esto, el proceso
+// moría de golpe y podía cortar una escritura a SQLite a media. Se deja de aceptar conexiones,
+// se cierran las que haya y se cierran las bases antes de salir.
+let apagando = false;
+const FORCE_EXIT_MS = 10000;
+
+async function apagar(senal) {
+  if (apagando) return;
+  apagando = true;
+  console.log(`\n${senal} recibido: cerrando ordenadamente...`);
+
+  // Por si algo se queda colgado (una conexión que no cierra, una base que no responde), no se
+  // deja el proceso vivo para siempre: el gestor de servicios acabaría matándolo de todos modos.
+  const forzar = setTimeout(() => {
+    console.warn("⚠️  El cierre ordenado tardó demasiado: se sale de todos modos.");
+    process.exit(1);
+  }, FORCE_EXIT_MS);
+  forzar.unref();
+
+  try {
+    for (const ws of wss.clients) ws.close(1001, "Server shutting down");
+    await new Promise((resolve) => wss.close(resolve));
+    await new Promise((resolve) => server.close(resolve));
+
+    // Las bases se cierran al final: hasta aquí alguien podía seguir escribiendo.
+    await Promise.all([
+      downloadsStore ? downloadsStore.close() : null,
+      ratingsStore ? ratingsStore.close() : null,
+      db ? new Promise((resolve) => db.close(() => resolve())) : null,
+    ]);
+    console.log("Todo cerrado. Hasta luego.");
+    clearTimeout(forzar);
+    process.exit(0);
+  } catch (err) {
+    console.error("Error al cerrar ordenadamente:", err.message);
+    clearTimeout(forzar);
+    process.exit(1);
+  }
+}
+
+process.on("SIGTERM", () => apagar("SIGTERM"));
+process.on("SIGINT", () => apagar("SIGINT"));
 
 // El servidor empieza a atender cuando la base de descargas ya está abierta y
 // su registro restaurado. Si no se puede abrir (por ejemplo, sin permisos de

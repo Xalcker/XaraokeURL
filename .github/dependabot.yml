@@ -1,0 +1,25 @@
+# Dependabot revisa las dependencias y abre PRs con las actualizaciones.
+# Los cambios de versión mayor se agrupan aparte porque suelen traer cambios incompatibles
+# (express 4 -> 5, por ejemplo) y conviene mirarlos con calma, no mezclados con los menores.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      menores:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Las actions del CI también envejecen (actions/checkout@v4, setup-node@v4...).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(ci)"

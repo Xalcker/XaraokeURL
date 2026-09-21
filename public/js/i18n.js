@@ -105,6 +105,8 @@
       "confirm.removeYes": "Quitar",
       "toast.offline": "Sin conexión con la sala. Inténtalo de nuevo.",
       "toast.hostBack": "El host volvió: la sala está disponible de nuevo.",
+      "toast.queueFull": "La cola de la sala está llena ({limit} canciones). Espera a que se libere un lugar.",
+      "toast.personalLimit": "Ya tienes {limit} canciones esperando. Agrega otra cuando te toque alguna.",
       "confirm.download": '¿Descargar "{title}" desde YouTube y agregarla a la cola? Puede tardar unos segundos.',
 
       "yt.suffixLabel": "Buscar en YouTube como:",
@@ -284,6 +286,8 @@
       "confirm.removeYes": "Remove",
       "toast.offline": "No connection to the room. Try again.",
       "toast.hostBack": "The host is back: the room is available again.",
+      "toast.queueFull": "The room's queue is full ({limit} songs). Wait for a slot to free up.",
+      "toast.personalLimit": "You already have {limit} songs waiting. Add another once one of yours plays.",
       "confirm.download": 'Download "{title}" from YouTube and add it to the queue? It may take a few seconds.',
 
       "yt.suffixLabel": "Search YouTube as:",

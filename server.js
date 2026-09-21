@@ -50,6 +50,8 @@ const {
   sweepIntervalMs,
   sanitizeSearchQuery,
 } = require("./lib/downloadPolicy");
+const { parseQueueLimit, parsePerPersonLimit, checkCanEnqueue } = require("./lib/queueLimits");
+const { createMessageLimiter } = require("./lib/wsRateLimit");
 const {
   parseRoomGrace,
   parseSingerGrace,
@@ -133,6 +135,15 @@ if (singerGraceWarning) console.warn(`⚠️  ${singerGraceWarning}`);
 // Resultados de YouTube que se muestran (SEARCH_RESULTS, de 5 a 10). Se piden el
 // doble a YouTube para que, al subir los de los canales ya conocidos, entren
 // también los que YouTube dejó más abajo.
+// Topes de la cola (MAX_QUEUE_LENGTH y MAX_SONGS_PER_PERSON); null = sin tope.
+const { limit: MAX_QUEUE_LENGTH, warning: queueLimitWarning } = parseQueueLimit(
+  process.env.MAX_QUEUE_LENGTH
+);
+if (queueLimitWarning) console.warn(`⚠️  ${queueLimitWarning}`);
+const { limit: MAX_SONGS_PER_PERSON, warning: perPersonWarning } = parsePerPersonLimit(
+  process.env.MAX_SONGS_PER_PERSON
+);
+if (perPersonWarning) console.warn(`⚠️  ${perPersonWarning}`);
 const { limit: SEARCH_RESULT_LIMIT, warning: searchResultsWarning } = parseSearchResultLimit(
   process.env.SEARCH_RESULTS
 );
@@ -1061,6 +1072,9 @@ wss.on("connection", (ws, req) => {
   // eso se perdía sin error ni registro. Le pasaba al host, que manda su playbackState nada más
   // abrir (public/karaoke.js), y por eso a veces los remotos no se enteraban de que el video
   // estaba en pausa.
+  // Tope de mensajes de esta conexión: por WebSocket no había ninguno (ver lib/wsRateLimit.js).
+  const limitadorMensajes = createMessageLimiter();
+
   const enEspera = [];
   let recibir = (message) => {
     if (enEspera.length < MAX_MENSAJES_EN_ESPERA) enEspera.push(message);
@@ -1159,6 +1173,17 @@ wss.on("connection", (ws, req) => {
     }
 
     const manejarMensaje = (message) => {
+      if (!limitadorMensajes.allow()) {
+        // Se avisa una sola vez por conexión: si alguien está en un bucle, no tiene sentido
+        // llenar el registro con una línea por mensaje.
+        if (limitadorMensajes.dropped === 1) {
+          console.warn(
+            `⚠️  Demasiados mensajes desde una conexión de la sala ${roomId}` +
+              `${ws.userName ? ` (${ws.userName})` : ""}: se descartan hasta que baje el ritmo.`
+          );
+        }
+        return;
+      }
       let data;
       try {
         data = JSON.parse(message);
@@ -1189,6 +1214,23 @@ wss.on("connection", (ws, req) => {
         case "addSong": {
           const filename = data.payload?.song;
           if (typeof filename !== "string" || !filename) return;
+
+          // Se comprueba antes de mirar la biblioteca: si la cola está llena, no hace falta
+          // ni consultar la base. A quien lo pidió se le dice por qué, para que su pantalla
+          // pueda explicarlo en vez de no hacer nada.
+          const cabe = checkCanEnqueue(currentRoom.songQueue, ws.userName, {
+            maxQueue: MAX_QUEUE_LENGTH,
+            maxPerPerson: MAX_SONGS_PER_PERSON,
+          });
+          if (!cabe.ok) {
+            ws.send(
+              JSON.stringify({
+                type: "addSongRejected",
+                payload: { reason: cabe.reason, limit: cabe.limit },
+              })
+            );
+            return;
+          }
 
           // Se valida contra la DB (o el registro de descargas de YouTube)
           // para que un cliente no pueda meter en la cola un "filename"

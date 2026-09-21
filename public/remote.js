@@ -286,6 +286,12 @@ document.addEventListener("DOMContentLoaded", () => {
             if (message.type === "hostStatus") {
                 updateHostStatusBanner(message.payload?.connected !== false);
             }
+            // El servidor no encoló la canción porque se llegó a un tope (ver lib/queueLimits.js).
+            // Se explica en vez de dejar que parezca que el botón no hizo nada.
+            if (message.type === "addSongRejected") {
+                const { reason, limit } = message.payload || {};
+                showToast(reason === "personalLimit" ? "toast.personalLimit" : "toast.queueFull", { limit });
+            }
             if (message.type === "downloadsChanged") refreshDownloadsLive();
             if (message.type === "playbackState") {
                 playbackPaused = message.payload?.paused === true;
@@ -687,8 +693,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (window.scrollY > top) window.scrollTo(0, Math.max(0, top));
     }
 
-    function showToast(messageKey) {
-        toast.textContent = t(messageKey);
+    function showToast(messageKey, params) {
+        toast.textContent = t(messageKey, params);
         toast.classList.remove("hidden");
         clearTimeout(toastTimeoutId);
         toastTimeoutId = setTimeout(() => toast.classList.add("hidden"), 2500);

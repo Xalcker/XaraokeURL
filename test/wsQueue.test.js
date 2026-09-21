@@ -316,7 +316,9 @@ test("ciclo de vida de la sala", async (t) => {
 // la que la conexión estaba abierta y el servidor no escuchaba. Lo que se mandara ahí se perdía
 // sin error ni registro: 29 de cada 30 mensajes en la medición.
 test("lo que se manda nada más abrir el WebSocket no se pierde (#42)", async (t) => {
-  const server = await startServer({ songs: CANCIONES });
+  // Sin tope personal: esta prueba mide que no se pierda ningún mensaje, y las 10 canciones son
+  // todas de la misma persona. Con el tope de #32 puesto chocaría por otro motivo.
+  const server = await startServer({ songs: CANCIONES, env: { MAX_SONGS_PER_PERSON: "off" } });
   t.after(() => server.stop());
 
   const { roomId } = await crearSala(server);
@@ -355,11 +357,105 @@ test("pasarse del tope de mensajes en espera no rompe la conexión (#42)", async
   const ana = await connect(`${server.wsUrl}/?sala=${roomId}`);
   t.after(() => ana.close());
 
-  for (let i = 0; i < 100; i++) ana.send({ type: "getQueue" });
+  // 35 mensajes: pasan del tope de los que se guardan mientras carga la sesión (32), que es lo
+  // que esta prueba quiere ejercitar, sin pasar del tope de caudal por ventana de #32 (40), que
+  // se prueba aparte en test/queueLimits.test.js.
+  for (let i = 0; i < 35; i++) ana.send({ type: "getQueue" });
 
   // La conexión sigue viva y atiende con normalidad.
   ana.clear();
   ana.send({ type: "addSong", payload: { song: A } });
   const { payload } = await ana.waitFor("queueUpdate", (p) => p.length === 1);
   assert.deepEqual(cancionesEnCola(payload), [A]);
+});
+
+// Los topes de la cola (#32) contra el servidor real: que no solo existan en lib/queueLimits.js,
+// sino que el servidor los aplique y le diga a quien pidió la canción por qué no entró.
+test("topes de la cola", async (t) => {
+  const server = await startServer({
+    songs: CANCIONES,
+    env: { MAX_QUEUE_LENGTH: "4", MAX_SONGS_PER_PERSON: "2" },
+  });
+  t.after(() => server.stop());
+
+  await t.test("al llegar al tope personal se rechaza y se explica", async (t) => {
+    const { ana, beto } = await abrirSala(server, t);
+
+    // Ana: 1 sonando + 2 esperando = su tope de 2 en espera.
+    for (let i = 0; i < 3; i++) {
+      ana.send({ type: "addSong", payload: { song: A } });
+      await ana.waitFor("queueUpdate", (p) => p.length === i + 1);
+    }
+
+    ana.clear();
+    ana.send({ type: "addSong", payload: { song: B } });
+    const { payload } = await ana.waitFor("addSongRejected");
+    assert.equal(payload.reason, "personalLimit");
+    assert.equal(payload.limit, 2, "se dice cuál era el tope, para poder explicarlo");
+
+    // Beto no se ve afectado por el tope de Ana.
+    beto.clear();
+    beto.send({ type: "addSong", payload: { song: C } });
+    const { payload: cola } = await beto.waitFor("queueUpdate", (p) => p.length === 4);
+    assert.equal(cola.filter((i) => i.name === "Beto").length, 1);
+  });
+
+  await t.test("al llenarse la sala se rechaza a todo el mundo", async (t) => {
+    const { ana, beto } = await abrirSala(server, t);
+    // 4 canciones (el tope de la sala): 2 de cada quien, para no toparse antes con el personal.
+    for (const quien of [ana, beto, ana, beto]) quien.send({ type: "addSong", payload: { song: A } });
+    await ana.waitFor("queueUpdate", (p) => p.length === 4);
+
+    beto.clear();
+    beto.send({ type: "addSong", payload: { song: B } });
+    const { payload } = await beto.waitFor("addSongRejected");
+    assert.equal(payload.reason, "queueFull");
+    assert.equal(payload.limit, 4);
+  });
+
+  await t.test("la cola no crece más allá del tope por mucho que se insista", async (t) => {
+    const { ana, beto } = await abrirSala(server, t);
+    for (let i = 0; i < 50; i++) {
+      ana.send({ type: "addSong", payload: { song: A } });
+      beto.send({ type: "addSong", payload: { song: B } });
+    }
+    // Barrera: cuando llega la respuesta al getQueue, el servidor ya procesó todo lo anterior.
+    ana.clear();
+    ana.send({ type: "getQueue" });
+    const { payload } = await ana.waitFor("queueUpdate");
+    assert.ok(payload.length <= 4, `la cola quedó en ${payload.length}, debía parar en 4`);
+  });
+
+  await t.test("al liberarse un lugar se puede volver a agregar", async (t) => {
+    const { host, ana } = await abrirSala(server, t);
+    for (let i = 0; i < 3; i++) {
+      ana.send({ type: "addSong", payload: { song: A } });
+      await ana.waitFor("queueUpdate", (p) => p.length === i + 1);
+    }
+    ana.clear();
+    ana.send({ type: "addSong", payload: { song: B } });
+    await ana.waitFor("addSongRejected");
+
+    // El host adelanta: una de Ana deja de estar esperando.
+    host.send({ type: "playNext", payload: {} });
+    await ana.waitFor("queueUpdate", (p) => p.length === 2);
+
+    ana.clear();
+    ana.send({ type: "addSong", payload: { song: B } });
+    const { payload } = await ana.waitFor("queueUpdate", (p) => p.length === 3);
+    assert.deepEqual(cancionesEnCola(payload).slice(-1), [B]);
+  });
+});
+
+test("sin topes configurados la cola puede crecer (para quien lo prefiera así)", async (t) => {
+  const server = await startServer({
+    songs: CANCIONES,
+    env: { MAX_QUEUE_LENGTH: "0", MAX_SONGS_PER_PERSON: "off" },
+  });
+  t.after(() => server.stop());
+
+  const { ana } = await abrirSala(server, t);
+  for (let i = 0; i < 12; i++) ana.send({ type: "addSong", payload: { song: A } });
+  const { payload } = await ana.waitFor("queueUpdate", (p) => p.length === 12, { timeoutMs: 8000 });
+  assert.equal(payload.length, 12);
 });

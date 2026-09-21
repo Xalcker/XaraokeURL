@@ -317,4 +317,18 @@ Para desplegar en producción:
 * `npm start` - Inicia el servidor de producción
 * `npm run lint` - Corre ESLint sobre todo el proyecto
 * `npm test` - Corre las pruebas (`node --test`)
-* `npm run import` - Importa canciones desde `songs.csv` a la base de datos
+* `npm run import` - Importa canciones desde `songs.csv` a la base de datos (ruta configurable con `CSV_PATH`)
+
+### Formato de `songs.csv`
+
+Una canción por línea, `artista,titulo,url`. La primera línea puede ser la cabecera: se detecta y se salta sola.
+
+Si el artista o el título llevan una coma, **hay que entrecomillar ese campo**:
+
+```csv
+artista,titulo,url
+Queen,Bohemian Rhapsody,https://ejemplo/1.mp4
+"Tyler, The Creator",EARFQUAKE,https://ejemplo/2.mp4
+```
+
+El importador avisa de las líneas que no pudo usar (con su número), de las que ya estaban y de aquellas cuya URL no parece una URL —el síntoma típico de una coma sin entrecomillar—, y sale con un código distinto de 0 si algo quedó fuera, para que se note desde un script.

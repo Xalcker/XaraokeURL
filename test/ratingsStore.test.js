@@ -36,6 +36,28 @@ test("calificar de nuevo la misma canción reemplaza la calificación de esa per
   await store.close();
 });
 
+test("totals() suma los pulgares de todas las canciones y omite las que nadie calificó", async () => {
+  const store = await openRatingsStore(":memory:");
+  assert.deepEqual(await store.totals(), {});
+  await store.upsert(rating({ rater: "Ana", value: 1 }));
+  await store.upsert(rating({ rater: "Beto", value: 1 }));
+  await store.upsert(rating({ rater: "Carla", value: -1 }));
+  await store.upsert(rating({ songKey: "lib:Queen - Radio Ga Ga.mp4", rater: "Ana", value: -1 }));
+  assert.deepEqual(await store.totals(), {
+    "yt:9Lxm0iSnKNc": { up: 2, down: 1 },
+    "lib:Queen - Radio Ga Ga.mp4": { up: 0, down: 1 },
+  });
+  await store.close();
+});
+
+test("totals() refleja el cambio cuando alguien recalifica, sin duplicar su voto", async () => {
+  const store = await openRatingsStore(":memory:");
+  await store.upsert(rating({ rater: "Ana", value: 1 }));
+  await store.upsert(rating({ rater: "Ana", value: -1, ratedAt: "2026-09-21T10:00:00.000Z" }));
+  assert.deepEqual(await store.totals(), { "yt:9Lxm0iSnKNc": { up: 0, down: 1 } });
+  await store.close();
+});
+
 test("rechaza valores que no sean pulgar arriba (1) ni abajo (-1)", async () => {
   const store = await openRatingsStore(":memory:");
   for (const value of [0, 2, -2, 5]) {

@@ -1,6 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
   const welcomeModal = document.getElementById("welcome-modal");
   const startBtn = document.getElementById("start-btn");
+  const resumeBtn = document.getElementById("resume-btn");
+  const resumeHint = document.getElementById("resume-hint");
   const mainContainer = document.querySelector(".main-container");
   const player = document.getElementById("karaokePlayer");
   const nowPlayingContent = document.getElementById("now-playing-content");
@@ -38,31 +40,153 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   });
 
+  // La sala y su token de host se recuerdan en este navegador: si el host cierra el reproductor sin
+  // querer, al volver puede recuperar la sala (mientras el servidor la conserve, ver ROOM_GRACE_MINUTES)
+  // con su cola. Es un dato del navegador, no un secreto nuevo: el token ya vivía en esta pantalla.
+  const SAVED_ROOM_KEY = "xaraoke.hostRoom";
+
+  function loadSavedRoom() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SAVED_ROOM_KEY));
+      if (saved && typeof saved.roomId === "string" && typeof saved.hostToken === "string") return saved;
+    } catch {
+      /* sin almacenamiento o dato dañado: es como si no hubiera nada guardado */
+    }
+    return null;
+  }
+
+  function saveRoom(room) {
+    try {
+      localStorage.setItem(SAVED_ROOM_KEY, JSON.stringify(room));
+    } catch {
+      /* sin almacenamiento: la sala funciona igual, solo que no se podrá recuperar */
+    }
+  }
+
+  function forgetSavedRoom() {
+    try {
+      localStorage.removeItem(SAVED_ROOM_KEY);
+    } catch {
+      /* nada que olvidar */
+    }
+  }
+
+  // Con una sala por recuperar, el botón de siempre pasa a "Crear una sala nueva".
+  let savedRoomOffered = false;
+  const startLabel = () => t(savedRoomOffered ? "host.startNew" : "host.start");
+
+  // El navegador solo deja reproducir audio tras un gesto de la persona: se aprovecha el clic.
+  function primeAudio() {
+    player.play().catch(() => console.log("Permiso de audio concedido."));
+    player.pause();
+  }
+
+  // Entra a la sala (recién creada o recuperada): guarda sus datos, muestra la pantalla principal y
+  // se conecta. Al conectarse, el servidor manda la cola que la sala tenía.
+  function enterRoom(id, token) {
+    roomId = id;
+    hostToken = token;
+    saveRoom({ roomId, hostToken });
+    roomCodeDisplay.textContent = roomId;
+    idleRoomCode.textContent = roomId;
+    if (wakeLock.supported) wakeLock.enable();
+    else console.info("La pantalla puede apagarse por inactividad: el navegador solo permite evitarlo en HTTPS o en localhost.");
+    welcomeModal.classList.add("hidden");
+    mainContainer.classList.remove("hidden");
+    connectWebSocket();
+    initialize();
+  }
+
+  // Pregunta al servidor si la sala guardada sigue existiendo y el token es el de esta pantalla.
+  // Devuelve { queueLength }, o null si ya no existe. Lanza si no se pudo consultar (sin red).
+  async function checkSavedRoom(saved) {
+    const response = await fetch(`/api/rooms/${encodeURIComponent(saved.roomId)}/resume`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hostToken: saved.hostToken }),
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }
+
+  function showSavedRoomOffer(saved, queueLength) {
+    savedRoomOffered = true;
+    resumeBtn.textContent = t("host.resume", { code: saved.roomId });
+    resumeHint.textContent = t("host.resumeQueue", { n: queueLength });
+    resumeBtn.classList.remove("hidden");
+    resumeHint.classList.remove("hidden");
+    welcomeModal.classList.add("has-saved-room");
+    startBtn.dataset.i18n = "host.startNew";
+    startBtn.textContent = startLabel();
+  }
+
+  function hideSavedRoomOffer() {
+    savedRoomOffered = false;
+    resumeBtn.classList.add("hidden");
+    resumeHint.classList.add("hidden");
+    welcomeModal.classList.remove("has-saved-room");
+    startBtn.dataset.i18n = "host.start";
+    startBtn.textContent = startLabel();
+  }
+
+  // Al abrir la página: si quedó una sala guardada que el servidor todavía conserva, se ofrece
+  // recuperarla. Si ya no existe (venció el tiempo de espera o el servidor se reinició), se olvida.
+  (async function offerSavedRoom() {
+    const saved = loadSavedRoom();
+    if (!saved) return;
+    try {
+      const room = await checkSavedRoom(saved);
+      if (room) showSavedRoomOffer(saved, room.queueLength);
+      else forgetSavedRoom();
+    } catch (error) {
+      console.warn("No se pudo consultar la sala guardada:", error);
+    }
+  })();
+
+  resumeBtn.addEventListener("click", async () => {
+    if (resumeBtn.disabled) return;
+    const saved = loadSavedRoom();
+    if (!saved) return hideSavedRoomOffer();
+    resumeBtn.disabled = true;
+    startBtn.disabled = true;
+    resumeBtn.textContent = t("host.resuming");
+    primeAudio();
+    try {
+      // Se consulta otra vez: pudo pasar tiempo desde que se cargó la página y la sala pudo vencer.
+      if (!(await checkSavedRoom(saved))) {
+        forgetSavedRoom();
+        hideSavedRoomOffer();
+        alert(t("host.resumeFailed"));
+        resumeBtn.disabled = false;
+        startBtn.disabled = false;
+        return;
+      }
+      enterRoom(saved.roomId, saved.hostToken);
+    } catch (error) {
+      console.error("No se pudo recuperar la sala:", error);
+      alert(t("host.resumeError"));
+      resumeBtn.textContent = t("host.resume", { code: saved.roomId });
+      resumeBtn.disabled = false;
+      startBtn.disabled = false;
+    }
+  });
+
   startBtn.addEventListener("click", async () => {
     if (startBtn.disabled) return;
     startBtn.disabled = true;
     startBtn.textContent = t("host.creating");
-    player.play().catch(() => console.log("Permiso de audio concedido."));
-    player.pause();
+    primeAudio();
     try {
       const response = await fetch("/api/rooms", { method: "POST" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      roomId = data.roomId;
-      hostToken = data.hostToken;
-      roomCodeDisplay.textContent = roomId;
-      idleRoomCode.textContent = roomId;
-      if (wakeLock.supported) wakeLock.enable();
-      else console.info("La pantalla puede apagarse por inactividad: el navegador solo permite evitarlo en HTTPS o en localhost.");
-      welcomeModal.classList.add("hidden");
-      mainContainer.classList.remove("hidden");
-      connectWebSocket();
-      initialize();
+      enterRoom(data.roomId, data.hostToken);
     } catch (error) {
       console.error("No se pudo crear la sala:", error);
       alert(t("host.createFailed"));
       startBtn.disabled = false;
-      startBtn.textContent = t("host.start");
+      startBtn.textContent = startLabel();
     }
   });
 
@@ -80,7 +204,24 @@ document.addEventListener("DOMContentLoaded", () => {
       // Los remotos que ya estaban (o entran ahora) necesitan saber si el video está en pausa.
       send({ type: "playbackState", payload: { paused: isPaused() } });
     };
-    ws.onclose = () => setTimeout(connectWebSocket, 3000);
+    ws.onclose = (event) => {
+      // La sala ya no existe en el servidor (venció el tiempo de espera o se reinició): reintentar
+      // no serviría de nada. Se vuelve a la pantalla de inicio para crear otra.
+      if (event.code === 4004) {
+        forgetSavedRoom();
+        alert(t("host.roomLost"));
+        location.reload();
+        return;
+      }
+      // Otra pantalla recuperó la sala con el mismo token y el servidor cerró esta: si reconectara,
+      // las dos se estarían quitando el control una a la otra.
+      if (event.code === 4006) {
+        player.pause();
+        alert(t("host.replaced"));
+        return;
+      }
+      setTimeout(connectWebSocket, 3000);
+    };
     ws.onerror = (err) => console.error("Error de WebSocket en Host:", err);
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data);

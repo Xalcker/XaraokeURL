@@ -694,6 +694,24 @@ body.has-rating-card {
     font-size: 0.8rem;
 }
 
+/* Pulgares arriba y abajo de una canción, sumados de todas las salas. */
+.rating-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7em;
+    margin-left: 0.7em;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: normal;
+    white-space: nowrap;
+}
+
+.rating-badge .icon {
+    width: 0.95em;
+    height: 0.95em;
+    margin-right: 0.25em;
+}
+
 .alphabet-container {
     display: flex;
     flex-wrap: wrap;

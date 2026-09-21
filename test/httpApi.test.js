@@ -99,6 +99,47 @@ test("API HTTP sin login (modo desarrollo)", async (t) => {
     assert.ok(res.headers.get("x-frame-options"), "falta X-Frame-Options");
   });
 
+  // CSP estuvo desactivado mucho tiempo porque había scripts inline (ver #37). Este test evita
+  // que vuelva a apagarse, y sobre todo que se "arregle" un inline nuevo metiendo 'unsafe-inline',
+  // que es lo que haría que la política dejara de servir para nada.
+  await t.test("la CSP está puesta y no permite scripts ni estilos inline", async () => {
+    const csp = (await get("/")).headers.get("content-security-policy");
+    assert.ok(csp, "falta la cabecera Content-Security-Policy");
+
+    const directiva = (nombre) =>
+      (csp.split(";").find((d) => d.trim().startsWith(`${nombre} `)) || "").trim();
+
+    assert.match(directiva("script-src"), /^script-src 'self'$/, "script-src debe ser solo 'self'");
+    assert.match(directiva("style-src"), /^style-src 'self'$/, "style-src debe ser solo 'self'");
+    assert.doesNotMatch(csp, /unsafe-inline/, "nada de 'unsafe-inline'");
+    assert.doesNotMatch(csp, /unsafe-eval/, "nada de 'unsafe-eval'");
+    assert.match(directiva("object-src"), /'none'/);
+    assert.match(directiva("frame-ancestors"), /'none'/);
+
+    // Lo que el karaoke sí necesita: el QR va en data:, las miniaturas de YouTube en https,
+    // y las canciones del catálogo son URLs arbitrarias que salen de songs.csv.
+    assert.match(directiva("img-src"), /data:/);
+    assert.match(directiva("img-src"), /https:/);
+    assert.match(directiva("media-src"), /http:/);
+    assert.match(directiva("connect-src"), /wss?:/);
+
+    // En una red local se sirve por http: forzar https rompería la página y los vídeos.
+    assert.doesNotMatch(csp, /upgrade-insecure-requests/);
+  });
+
+  await t.test("ya no queda nada inline que la CSP fuera a bloquear", async () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const dir = path.join(__dirname, "..", "public");
+    for (const archivo of ["index.html", "remote.html"]) {
+      const html = fs.readFileSync(path.join(dir, archivo), "utf8");
+      assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/, `${archivo}: script inline`);
+      assert.doesNotMatch(html, /<style[\s>]/, `${archivo}: bloque <style>`);
+      assert.doesNotMatch(html, /\sstyle="/, `${archivo}: atributo style=`);
+      assert.doesNotMatch(html, /\son[a-z]+=/, `${archivo}: manejador en atributo (onclick, etc.)`);
+    }
+  });
+
   await t.test("crear salas está limitado: a la 11.ª en un minuto responde 429", async () => {
     // El limitador es de 10 por minuto y las pruebas de arriba ya gastaron varias, así que
     // basta con insistir hasta toparse con él.

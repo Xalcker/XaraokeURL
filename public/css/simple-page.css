@@ -1,0 +1,38 @@
+/* Pantallas de acceso (login, acceso denegado). El HTML lo arma simplePage() en server.js,
+   porque depende de la configuración; los estilos no dependen de nada, así que viven aquí
+   en vez de en un <style> inline, y así CSP puede quedarse en style-src 'self' (ver #37). */
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #fff;
+    background: var(--bg-gradient);
+}
+
+main { max-width: 360px; text-align: center; }
+
+img {
+    display: block;
+    margin: 0 auto 1rem;
+    filter: drop-shadow(0 8px 24px rgba(var(--accent-rgb), 0.25));
+}
+
+h1 { margin: 0.2rem 0 0.8rem; }
+
+p { color: #ccc; line-height: 1.4; }
+
+a.btn {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 12px 22px;
+    border-radius: 8px;
+    background: #4285F4;
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+}

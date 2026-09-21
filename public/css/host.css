@@ -117,6 +117,16 @@ a:focus-visible {
     gap: 1.5rem;
 }
 
+/* "Ahora suena" y "A continuación" no llenan la barra: el logo aprovecha el
+   espacio que sobra abajo en vez de dejarlo vacío. */
+.sidebar-logo {
+    margin-top: auto;
+    align-self: center;
+    width: min(50%, 130px);
+    height: auto;
+    opacity: 0.5;
+}
+
 .player-column {
     flex: 1;
     display: flex;

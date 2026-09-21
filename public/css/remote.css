@@ -362,6 +362,14 @@ a:focus-visible {
     text-transform: uppercase;
 }
 
+/* Aviso de por qué los botones están deshabilitados: la canción que suena es de otra persona. */
+#controls-locked {
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    line-height: 1.3;
+}
+
 #mini-player.is-paused #progress-bar {
     background-color: var(--text-muted);
 }

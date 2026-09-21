@@ -55,8 +55,26 @@ test("el estado de los controles sale de lo que informa el host, del host conect
   assert.match(remoteJs, /message\.type === "playbackState"/);
   const update = bodyFrom(remoteJs, "function updateControls()");
   assert.match(update, /hostConnected && currentQueue\.length > 0/);
-  assert.match(update, /playPauseBtn\.disabled = !active/);
+  assert.match(update, /const usable = active && controlAllowed;/);
+  assert.match(update, /playPauseBtn\.disabled = !usable/);
   assert.match(update, /dataset\.state = paused \? "paused" : "playing"/);
+});
+
+test("los botones de reproducción solo se habilitan si el servidor dice que se puede, y se explica por qué no", () => {
+  // Arranca en "no": hasta que el servidor lo diga, no se ofrece nada que él rechazaría.
+  assert.match(remoteJs, /let controlAllowed = false;/);
+  assert.match(remoteJs, /controlAllowed = message\.payload\?\.allowed === true;/);
+  const update = bodyFrom(remoteJs, "function updateControls()");
+  assert.match(update, /controlsLocked\.classList\.toggle\("hidden", !active \|\| controlAllowed\)/);
+  const hint = /<div\b[^>]*id="controls-locked"[^>]*>/.exec(remoteHtml);
+  assert.ok(hint, "falta el aviso de por qué están deshabilitados");
+  assert.match(hint[0], /class="hidden"/);
+  assert.match(hint[0], /data-i18n="remote\.controlsLocked"/);
+});
+
+test("si el permiso se pierde con una confirmación de saltar abierta, esta se cierra", () => {
+  const access = remoteJs.slice(remoteJs.indexOf('message.type === "controlAccess"'));
+  assert.match(access.slice(0, 500), /!controlAllowed && confirmSkipId\) confirmModalCancel\.click\(\)/);
 });
 
 test("el remoto no finge que hizo algo cuando no hay conexión", () => {
@@ -81,7 +99,7 @@ test("la confirmación abierta se cierra sola si la canción de arriba cambia, y
   const queue = bodyFrom(remoteJs, "function renderQueue(queue)");
   assert.match(queue, /confirmSkipId && queue\[0\]\?\.id !== confirmSkipId\) confirmModalCancel\.click\(\)/);
   assert.match(queue, /skipPendingId && queue\[0\]\?\.id !== skipPendingId\) clearSkipPending\(\)/);
-  assert.match(bodyFrom(remoteJs, "function updateControls()"), /skipBtn\.disabled = !active \|\| skipPendingId !== null/);
+  assert.match(bodyFrom(remoteJs, "function updateControls()"), /skipBtn\.disabled = !usable \|\| skipPendingId !== null/);
 });
 
 test("quitar una canción de tu cola pide confirmación ANTES de enviar la orden y se cierra si la canción ya no espera", () => {
@@ -140,6 +158,27 @@ test("el aviso 'En pausa' del host va sobre el video, debajo de la pantalla de e
 test("el servidor aplica la política: solo el host manda playNext, timeUpdate y playbackState", () => {
   assert.match(serverJs, /require\("\.\/lib\/wsPolicy"\)/);
   assert.match(serverJs, /if \(!isAllowed\(data\.type, isHost\)\) return;/);
+});
+
+test("el servidor rechaza pausar, reanudar y saltar a quien no canta la canción que suena", () => {
+  const handler = serverJs.slice(serverJs.indexOf('case "controlAction"'), serverJs.indexOf('case "playbackState"'));
+  assert.ok(handler.includes("sanitizeControlAction"), "no se encontró el manejo de controlAction");
+  const sanitize = handler.indexOf("sanitizeControlAction(data.payload)");
+  const rule = handler.indexOf("!canControlPlayback(currentRoom.songQueue, ws.userName, roomPresentNames(currentRoom))");
+  const forward = handler.indexOf("broadcastToRoom(");
+  assert.ok(sanitize >= 0 && rule > sanitize, "la regla debe comprobarse después de limpiar la orden");
+  assert.ok(forward > rule, "la orden se reenvía al host antes de comprobar quién la manda");
+  assert.match(handler.slice(rule - 20, rule), /!isHost && /, "el host (la pantalla) queda fuera de la regla");
+});
+
+test("el servidor avisa a cada remoto si puede controlar cada vez que cambia la cola o quién está conectado", () => {
+  assert.match(bodyFrom(serverJs, "function broadcastQueue("), /sendControlAccess\(room\)/);
+  // Toda difusión de la cola pasa por broadcastQueue: una directa dejaría a los remotos con permisos viejos.
+  assert.equal([...serverJs.matchAll(/broadcastToRoom\([^;]*queueUpdate/gs)].length, 1, "la cola solo se difunde dentro de broadcastQueue");
+  assert.match(bodyFrom(serverJs, "function enqueueSong("), /broadcastQueue\(roomId\)/);
+  assert.match(serverJs, /if \(updateQueue\) broadcastQueue\(ws\.roomId\);/);
+  assert.match(serverJs, /sendControlAccess\(room\);\s*ws\.send\(\s*JSON\.stringify\(\{\s*type: "hostStatus"/, "al conectarse alguien, todos reciben su permiso");
+  assert.match(serverJs.slice(serverJs.indexOf('ws.on("close"')), /if \(!ws\.isHost\) sendControlAccess\(room\)/, "al irse alguien, los demás reciben su permiso");
 });
 
 test("el servidor reenvía al host solo una orden limpia y recuerda el estado para quien entre después", () => {

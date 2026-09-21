@@ -89,6 +89,15 @@ test("API HTTP sin login (modo desarrollo)", async (t) => {
     assert.equal(joinUrl, remoteUrl);
   });
 
+  // No había ningún test de esta ruta, y por eso pasó desapercibido que express 5 la rompía
+  // cuando el proyecto vive bajo un directorio oculto (ver el comentario en server.js).
+  await t.test("se sirve /favicon.ico a los clientes que lo piden sin leer los <link>", async () => {
+    const res = await get("/favicon.ico");
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type"), /image\/png/);
+    assert.ok(Number(res.headers.get("content-length")) > 0, "no debe venir vacío");
+  });
+
   await t.test("sin descargas, la lista de descargas está vacía", async () => {
     assert.deepEqual(await get("/api/downloads").then((r) => r.json()), []);
   });

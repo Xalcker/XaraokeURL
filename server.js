@@ -884,8 +884,14 @@ app.get("/api/qr", (req, res) => {
 });
 
 // Algunos clientes piden /favicon.ico sin leer los <link>: se les sirve el PNG.
+//
+// Se pasa `root` en vez de la ruta absoluta completa a propósito. Con la ruta completa, la
+// comprobación de archivos ocultos de `send` se aplica a TODA la ruta, así que si el proyecto
+// vive bajo un directorio que empieza por punto (~/.local/share/xaraoke, un worktree dentro de
+// .claude/...), el favicon devuelve 404. Con `root`, solo se mira la parte de después, que
+// siempre está limpia. Express 4 lo toleraba; express 5 no.
 app.get("/favicon.ico", (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "img", "favicon-32.png"))
+  res.sendFile("favicon-32.png", { root: path.join(__dirname, "public", "img") })
 );
 app.use("/remote.html", ensureAuthenticatedRemote);
 app.use(express.static(path.join(__dirname, "public")));

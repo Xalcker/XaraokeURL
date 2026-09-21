@@ -123,6 +123,7 @@ document.addEventListener("DOMContentLoaded", () => {
         roomCodeInput.setSelectionRange(cursorPos, cursorPos);
     });
 
+    // Devuelve false si no hay sesión (y manda a iniciarla).
     async function initializeAppFlow() {
         try {
             const userRes = await fetch('/api/me');
@@ -139,8 +140,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 myName = userData.name;
                 userNameDisplay.textContent = t("remote.user", { name: myName });
             }
+            return true;
         } catch {
             window.location.href = '/login';
+            return false;
+        }
+    }
+
+    // El QR de la pantalla principal lleva la sala en el enlace (?sala=ABCD): se pone el código y, si
+    // el nombre ya lo da la cuenta de Google, se entra directo. Sin login (modo desarrollo) solo falta
+    // que la persona escriba su nombre y toque "Unirse".
+    function joinFromLink() {
+        const roomCode = (new URLSearchParams(window.location.search).get("sala") || "").trim().toUpperCase();
+        if (!/^[A-Z]{4}$/.test(roomCode)) return;
+        roomCodeInput.value = roomCode;
+        if (devMode) {
+            (devNameInput.value ? joinRoomBtn : devNameInput).focus();
+        } else {
+            roomForm.requestSubmit();
         }
     }
 
@@ -1043,5 +1060,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     updateControls();
-    initializeAppFlow();
+    initializeAppFlow().then((signedIn) => {
+        if (signedIn) joinFromLink();
+    });
 });

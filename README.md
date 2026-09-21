@@ -144,9 +144,9 @@ Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control r
 
 1.  Abre la aplicación en un navegador en tu computadora o TV (el **Host**).
 2.  Haz clic en "Comenzar" para crear una nueva sala. Se generará un código de sala de 4 letras.
-3.  Escanea el código QR con la cámara de tu teléfono para abrir el **Control Remoto**.
-4.  Inicia sesión con tu cuenta de Google (debe ser del dominio autorizado configurado en el código).
-5.  Introduce el código de sala de 4 letras para unirte a la sesión.
+3.  Escanea el código QR con la cámara de tu teléfono para abrir el **Control Remoto**. El QR ya lleva el código de sala (`/remote.html?sala=ABCD`), así que no hay que escribirlo.
+4.  Inicia sesión con tu cuenta de Google (debe ser del dominio autorizado configurado en el código). Al volver de Google, el teléfono entra directo a la sala. Sin login de Google (modo desarrollo), el código aparece ya escrito y solo falta poner tu nombre y tocar "Unirse".
+5.  Si no puedes escanear el QR, entra a la dirección escrita bajo él e introduce el código de sala de 4 letras.
 6.  En la pestaña **Buscar**, usa el explorador alfabético o el buscador de texto para encontrar tu canción favorita y añadirla a la cola (si no aparece, puedes buscarla en YouTube — ver la sección "Búsqueda y descarga desde YouTube" más abajo).
 7.  Un aviso confirma que se añadió, y la cola se actualiza en la pantalla principal y en todos los remotos conectados; en la pestaña **Mi cola** ves tu posición, puedes quitar tus canciones y, si tienes varias en espera, cambiarles el orden con las flechas.
 8.  Recibirás una notificación (vibración, sonido y un aviso visual) 10 segundos antes de que empiece tu canción.

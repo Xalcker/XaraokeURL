@@ -243,8 +243,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // ¿Está en pantalla el aviso "no hay coincidencias, buscar en YouTube"?
-    function showingYoutubePrompt() {
+    // ¿Está en pantalla la búsqueda local (con coincidencias o con el aviso de
+    // "buscar en YouTube")? Se reconoce por el selector de sufijo, que siempre la acompaña.
+    function showingLocalSearch() {
         return !!songBrowser.querySelector("#ytSuffixSelect");
     }
 
@@ -597,6 +598,9 @@ document.addEventListener("DOMContentLoaded", () => {
             renderYoutubeSearchPrompt(query);
             return;
         }
+        // Arriba de la lista, para no tener que recorrerla entera: aunque haya
+        // coincidencias, puede que la que se busca no esté (otra versión, otro canal).
+        appendYoutubeSearchControls(query);
         songs.slice(0, 50).forEach((filename) => {
             songBrowser.appendChild(createSongItem(filename));
         });
@@ -635,7 +639,10 @@ document.addEventListener("DOMContentLoaded", () => {
             ? t("yt.pressEnter")
             : t("yt.noLocalMatches");
         songBrowser.appendChild(emptyMsg);
+        appendYoutubeSearchControls(query);
+    }
 
+    function appendYoutubeSearchControls(query) {
         appendYoutubeSuffixSelect();
 
         const searchBtn = document.createElement("button");
@@ -769,12 +776,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Otras personas pueden haber descargado videos desde que se abrió esta
     // pantalla: al ir a buscar se refresca la lista. Si la respuesta llega
-    // cuando ya se buscó (por ejemplo, al pegar el texto) y en pantalla está el
-    // aviso de "buscar en YouTube", se vuelve a dibujar por si ya hay coincidencia.
+    // cuando ya se buscó (por ejemplo, al pegar el texto) y en pantalla está la
+    // búsqueda local, se vuelve a dibujar para incluir las descargas nuevas.
     songSearch.addEventListener("focus", async () => {
         const changed = await loadDownloads();
         const query = songSearch.value.trim();
-        if (changed && query && showingYoutubePrompt()) renderSearchResults(query);
+        if (changed && query && showingLocalSearch()) renderSearchResults(query);
     });
 
     // Enter (o la tecla "Ir/Buscar" del teclado del celular) busca directo en
@@ -790,7 +797,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const { songs, downloads } = findLocalMatches(query);
         if (songs.length === 0 && downloads.length === 0) {
             searchYoutubeUI(query, selectedYtSuffix);
-        } else if (showingYoutubePrompt()) {
+        } else if (showingLocalSearch()) {
             renderSearchResults(query);
         }
     });

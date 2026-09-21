@@ -23,6 +23,8 @@ const {
   YOUTUBE_ID_RE,
   checkYtdlpAvailable,
   normalizeSearchSuffix,
+  parseSearchResultLimit,
+  rankByKnownChannels,
   searchYoutube,
   getVideoInfo,
   downloadYoutubeVideo,
@@ -91,6 +93,14 @@ const { ttlMs: DOWNLOAD_TTL_MS, warning: downloadTtlWarning } = parseDownloadTtl
   process.env.DOWNLOAD_TTL_HOURS
 );
 if (downloadTtlWarning) console.warn(`⚠️  ${downloadTtlWarning}`);
+// Resultados de YouTube que se muestran (SEARCH_RESULTS, de 5 a 10). Se piden el
+// doble a YouTube para que, al subir los de los canales ya conocidos, entren
+// también los que YouTube dejó más abajo.
+const { limit: SEARCH_RESULT_LIMIT, warning: searchResultsWarning } = parseSearchResultLimit(
+  process.env.SEARCH_RESULTS
+);
+if (searchResultsWarning) console.warn(`⚠️  ${searchResultsWarning}`);
+const SEARCH_FETCH_LIMIT = SEARCH_RESULT_LIMIT * 2;
 
 checkYtdlpAvailable().then((available) => {
   if (!available) {
@@ -378,7 +388,9 @@ app.get(
       return res.status(400).json({ error: tr(req, "api.queryTooLong") });
     }
     try {
-      const results = await searchYoutube(query, { limit: 4, suffix });
+      const found = await searchYoutube(query, { limit: SEARCH_FETCH_LIMIT, suffix });
+      const downloadedChannels = Object.values(downloadedVideos).map((entry) => entry.channel);
+      const results = rankByKnownChannels(found, downloadedChannels).slice(0, SEARCH_RESULT_LIMIT);
       res.json({ results });
     } catch (err) {
       console.error("Error buscando en YouTube:", err.message);

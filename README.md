@@ -16,6 +16,7 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Califica el karaoke:** cuando tu canción termina, te sale una tarjeta con un pulgar arriba o abajo. Es la calidad del **karaoke** (el video, la letra, la música), no cómo cantaste. Se puede ignorar con "Ahora no". Ver "Calificar el karaoke" más abajo.
 * **Modo TV en la pantalla principal:** letra y tarjetas que crecen con la pantalla, "quién canta" en grande y de color, pantalla completa (botón, tecla `F` o doble clic) y una pantalla de espera con el código QR enorme cuando la cola está vacía. Mantiene la pantalla encendida durante la sesión (ver "Modo TV").
 * **Remoto pensado para el celular:** una barra fija arriba con lo que suena, su avance y los botones de play/pausa y saltar, siempre a la vista aunque bajes por una lista larga. Debajo, dos pestañas: **Buscar** (el buscador y el explorador) y **Mi cola** (la cola de todos, tus canciones resaltadas, cuántas tienes y cuántas faltan para tu turno). El aviso de "tu turno" aparece pegado bajo el mini-reproductor.
+* **Tutorial en el remoto:** la primera vez que alguien entra a una sala desde su navegador se abre un recorrido guiado que resalta cada elemento (código de sala, lo que suena, play/pausa, saltar, buscador, biblioteca, Mi cola, avisos) y explica para qué sirve. Se puede saltar o cerrar con Esc, y volver a verlo con el botón **Tutorial** del encabezado. Que ya se vio se recuerda en el navegador (`localStorage`, clave `xaraoke.remoteTourSeen`); si el navegador no deja guardar nada, no se abre solo.
 * **Salas Virtuales:** Soporte de salas virtuales con colas independientes mediante códigos de 4 letras.
 * **Autenticación Google OAuth:** Acceso seguro al control remoto mediante autenticación con cuentas de Google (dominio configurable).
 * **Gestión de Sesiones:** Sesiones persistentes almacenadas en archivos para mantener usuarios autenticados.
@@ -235,6 +236,7 @@ XaraokeURL/
 │   │   ├── wakeLock.js           # Mantiene la pantalla del host encendida (Screen Wake Lock API)
 │   │   ├── icons.js              # Íconos SVG (iconSvg / data-icon); la interfaz no usa emojis
 │   │   ├── i18n.js               # Textos en español e inglés y detección del idioma (navegador y servidor)
+│   │   ├── tour.js               # Tutorial guiado del control remoto (pasos y colocación de la tarjeta)
 │   │   └── shared.js             # Utilidades compartidas (escapeHtml, parseSongFilename)
 │   ├── index.html                # Interfaz del host/reproductor
 │   ├── karaoke.js                # Lógica del reproductor principal

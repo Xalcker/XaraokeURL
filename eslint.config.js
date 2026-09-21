@@ -33,6 +33,9 @@ module.exports = [
         iconSvg: "readonly",
         // Definida por public/js/wakeLock.js.
         createWakeLock: "readonly",
+        // Definidas por public/js/tour.js: el tutorial guiado y sus pasos.
+        createTour: "readonly",
+        REMOTE_TOUR_STEPS: "readonly",
         // Definidas por public/js/i18n.js: traductor y idioma elegido.
         t: "readonly",
         currentLang: "readonly",

@@ -34,6 +34,7 @@
     phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
     warning: '<path d="M12 3.5l10 17H2z"/><path d="M12 10v4.5"/><path d="M12 17.5h.01"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/>',
+    help: '<circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4.2"/><path d="M12 17.8h.01"/>',
     download: '<path d="M12 3v12"/><path d="M7 10.5l5 5 5-5"/><path d="M4 20h16"/>',
     refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 3.5v4.5H15"/>',
     "arrow-left": '<path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/>',

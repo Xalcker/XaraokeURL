@@ -46,6 +46,7 @@ const {
   sweepIntervalMs,
   sanitizeSearchQuery,
 } = require("./lib/downloadPolicy");
+const { parseRoomGrace, roomSweepIntervalMs, isRoomExpired } = require("./lib/roomPolicy");
 
 const app = express();
 
@@ -108,6 +109,12 @@ const { ttlMs: DOWNLOAD_TTL_MS, warning: downloadTtlWarning } = parseDownloadTtl
   process.env.DOWNLOAD_TTL_HOURS
 );
 if (downloadTtlWarning) console.warn(`⚠️  ${downloadTtlWarning}`);
+// Minutos que se conserva una sala sin nadie conectado (ROOM_GRACE_MINUTES): si el host cierra el
+// reproductor sin querer, puede volver y recuperarla con su cola.
+const { graceMs: ROOM_GRACE_MS, warning: roomGraceWarning } = parseRoomGrace(
+  process.env.ROOM_GRACE_MINUTES
+);
+if (roomGraceWarning) console.warn(`⚠️  ${roomGraceWarning}`);
 // Resultados de YouTube que se muestran (SEARCH_RESULTS, de 5 a 10). Se piden el
 // doble a YouTube para que, al subir los de los canales ya conocidos, entren
 // también los que YouTube dejó más abajo.
@@ -444,6 +451,7 @@ function getRequestUserName(req) {
 // Borra el archivo, el registro en la base y la copia en memoria.
 async function removeDownload(filename) {
   delete downloadedVideos[filename];
+  notifyDownloadsChanged();
   try {
     fs.unlinkSync(path.join(DOWNLOADS_PATH, filename));
   } catch (err) {
@@ -497,6 +505,7 @@ async function downloadNewVideo({ videoId, searchQuery, searchSuffix, requestedB
     await downloadsStore.insert(row);
     const entry = toDownloadEntry({ ...row, lastUsedAt: row.downloadedAt, useCount: 0 });
     downloadedVideos[filename] = entry;
+    notifyDownloadsChanged();
     return entry;
   } catch (err) {
     removePartialFiles(uuid);
@@ -573,6 +582,26 @@ app.get("/api/downloads", ensureAuthenticated, (req, res) => {
       downloadedAt: entry.downloadedAt,
     }));
   res.json(list);
+});
+
+// Pulgares arriba y abajo acumulados de todas las salas, por nombre de archivo (que es como el
+// control remoto identifica cada canción): { filename: { up, down } }. Las calificaciones de un
+// video de YouTube se guardan por su id, así que solo se listan mientras el video siga descargado.
+app.get("/api/ratings", ensureAuthenticated, async (req, res) => {
+  if (!ratingsStore) return res.json({});
+  try {
+    const byFilename = {};
+    for (const [songKey, totals] of Object.entries(await ratingsStore.totals())) {
+      const [kind, ...rest] = songKey.split(":");
+      const id = rest.join(":");
+      const filename = kind === "yt" ? findDownloadByVideoId(id)?.filename : id;
+      if (filename) byFilename[filename] = totals;
+    }
+    res.json(byFilename);
+  } catch (err) {
+    console.error("No se pudieron leer las calificaciones:", err.message);
+    res.status(500).json({ error: tr(req, "api.ratingsFailed") });
+  }
 });
 
 // Registra un uso (se agregó a una cola): suma al contador y renueva su vida útil.
@@ -688,28 +717,41 @@ app.post("/api/rooms", createRoomLimiter, (req, res) => {
     clients: new Set(),
     hostToken,
     hostWs: null,
-    createdAt: Date.now(),
+    // Desde cuándo no hay nadie conectado (null mientras haya alguien): una sala recién creada
+    // empieza vacía. Al pasar ROOM_GRACE_MS así, el barrido la borra.
+    emptySince: Date.now(),
   };
   console.log(`Sala creada: ${roomId}`);
   res.json({ roomId, hostToken });
 });
 
-// Elimina salas que nunca llegaron a tener un cliente conectado (el host
-// nunca abrió el WebSocket). Las salas activas se limpian de inmediato al
-// desconectarse el último cliente, así que esto solo cubre ese caso huérfano.
-const ROOM_IDLE_TTL_MS = 10 * 60 * 1000;
+// Borra las salas que llevan más que el tiempo de gracia sin ninguna conexión: las que nunca
+// llegaron a tener un cliente (el host nunca abrió el WebSocket) y las que se quedaron vacías
+// (el host cerró el reproductor y no volvió). Mientras dura la gracia la sala sigue existiendo
+// con su cola, y el host la puede recuperar (ver /api/rooms/:roomId/resume).
 setInterval(() => {
   const now = Date.now();
   for (const [roomId, room] of Object.entries(rooms)) {
-    if (room.clients.size === 0 && now - room.createdAt > ROOM_IDLE_TTL_MS) {
+    if (isRoomExpired(room, now, ROOM_GRACE_MS)) {
       delete rooms[roomId];
-      console.log(`Sala ${roomId} eliminada por inactividad (nadie se conectó).`);
+      console.log(`Sala ${roomId} eliminada: nadie se conectó durante ${ROOM_GRACE_MS / 60000} min.`);
     }
   }
-}, 60 * 1000).unref();
+}, roomSweepIntervalMs(ROOM_GRACE_MS)).unref();
 
 app.get("/api/rooms/:roomId", (req, res) => {
   res.json({ exists: !!rooms[req.params.roomId.toUpperCase()] });
+});
+
+// El host que cerró el reproductor vuelve con el hostToken que se guardó en su navegador: si la sala
+// sigue existiendo (no venció su tiempo de gracia) y el token es el suyo, puede retomarla.
+app.post("/api/rooms/:roomId/resume", (req, res) => {
+  const room = rooms[req.params.roomId.toUpperCase()];
+  const hostToken = req.body?.hostToken;
+  if (!room || typeof hostToken !== "string" || hostToken !== room.hostToken) {
+    return res.status(404).json({ error: tr(req, "api.roomGone") });
+  }
+  res.json({ queueLength: room.songQueue.length });
 });
 
 app.get("/api/qr", (req, res) => {
@@ -756,6 +798,24 @@ function broadcastToRoom(roomId, data) {
       if (client.readyState === WebSocket.OPEN) client.send(data);
     });
   }
+}
+
+// Avisa a los controles remotos de todas las salas (no al host, que no usa la lista) de que
+// cambió la lista de descargas: ellos la vuelven a pedir. Varios cambios seguidos (por ejemplo,
+// el barrido que borra varias descargas) se juntan en un solo aviso.
+let downloadsChangedTimer = null;
+function notifyDownloadsChanged() {
+  if (downloadsChangedTimer) return;
+  downloadsChangedTimer = setTimeout(() => {
+    downloadsChangedTimer = null;
+    const message = JSON.stringify({ type: "downloadsChanged" });
+    for (const room of Object.values(rooms)) {
+      room.clients.forEach((client) => {
+        if (!client.isHost && client.readyState === WebSocket.OPEN) client.send(message);
+      });
+    }
+  }, 250);
+  downloadsChangedTimer.unref();
 }
 
 // Agrega una canción a la cola de la sala y la difunde a todos los clientes.
@@ -901,6 +961,7 @@ wss.on("connection", (ws, req) => {
         : req.session.passport.user.displayName
       : null;
     room.clients.add(ws);
+    room.emptySince = null; // ya hay alguien: si la sala estaba en su tiempo de gracia, se salva
     console.log(
       `Client connected to room ${roomId}. Total clients: ${room.clients.size}`
     );
@@ -922,7 +983,12 @@ wss.on("connection", (ws, req) => {
     }
 
     if (isHost) {
+      // Si ya había una pantalla de host conectada (por ejemplo, la que se abrió de nuevo para
+      // recuperar la sala mientras la anterior seguía abierta), la anterior se desconecta: dos
+      // hosts reproducirían el karaoke al mismo tiempo.
+      const previousHost = room.hostWs;
       room.hostWs = ws;
+      if (previousHost && previousHost !== ws) previousHost.close(4006, "Host replaced");
       broadcastToRoom(
         roomId,
         JSON.stringify({ type: "hostStatus", payload: { connected: true } })
@@ -1064,8 +1130,15 @@ wss.on("connection", (ws, req) => {
           );
         }
         if (room.clients.size === 0) {
-          delete rooms[roomId];
-          console.log(`Room ${roomId} deleted.`);
+          // No se borra al momento: si el host cerró el reproductor sin querer, tiene el tiempo de
+          // gracia para volver y recuperar la sala con su cola (el barrido de arriba la borra al vencer).
+          if (ROOM_GRACE_MS === 0) {
+            delete rooms[roomId];
+            console.log(`Room ${roomId} deleted.`);
+          } else {
+            room.emptySince = Date.now();
+            console.log(`Room ${roomId} sin conexiones: se conserva ${ROOM_GRACE_MS / 60000} min por si el host vuelve.`);
+          }
         }
       }
     });

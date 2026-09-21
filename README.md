@@ -152,7 +152,15 @@ Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control r
 8.  Recibirás una notificación (vibración, sonido y un aviso visual) 10 segundos antes de que empiece tu canción.
 9.  ¡Espera tu turno y canta! Al terminar, califica con un pulgar qué tal estuvo el karaoke.
 
-Si el host se desconecta (por ejemplo, alguien cierra la pestaña de la pantalla principal por error), todos los remotos muestran un aviso hasta que se reconecte.
+### Si el host cierra el reproductor sin querer
+
+Si el host se desconecta (por ejemplo, alguien cierra la pestaña de la pantalla principal por error), todos los remotos muestran un aviso de que la reproducción está en pausa hasta que vuelva.
+
+* **La sala no se borra al momento.** Si se queda sin nadie conectado, se conserva con su cola durante un tiempo de gracia: `ROOM_GRACE_MINUTES` (10 minutos por defecto; con `0` se borra en cuanto se queda vacía). Mientras haya algún remoto conectado, la sala sigue existiendo.
+* **El host la recupera.** La pantalla principal guarda en el navegador el código de la sala y su token de host. Al volver a abrirla, la pantalla de inicio ofrece **"Recuperar la sala XXXX"** (con cuántas canciones hay en la cola) y, aparte, **"Crear una sala nueva"**. Recuperarla reconecta como host y retoma la cola tal como estaba; la canción que sonaba empieza desde el principio.
+* **Los remotos se enteran.** Los que sigan abiertos ven un aviso de que el host regresó y la sala está disponible de nuevo, y los controles de reproducción se reactivan.
+* **Si el tiempo se agotó** (o el servidor se reinició), la sala ya no existe: la pantalla de inicio solo ofrece crear una nueva. Si el host tenía la pantalla abierta cuando pasó, avisa y vuelve al inicio.
+* **Una sola pantalla de host por sala.** Si se recupera la sala mientras la pantalla anterior seguía abierta, el servidor desconecta a la anterior para que no suenen dos karaokes a la vez.
 
 ## 📺 Modo TV (pantalla principal)
 
@@ -171,7 +179,7 @@ Al terminar una canción, a **quien la cantó** (y solo a esa persona) le aparec
 * **No estorba:** no es una ventana que bloquee la pantalla y se puede ignorar. Si se termina otra canción tuya antes de responder, se muestran una tras otra. Si pierdes la conexión o recargas la página, se te vuelve a pedir mientras la sala siga abierta.
 * **Una calificación por persona y canción.** Las de YouTube se identifican por el video (no por el archivo, que se borra con el tiempo), así que una calificación sobrevive aunque la descarga se borre; las de la biblioteca, por su nombre de archivo. Si la misma persona vuelve a calificarla más adelante, la nueva reemplaza a la anterior.
 * **Se guardan en `ratings.db`** (`RATINGS_DB_PATH`; `./ratings.db` en desarrollo, `/data/ratings.db` en producción, se crea sola), aparte de `downloads.db` porque las descargas se borran solas y las calificaciones deben quedar. Cada fila trae la clave de la canción (`yt:<id del video>` o `lib:<archivo>`), quién calificó, el valor (1 o -1), el título y la fecha. Si esa base no se puede abrir, el servidor arranca igual, deja un aviso en los logs y simplemente no pide calificar.
-* Por ahora las calificaciones **solo se guardan**: todavía no se muestran ni influyen en los resultados de búsqueda.
+* **Se muestran sumadas de todas las salas.** Junto a cada canción (en los resultados de búsqueda y en la cola) aparece cuántos pulgares arriba y abajo lleva en total. Las de YouTube se muestran mientras el video siga descargado. Por ahora no influyen en el orden de los resultados.
 
 ## 🔎 Búsqueda y descarga desde YouTube
 
@@ -186,7 +194,7 @@ Detalles a tener en cuenta:
 * **Funciona sin biblioteca.** Si no existe `karaoke.db` (no ejecutaste `npm run import`), el servidor arranca igual y deja un aviso en los logs: el catálogo local aparece vacío (con el selector de sufijo ya visible) y la única forma de agregar canciones es escribir el nombre y pulsar Enter para buscarlas en YouTube. Al ejecutar `npm run import` y reiniciar el servidor, la biblioteca local queda disponible junto con la búsqueda en YouTube.
 * **Cómo se ve en la cola.** Las canciones de YouTube se muestran con el título del video (y "YouTube" como artista), tanto en la pantalla principal como en el control remoto, en lugar del nombre interno del archivo.
 * **Las descargas se registran en su propia base de datos.** `karaoke.db` nunca se modifica: cada video descargado queda en `downloads.db` (`DOWNLOADS_DB_PATH`; `./downloads.db` en desarrollo, `/data/downloads.db` en producción, se crea sola) con su uuid, el ID y el link del video, el título original, el canal, la duración, la búsqueda original y el sufijo, quién lo pidió, el tamaño, la fecha y hora de descarga, el último uso y cuántas veces se agregó a una cola. El archivo vive en `DOWNLOADS_PATH` (`./downloads` en desarrollo, `/data/downloads` en producción).
-* **Son buscables y no se descargan dos veces.** La búsqueda local incluye los videos ya descargados (por título, canal y por la búsqueda con la que se encontraron), y se agregan a la cola directo. Si alguien elige un video que ya está descargado, se reutiliza el archivo; y si dos personas piden el mismo a la vez, se descarga una sola vez. Como el registro está en disco, todo esto sobrevive a reiniciar el servidor.
+* **Son buscables y no se descargan dos veces.** La búsqueda local incluye los videos ya descargados (por título, canal y por la búsqueda con la que se encontraron), y se agregan a la cola directo. Si alguien elige un video que ya está descargado, se reutiliza el archivo; y si dos personas piden el mismo a la vez, se descarga una sola vez. Como el registro está en disco, todo esto sobrevive a reiniciar el servidor. Las descargas son de todas las salas: cuando alguien termina una (o se borra una), el servidor avisa por WebSocket a los controles remotos de todas las salas y su búsqueda se actualiza sola, sin recargar.
 * **Cuánto viven las descargas: `DOWNLOAD_TTL_HOURS`.** Es el número de horas que una descarga puede pasar sin usarse antes de borrarse (archivo y registro); por defecto 6. Cada vez que se agrega a una cola, la cuenta empieza de nuevo, y **nunca se borra lo que está en la cola de una sala**. Con `0` (o `never`) no se borra nunca; acepta decimales (`0.5` = 30 minutos). Un valor inválido se avisa en los logs y se usa el valor por defecto. Cuando el borrado está activo, también se limpian los archivos huérfanos (con nombre de uuid, sin registro y de más de una hora), como los restos de una descarga fallida.
 * **Límites anti-abuso:** máximo 20 búsquedas/min y 5 descargas/min por IP, como mucho 3 descargas corriendo a la vez, y se rechazan videos de más de 10 minutos.
 * **Requiere `yt-dlp` y `ffmpeg`** instalados en el servidor (ver Pre-requisitos). Sin ellos, la búsqueda/descarga devuelve error pero el resto de la app sigue funcionando normal.
@@ -203,7 +211,7 @@ Detalles a tener en cuenta:
 * **El WebSocket valida el header `Origin`** en el handshake, rechazando conexiones cross-site que intenten aprovechar la cookie de sesión del navegador.
 * **Headers de seguridad HTTP** vía `helmet` (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.).
 * **Rate limiting** en los endpoints más sensibles: creación de salas (10/min), búsqueda en YouTube (20/min) y descarga de YouTube (5/min, máximo 3 descargas simultáneas).
-* **Salas y descargas se limpian solas:** una sala sin conexiones se borra a los 10 minutos, y las descargas de YouTube tras `DOWNLOAD_TTL_HOURS` horas sin usarse (6 por defecto) — nada queda creciendo en memoria o disco indefinidamente, salvo que se desactive el borrado a propósito con `DOWNLOAD_TTL_HOURS=0`.
+* **Salas y descargas se limpian solas:** una sala sin conexiones se borra al pasar su tiempo de gracia (`ROOM_GRACE_MINUTES`, 10 minutos por defecto; ver más abajo), y las descargas de YouTube tras `DOWNLOAD_TTL_HOURS` horas sin usarse (6 por defecto) — nada queda creciendo en memoria o disco indefinidamente, salvo que se desactive el borrado a propósito con `DOWNLOAD_TTL_HOURS=0`.
 * **Contenido generado por usuarios escapado antes de insertarse en el DOM** (nombres de perfil, títulos de canciones) para evitar XSS.
 * **La cola solo acepta canciones válidas:** un `filename` en `addSong` se valida contra la base de datos o el registro de descargas de YouTube antes de encolarse; nunca se confía en lo que mande el cliente a ciegas.
 * **La descarga de YouTube nunca interpola datos del usuario en un shell:** se invoca `yt-dlp` vía `execFile` con argumentos separados, el ID de video se valida con una expresión regular estricta antes de usarse, y los archivos se guardan con un nombre generado por el servidor (UUID), nunca con datos provistos por el cliente.
@@ -242,6 +250,7 @@ XaraokeURL/
 │   ├── queuePolicy.js            # Reordenar las canciones propias sin mover las de los demás (testeable)
 │   ├── ratingsStore.js           # Calificaciones del karaoke en ratings.db
 │   ├── roomId.js                 # Generación de códigos de sala (testeable)
+│   ├── roomPolicy.js             # Tiempo de gracia de las salas vacías (ROOM_GRACE_MINUTES) (testeable)
 │   ├── wsPolicy.js               # Qué mensajes del WebSocket acepta el servidor y de quién (testeable)
 │   ├── sessionStore.js           # Endurece las sesiones en archivo ante bloqueos transitorios en Windows (EPERM)
 │   └── ytdlp.js                  # Wrapper seguro sobre el binario yt-dlp

@@ -46,6 +46,8 @@ document.addEventListener("DOMContentLoaded", () => {
     let flatSongList = [];
     // Videos de YouTube ya descargados en el servidor: también son buscables.
     let downloadList = [];
+    // Pulgares arriba y abajo acumulados de todas las salas: { archivo: { up, down } }.
+    let ratingTotals = {};
     let ws;
     let myName = "";
     let devMode = false;
@@ -218,6 +220,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (message.type === "hostStatus") {
                 updateHostStatusBanner(message.payload?.connected !== false);
             }
+            if (message.type === "downloadsChanged") refreshDownloadsLive();
             if (message.type === "playbackState") {
                 playbackPaused = message.payload?.paused === true;
                 updateControls();
@@ -230,8 +233,44 @@ document.addEventListener("DOMContentLoaded", () => {
     async function initializeMainApp(roomId) {
         remoteRoomCodeDisplay.textContent = t("remote.room", { code: roomId });
         connectWebSocket(roomId);
-        await loadDownloads();
+        await Promise.all([loadDownloads(), loadRatings()]);
         await loadSongs();
+    }
+
+    // Igual que las descargas: si falla se conserva lo último que se sabía, porque son solo un
+    // extra junto a cada canción. Devuelve true si los totales cambiaron. Si cambiaron y ya llegó
+    // una cola, se vuelve a dibujar (pudo dibujarse sin ellos); las listas de búsqueda las redibuja
+    // quien llama, porque solo él sabe si en pantalla está la búsqueda.
+    async function loadRatings() {
+        try {
+            const res = await fetch("/api/ratings");
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const fresh = await res.json();
+            const changed = JSON.stringify(fresh) !== JSON.stringify(ratingTotals);
+            ratingTotals = fresh;
+            if (changed && queueSeen) renderQueue(currentQueue);
+            return changed;
+        } catch (error) {
+            console.error("No se pudieron cargar las calificaciones:", error);
+            return false;
+        }
+    }
+
+    // Etiqueta con los pulgares arriba y abajo de una canción, o null si nadie la ha calificado.
+    function createRatingBadge(filename) {
+        const totals = ratingTotals[filename];
+        if (!totals || totals.up + totals.down === 0) return null;
+        const badge = document.createElement("span");
+        badge.className = "rating-badge";
+        const label = t("rating.total", { up: totals.up, down: totals.down });
+        badge.title = label;
+        badge.setAttribute("aria-label", label);
+        for (const [icon, count] of [["thumb-up", totals.up], ["thumb-down", totals.down]]) {
+            const part = document.createElement("span");
+            setLabel(part, icon, String(count));
+            badge.appendChild(part);
+        }
+        return badge;
     }
 
     // Si falla se conserva la última lista conocida: es un extra de la búsqueda,
@@ -249,6 +288,20 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             console.error("No se pudo cargar la lista de descargas:", error);
             return false;
+        }
+    }
+
+    // El servidor avisa cuando alguien (de cualquier sala) termina de descargar un video, o cuando
+    // se borra uno: se actualiza la lista y, si en pantalla está la búsqueda local o el inicio de la
+    // biblioteca, se vuelve a dibujar para mostrarlo. En cualquier otra pantalla (una letra, un
+    // artista, los resultados de YouTube) no se toca lo que la persona está mirando.
+    async function refreshDownloadsLive() {
+        if (!(await loadDownloads())) return;
+        const query = songSearch.value.trim();
+        if (query) {
+            if (showingLocalSearch()) renderSearchResults(query);
+        } else if (songBrowser.querySelector(".alphabet-container, #ytSuffixSelect")) {
+            renderAlphabet();
         }
     }
 
@@ -284,9 +337,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updateHostStatusBanner(connected) {
         if (!hostStatusBanner) return;
+        // Si el host se había caído y regresó (recuperó la sala), se avisa; al entrar con el host
+        // ya conectado no hay nada que avisar.
+        const hostReturned = connected && !hostConnected;
         hostStatusBanner.classList.toggle("hidden", connected);
         hostConnected = connected;
         updateControls();
+        if (hostReturned) showToast("toast.hostBack");
     }
 
     // Los botones y la etiqueta de pausa reflejan el estado real: play/pausa según lo que informó el
@@ -347,6 +404,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const div = document.createElement("div");
             div.className = isMine ? "queue-item mine" : "queue-item";
             div.innerHTML = `<span><b>${escapeHtml(songTitle)}</b> (${escapeHtml(isMine ? t("remote.queue.you") : item.name)})</span>`;
+            const ratingBadge = createRatingBadge(item.song);
+            if (ratingBadge) div.firstElementChild.appendChild(ratingBadge);
             if (isMine) {
                 const actions = document.createElement("div");
                 actions.className = "queue-actions";
@@ -631,6 +690,8 @@ document.addEventListener("DOMContentLoaded", () => {
         songEl.type = "button";
         songEl.className = "browser-item";
         setLabel(songEl, "music", songTitle);
+        const ratingBadge = createRatingBadge(filename);
+        if (ratingBadge) songEl.appendChild(ratingBadge);
         songEl.onclick = () => confirmAndQueue(filename, songTitle);
         return songEl;
     }
@@ -645,6 +706,8 @@ document.addEventListener("DOMContentLoaded", () => {
         item.appendChild(title);
         const meta = document.createElement("small");
         meta.textContent = [t("library.alreadyDownloaded"), download.channel].filter(Boolean).join(" · ");
+        const ratingBadge = createRatingBadge(download.filename);
+        if (ratingBadge) meta.appendChild(ratingBadge);
         item.appendChild(meta);
         item.onclick = () => confirmAndQueue(download.filename, download.title);
         return item;
@@ -871,7 +934,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // cuando ya se buscó (por ejemplo, al pegar el texto) y en pantalla está la
     // búsqueda local, se vuelve a dibujar para incluir las descargas nuevas.
     songSearch.addEventListener("focus", async () => {
-        const changed = await loadDownloads();
+        const results = await Promise.all([loadDownloads(), loadRatings()]);
+        const changed = results.some(Boolean);
         const query = songSearch.value.trim();
         if (changed && query && showingLocalSearch()) renderSearchResults(query);
     });
@@ -885,7 +949,7 @@ document.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         const query = songSearch.value.trim();
         if (!query) return;
-        await loadDownloads();
+        await Promise.all([loadDownloads(), loadRatings()]);
         const { songs, downloads } = findLocalMatches(query);
         if (songs.length === 0 && downloads.length === 0) {
             searchYoutubeUI(query, selectedYtSuffix);

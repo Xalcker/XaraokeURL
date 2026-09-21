@@ -23,7 +23,7 @@
   "author": "Xalcker",
   "license": "ISC",
   "dependencies": {
-    "dotenv": "^17.2.3",
+    "dotenv": "^18.0.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "express-session": "^1.19.0",

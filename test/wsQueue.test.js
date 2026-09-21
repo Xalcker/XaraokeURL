@@ -311,29 +311,55 @@ test("ciclo de vida de la sala", async (t) => {
   });
 });
 
-// Falla a propósito hasta que se arregle #42: describe lo que debería pasar, no lo que pasa.
-// Al arreglarlo, se le quita el `todo` y debe quedar en verde.
-test(
-  "un mensaje enviado nada más abrir el WebSocket no se pierde (#42)",
-  { todo: "pendiente de #42: el manejador se registra después de cargar la sesión" },
-  async (t) => {
-    const server = await startServer({ songs: CANCIONES });
-    t.after(() => server.stop());
+// Regresión de #42: server.js registraba su ws.on("message") dentro del callback de la sesión,
+// así que cuando el handshake traía cookie (carga asíncrona, lee del disco) había una ventana en
+// la que la conexión estaba abierta y el servidor no escuchaba. Lo que se mandara ahí se perdía
+// sin error ni registro: 29 de cada 30 mensajes en la medición.
+test("lo que se manda nada más abrir el WebSocket no se pierde (#42)", async (t) => {
+  const server = await startServer({ songs: CANCIONES });
+  t.after(() => server.stop());
 
-    const { roomId } = await crearSala(server);
-    const res = await fetch(`${server.baseUrl}/api/dev-name`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Ana" }),
-    });
-    const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const { roomId } = await crearSala(server);
+  const res = await fetch(`${server.baseUrl}/api/dev-name`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Ana" }),
+  });
+  const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
 
-    // connect() y no connectToRoom(): aquí se manda sin esperar al primer mensaje, que es
-    // justo lo que hace el host de verdad en su onopen (public/karaoke.js).
+  // connect() a secas, no connectToRoom(): aquí se manda sin esperar al primer mensaje del
+  // servidor, que es justo lo que hace la pantalla principal en su onopen (public/karaoke.js).
+  // Se repite unas cuantas veces porque el fallo era una carrera, no algo determinista.
+  const INTENTOS = 10;
+  for (let i = 0; i < INTENTOS; i++) {
     const ana = await connect(`${server.wsUrl}/?sala=${roomId}`, { headers: { Cookie: cookie } });
-    t.after(() => ana.close());
     ana.send({ type: "addSong", payload: { song: A } });
-
-    await ana.waitFor("queueUpdate", (p) => p.length === 1, { timeoutMs: 3000 });
+    await ana.waitFor("queueUpdate", (p) => p.length === i + 1, { timeoutMs: 5000 });
+    await ana.close();
   }
-);
+
+  // Y ninguno se duplicó por el camino.
+  const testigo = await connectToRoom(`${server.wsUrl}/?sala=${roomId}`);
+  t.after(() => testigo.close());
+  const { payload } = await testigo.waitFor("queueUpdate");
+  assert.equal(payload.length, INTENTOS, "deben estar las 10, ni una perdida ni una repetida");
+});
+
+// El tope existe para que nadie llene memoria mandando sin parar antes de que el servidor sepa
+// quién es. Pasarse no debe romper nada: se descarta lo que sobra y la conexión sigue sirviendo.
+test("pasarse del tope de mensajes en espera no rompe la conexión (#42)", async (t) => {
+  const server = await startServer({ songs: CANCIONES });
+  t.after(() => server.stop());
+
+  const { roomId } = await crearSala(server);
+  const ana = await connect(`${server.wsUrl}/?sala=${roomId}`);
+  t.after(() => ana.close());
+
+  for (let i = 0; i < 100; i++) ana.send({ type: "getQueue" });
+
+  // La conexión sigue viva y atiende con normalidad.
+  ana.clear();
+  ana.send({ type: "addSong", payload: { song: A } });
+  const { payload } = await ana.waitFor("queueUpdate", (p) => p.length === 1);
+  assert.deepEqual(cancionesEnCola(payload), [A]);
+});

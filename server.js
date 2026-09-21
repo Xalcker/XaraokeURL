@@ -998,17 +998,41 @@ async function handleRating(ws, room, payload) {
   sendToUser(room, pending.name, { type: "ratingResolved", payload: { id: pending.id } });
 }
 
+// Mensajes que se guardan mientras carga la sesión. Es un tope de cortesía: en ese instante solo
+// caben los que el cliente manda nada más abrir, y con esto nadie puede llenar memoria mandando
+// sin parar antes de que el servidor sepa siquiera quién es.
+const MAX_MENSAJES_EN_ESPERA = 32;
+
 wss.on("connection", (ws, req) => {
+  // El manejador de verdad se instala más abajo, cuando la sesión termina de cargar, y esa carga
+  // es asíncrona si el handshake trae cookie (hay que leer su archivo del disco). Hasta entonces
+  // la conexión ya está abierta y el cliente puede estar mandando: sin escuchar desde ya, todo
+  // eso se perdía sin error ni registro. Le pasaba al host, que manda su playbackState nada más
+  // abrir (public/karaoke.js), y por eso a veces los remotos no se enteraban de que el video
+  // estaba en pausa.
+  const enEspera = [];
+  let recibir = (message) => {
+    if (enEspera.length < MAX_MENSAJES_EN_ESPERA) enEspera.push(message);
+  };
+  ws.on("message", (message) => recibir(message));
+
+  // Cierra la conexión y deja de guardar nada: lo que hubiera llegado ya no le interesa a nadie.
+  const rechazar = (code, reason) => {
+    enEspera.length = 0;
+    recibir = () => {};
+    ws.close(code, reason);
+  };
+
   // Reject cross-site WebSocket handshakes: browsers always send Origin,
   // so only same-origin connections (or non-browser clients with none) pass.
   const origin = req.headers.origin;
   if (origin) {
     try {
       if (new URL(origin).host !== req.headers.host) {
-        return ws.close(4003, "Origin not allowed");
+        return rechazar(4003, "Origin not allowed");
       }
     } catch {
-      return ws.close(4003, "Invalid origin");
+      return rechazar(4003, "Invalid origin");
     }
   }
 
@@ -1019,12 +1043,12 @@ wss.on("connection", (ws, req) => {
     const isAuthenticated = AUTH_DISABLED || !!req.session?.passport?.user;
 
     if (!roomId) {
-      return ws.close(4005, "Room ID not provided");
+      return rechazar(4005, "Room ID not provided");
     }
 
     const room = rooms[roomId];
     if (!room) {
-      return ws.close(4004, "Room not found");
+      return rechazar(4004, "Room not found");
     }
 
     // Only the client holding the room's secret hostToken (issued when the
@@ -1033,7 +1057,7 @@ wss.on("connection", (ws, req) => {
     const isHost = !!hostToken && hostToken === room.hostToken;
 
     if (!isHost && !isAuthenticated) {
-      return ws.close(4001, "Not authenticated");
+      return rechazar(4001, "Not authenticated");
     }
 
     ws.roomId = roomId;
@@ -1083,7 +1107,7 @@ wss.on("connection", (ws, req) => {
       );
     }
 
-    ws.on("message", (message) => {
+    const manejarMensaje = (message) => {
       let data;
       try {
         data = JSON.parse(message);
@@ -1195,7 +1219,11 @@ wss.on("connection", (ws, req) => {
           );
       }
       if (updateQueue) broadcastQueue(ws.roomId);
-    });
+    };
+
+    // A partir de aquí se atiende en directo; primero, lo que llegó mientras cargaba la sesión.
+    recibir = manejarMensaje;
+    for (const message of enEspera.splice(0)) manejarMensaje(message);
 
     ws.on("close", () => {
       const room = rooms[ws.roomId]; // Use local variable

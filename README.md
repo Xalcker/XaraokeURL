@@ -213,6 +213,7 @@ Detalles a tener en cuenta:
 * **Solo puedes reordenar y calificar lo tuyo.** Para `moveSong` y `rateSong` el servidor usa el nombre de la sesión de esa conexión (fijado al conectarse), nunca un nombre que venga en el mensaje; una calificación solo se acepta si el servidor la pidió antes para esa canción y esa persona, con un valor de 1, -1 o 0. Que el host avise que una canción terminó sola (`playNext` con `ended` y el id de la canción) solo lo puede hacer el host, como el resto de `playNext`.
 * **El WebSocket valida el header `Origin`** en el handshake, rechazando conexiones cross-site que intenten aprovechar la cookie de sesión del navegador.
 * **Headers de seguridad HTTP** vía `helmet` (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.).
+* **Content-Security-Policy activa**, con `script-src 'self'` y `style-src 'self'` **sin `unsafe-inline`**: no queda ningún script ni estilo inline en el proyecto. Las excepciones son las que el karaoke necesita de verdad: `data:` en imágenes (el código QR se genera así), `https:` para las miniaturas de YouTube, y `media-src` abierto porque las canciones del catálogo son URLs arbitrarias que salen de `songs.csv`. No se fuerza `upgrade-insecure-requests`, que en una red local por HTTP rompería la propia página.
 * **Rate limiting** en los endpoints más sensibles: creación de salas (10/min), búsqueda en YouTube (20/min) y descarga de YouTube (5/min, máximo 3 descargas simultáneas).
 * **Consultar si una sala existe está limitado** (60/min): un código son 4 letras, así que sin tope se podían barrer las 456.976 combinaciones y listar las salas activas. Unirse sigue requiriendo sesión.
 * **Topes en el WebSocket**: la cola de una sala tiene un máximo (`MAX_QUEUE_LENGTH`, 100 por defecto), cada persona puede tener un número limitado de canciones esperando (`MAX_SONGS_PER_PERSON`, 5 por defecto) y cada conexión tiene un tope de mensajes por ventana de tiempo. Sin esto, un control remoto podía encolar sin límite, y cada canción difundía la cola entera a toda la sala.
@@ -230,13 +231,15 @@ XaraokeURL/
 │   │   ├── tokens.css            # Tokens de diseño: colores de la marca, acento turquesa (única fuente)
 │   │   ├── icons.css             # Tamaño y alineación de los íconos SVG
 │   │   ├── host.css              # Estilos para la pantalla principal
-│   │   └── remote.css            # Estilos para el control remoto
+│   │   ├── remote.css            # Estilos para el control remoto
+│   │   └── simple-page.css       # Estilos de las pantallas de acceso (el HTML lo arma server.js)
 │   ├── img/
 │   │   ├── logo.svg              # Logo de la marca (fuente de todos los demás íconos)
 │   │   ├── favicon-32.png        # Favicon de respaldo (navegadores sin favicon SVG)
 │   │   ├── apple-touch-icon.png  # Ícono al agregar a la pantalla de inicio en iOS
 │   │   └── icon-192.png / icon-512.png  # Íconos de la app (manifiesto), aptos para "maskable"
 │   ├── js/
+│   │   ├── mobileRedirect.js     # Manda al control remoto si la pantalla se abre en un teléfono
 │   │   ├── wakeLock.js           # Mantiene la pantalla del host encendida (Screen Wake Lock API)
 │   │   ├── icons.js              # Íconos SVG (iconSvg / data-icon); la interfaz no usa emojis
 │   │   ├── i18n.js               # Textos en español e inglés y detección del idioma (navegador y servidor)

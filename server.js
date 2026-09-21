@@ -61,10 +61,42 @@ const {
 
 const app = express();
 
-// CSP se deja desactivado: la config por defecto de helmet rompería los
-// scripts inline existentes en public/index.html. El resto de headers
-// (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, etc.) sí aplican.
-app.use(helmet({ contentSecurityPolicy: false }));
+// Content-Security-Policy. Ya no hay nada inline (el script que redirige a los teléfonos vive
+// en public/js/mobileRedirect.js y los estilos de las pantallas de acceso en
+// public/css/simple-page.css), así que script-src y style-src pueden quedarse en 'self' sin
+// 'unsafe-inline', que es lo que hace que la política valga de algo.
+//
+// Las excepciones son las que el karaoke necesita de verdad:
+//  - imgSrc data:  -> el código QR se genera como data:image/png (ver /api/qr).
+//    imgSrc https:  -> las miniaturas de los resultados de YouTube.
+//  - mediaSrc abierto -> las canciones del catálogo son URLs arbitrarias que salen de
+//    songs.csv, y pueden apuntar a cualquier sitio; restringirlo rompería la biblioteca entera.
+//    Lo que importa es que el atacante no pueda ejecutar código, y eso lo cubre script-src.
+//  - connectSrc con ws:/wss: -> el WebSocket. 'self' debería bastar según la especificación,
+//    pero no todos los navegadores lo han tratado igual, y aquí hay teléfonos de por medio.
+//  - upgradeInsecureRequests se quita (helmet lo pone por defecto): en una red local se sirve
+//    por http, y forzar https rompería tanto la propia página como los vídeos del catálogo.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        mediaSrc: ["'self'", "https:", "http:", "data:", "blob:"],
+        connectSrc: ["'self'", "ws:", "wss:"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        upgradeInsecureRequests: null,
+      },
+    },
+  })
+);
 app.use(express.json({ limit: "10kb" }));
 
 if (process.env.NODE_ENV === "production") {
@@ -322,14 +354,7 @@ function simplePage(lang, title, contentHtml) {
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/css/tokens.css">
-<style>
-  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #fff; background: var(--bg-gradient); }
-  main { max-width: 360px; text-align: center; }
-  img { display: block; margin: 0 auto 1rem; filter: drop-shadow(0 8px 24px rgba(var(--accent-rgb), 0.25)); }
-  h1 { margin: 0.2rem 0 0.8rem; }
-  p { color: #ccc; line-height: 1.4; }
-  a.btn { display: inline-block; margin-top: 1rem; padding: 12px 22px; border-radius: 8px; background: #4285F4; color: #fff; font-weight: 600; text-decoration: none; }
-</style>
+<link rel="stylesheet" href="/css/simple-page.css">
 </head>
 <body>
 <main>

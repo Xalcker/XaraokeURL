@@ -12,14 +12,7 @@
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/icons.css">
     <link rel="stylesheet" href="css/host.css">
-    <script>
-        (function() {
-            const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
-            if (isMobile) {
-                window.location.href = '/remote.html';
-            }
-        })();
-    </script>
+    <script src="js/mobileRedirect.js"></script>
 </head>
 <body>
     <button id="fullscreen-btn" type="button" class="hidden" aria-label="Pantalla completa" title="Pantalla completa" data-i18n-aria-label="host.fullscreen" data-i18n-title="host.fullscreen"></button>
@@ -55,7 +48,7 @@
         
         <div class="player-column">
             <!-- <video id="karaokePlayer" controls controlslist="nodownload" autoplay></video> -->
-             <video oncontextmenu="return false;" id="karaokePlayer"></video>
+             <video id="karaokePlayer"></video>
             <div id="paused-overlay" class="hidden">
                 <span data-icon="pause"></span>
                 <span data-i18n="host.paused">En pausa</span>
@@ -76,7 +69,7 @@
             </div>
             <div id="qr-container" class="sidebar-section">
                 <h3><span data-icon="phone"></span><span data-i18n="host.remote">Control Remoto</span></h3>
-                <p style="text-align: center; margin-bottom: 0.5rem; font-size: 1.2rem; font-weight: bold;" data-i18n="host.room">Sala:</p> 
+                <p class="room-label" data-i18n="host.room">Sala:</p> 
                 <div id="room-code">----</div>
                 <p data-i18n="host.scan">Escanea para añadir canciones</p>
                 <img id="qrCode" alt="Código QR del control remoto" data-i18n-alt="host.qrAlt">

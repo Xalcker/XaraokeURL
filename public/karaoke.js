@@ -472,6 +472,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Estaba como oncontextmenu="return false" en el <video>; se movió aquí porque CSP bloquea
+  // los manejadores puestos en atributos (script-src-attr 'none'). Ver #37.
+  player.addEventListener("contextmenu", (event) => event.preventDefault());
+
   player.addEventListener("timeupdate", () => {
     const now = Date.now();
     if (now - lastTimeUpdate > 1000) {

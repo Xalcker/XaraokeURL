@@ -36,6 +36,7 @@ const { hardenSessionStore } = require("./lib/sessionStore");
 const {
   isAllowed,
   presentNames,
+  pruneLeftAt,
   canControlPlayback,
   sanitizeControlAction,
   sanitizePlaybackState,
@@ -826,7 +827,27 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/downloads", express.static(DOWNLOADS_PATH));
 
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+// maxPayload: todo lo que manda un cliente es JSON pequeño (un nombre de archivo, una orden de
+// reproducción, una calificación). El tope por defecto de ws son 100 MB por mensaje.
+const wss = new WebSocket.Server({ server, maxPayload: 64 * 1024 });
+
+// Latido: una desconexión sucia (el celular se sale del alcance del WiFi, se queda sin batería,
+// se corta la red) no manda ningún "close", así que la conexión se quedaría viva para siempre. Y
+// con ella se quedaría trabada media sala: quien canta seguiría contando como presente y nadie
+// podría saltar su canción por mucho que venciera SINGER_GRACE_SECONDS, y la sala nunca llegaría
+// a tener cero clientes, así que el barrido no la borraría nunca (fuga de memoria).
+const HEARTBEAT_MS = 30 * 1000;
+const heartbeat = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    // No contestó al ping anterior: se da por muerta. terminate() dispara su "close", que es
+    // donde ya está toda la lógica de salir de la sala; no hace falta duplicarla aquí.
+    if (ws.isAlive === false) return ws.terminate();
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, HEARTBEAT_MS);
+heartbeat.unref();
+wss.on("close", () => clearInterval(heartbeat));
 
 function broadcastToRoom(roomId, data) {
   const room = rooms[roomId];
@@ -884,6 +905,9 @@ function broadcastQueue(roomId) {
     room.headSince = Date.now();
     scheduleAccessRecheck(roomId, room);
   }
+  // Quien ya no tiene nada en la cola no necesita que se recuerde cuándo se fue (ver pruneLeftAt):
+  // sin esto, leftAt acumula un nombre por cada persona que pasó por la sala y nunca se vacía.
+  room.leftAt = pruneLeftAt(room.leftAt, room.songQueue);
   broadcastToRoom(roomId, JSON.stringify({ type: "queueUpdate", payload: room.songQueue }));
   sendControlAccess(room);
 }
@@ -999,6 +1023,12 @@ async function handleRating(ws, room, payload) {
 }
 
 wss.on("connection", (ws, req) => {
+  // Para el latido de arriba: se marca viva al conectar y cada vez que contesta un ping.
+  ws.isAlive = true;
+  ws.on("pong", () => {
+    ws.isAlive = true;
+  });
+
   // Reject cross-site WebSocket handshakes: browsers always send Origin,
   // so only same-origin connections (or non-browser clients with none) pass.
   const origin = req.headers.origin;

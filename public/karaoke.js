@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const upNextContent = document.getElementById("up-next-content");
   const songQueueContainer = document.getElementById("songQueue");
   const qrCodeImg = document.getElementById("qrCode");
+  const qrContainer = document.getElementById("qr-container");
   const qrError = document.getElementById("qr-error");
   const roomCodeDisplay = document.getElementById("room-code");
   const idleScreen = document.getElementById("idle-screen");
@@ -22,6 +23,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let hostToken = null;
   // Id (de la cola) de la canción que ya se cargó en el reproductor, suene, esté en pausa o no.
   let currentSongId = null;
+  // Dónde iba la canción cuando un error de red la tiró (por ejemplo, mientras el
+  // servidor descargaba otra de YouTube): para retomarla ahí en vez de reiniciarla.
+  let resumeAt = null;
 
   const songDisplay = (item) => getSongDisplay(item, t("song.unknownArtist"));
 
@@ -124,8 +128,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Sin canciones en la cola no hay nada que ver en el video: se muestra el QR grande.
+  // El de la barra lateral se oculta mientras tanto para no repetirlo (el grande ya
+  // cumple esa función); vuelve en cuanto hay algo sonando.
   function updateIdleScreen() {
-    idleScreen.classList.toggle("hidden", currentQueue.length > 0);
+    const idle = currentQueue.length === 0;
+    idleScreen.classList.toggle("hidden", !idle);
+    qrContainer.classList.toggle("hidden", idle);
   }
 
   qrCodeImg.addEventListener("error", showQrError);
@@ -234,6 +242,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (head.id === currentSongId) return;
     currentSongId = head.id;
+    // Si el que se cae es este mismo (mismo archivo) se retoma donde iba; si es otra
+    // canción, el resumeAt que haya quedado guardado no le corresponde.
+    if (resumeAt?.song !== head.song) resumeAt = null;
     playSong(head.song);
   }
 
@@ -242,6 +253,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(`/api/song-url?song=${encodeURIComponent(songFilename)}`);
       const data = await res.json();
       player.src = data.url;
+      if (resumeAt?.song === songFilename) player.currentTime = resumeAt.time;
+      resumeAt = null;
       await player.play();
     } catch (e) {
       console.error("Error al reproducir la canción:", e);
@@ -295,7 +308,15 @@ document.addEventListener("DOMContentLoaded", () => {
     reportPlayback(true);
   });
   player.addEventListener("error", () => {
-    currentSongId = null; // el archivo no cargó: el próximo cambio de la cola lo vuelve a intentar
+    // No siempre es que el archivo esté roto: un corte de red momentáneo (por ejemplo,
+    // mientras el servidor descarga otra canción de YouTube) también dispara este evento.
+    // Si la que se cayó es la que está sonando, se guarda por dónde iba para retomarla
+    // ahí; si no, antes se recargaba desde cero y la canción en curso se reiniciaba sola.
+    const head = currentQueue[0];
+    if (head?.id === currentSongId && player.currentTime > 0) {
+      resumeAt = { song: head.song, time: player.currentTime };
+    }
+    currentSongId = null; // no se cargó: el próximo cambio de la cola lo vuelve a intentar
   });
   player.addEventListener("loadedmetadata", () => {
     const durationEl = document.getElementById("song-duration");

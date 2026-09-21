@@ -122,8 +122,9 @@ test("el servidor avisa a los remotos de todas las salas, no al host, cuando cam
   assert.match(body, /for \(const room of Object\.values\(rooms\)\)/);
   assert.match(body, /!client\.isHost/);
   assert.match(body, /type: "downloadsChanged"/);
-  assert.match(serverJs, /downloadedVideos\[filename\] = entry;\s*notifyDownloadsChanged\(\);/);
-  assert.match(serverJs, /delete downloadedVideos\[filename\];\s*notifyDownloadsChanged\(\);/);
+  // Toda alta o baja del índice de descargas debe avisar. El índice es un Map (ver #30).
+  assert.match(serverJs, /downloadedVideos\.set\(filename, entry\);\s*notifyDownloadsChanged\(\);/);
+  assert.match(serverJs, /downloadedVideos\.delete\(filename\);\s*notifyDownloadsChanged\(\);/);
 });
 
 test("el remoto actualiza la lista de descargas al recibir el aviso, sin tocar otras pantallas", () => {

@@ -171,7 +171,14 @@ let rooms = {};
 // url, título, canal, búsqueda original, fechas, etc.). Es una copia en memoria
 // de la base downloads.db (que es la que persiste entre reinicios), para
 // consultarla de forma síncrona. Nunca se escribe en karaoke.db.
-let downloadedVideos = {};
+//
+// Es un Map y no un objeto a propósito: en un objeto, las claves que se heredan de
+// Object.prototype ("__proto__", "constructor", "toString"...) devuelven un valor
+// truthy en una consulta directa, así que un nombre de archivo inventado por el
+// cliente pasaba por descarga válida y se colaba en la cola. Peor aún, escribir en
+// esa "entrada" (ver touchDownload) modificaba el prototipo de todo el proceso. Un
+// Map no tiene cadena de prototipos, así que el problema no puede volver a aparecer.
+const downloadedVideos = new Map();
 let downloadsStore = null;
 // null si la base de calificaciones no se pudo abrir: entonces no se pide calificar (ver initRatings).
 let ratingsStore = null;
@@ -395,8 +402,9 @@ app.get("/api/song-url", (req, res) => {
   const { song } = req.query;
   if (!song)
     return res.status(400).json({ error: tr(req, "api.songNameMissing") });
-  if (downloadedVideos[song]) {
-    return res.json({ url: downloadedVideos[song].url });
+  const download = downloadedVideos.get(song);
+  if (download) {
+    return res.json({ url: download.url });
   }
   if (!db) return res.status(404).json({ error: tr(req, "api.songNotFound") });
   db.get("SELECT url FROM songs WHERE filename = ?", [song], (err, row) => {
@@ -441,7 +449,7 @@ app.get(
     }
     try {
       const found = await searchYoutube(query, { limit: SEARCH_FETCH_LIMIT, suffix });
-      const downloadedChannels = Object.values(downloadedVideos).map((entry) => entry.channel);
+      const downloadedChannels = Array.from(downloadedVideos.values(), (entry) => entry.channel);
       const results = rankByKnownChannels(found, downloadedChannels).slice(0, SEARCH_RESULT_LIMIT);
       res.json({ results });
     } catch (err) {
@@ -467,7 +475,7 @@ function toDownloadEntry(row) {
 }
 
 function findDownloadByVideoId(videoId) {
-  return Object.values(downloadedVideos).find((entry) => entry.videoId === videoId);
+  return [...downloadedVideos.values()].find((entry) => entry.videoId === videoId);
 }
 
 // Quién hace la petición, para dejarlo registrado junto a la descarga.
@@ -478,7 +486,7 @@ function getRequestUserName(req) {
 
 // Borra el archivo, el registro en la base y la copia en memoria.
 async function removeDownload(filename) {
-  delete downloadedVideos[filename];
+  downloadedVideos.delete(filename);
   notifyDownloadsChanged();
   try {
     fs.unlinkSync(path.join(DOWNLOADS_PATH, filename));
@@ -532,7 +540,7 @@ async function downloadNewVideo({ videoId, searchQuery, searchSuffix, requestedB
     };
     await downloadsStore.insert(row);
     const entry = toDownloadEntry({ ...row, lastUsedAt: row.downloadedAt, useCount: 0 });
-    downloadedVideos[filename] = entry;
+    downloadedVideos.set(filename, entry);
     notifyDownloadsChanged();
     return entry;
   } catch (err) {
@@ -599,7 +607,7 @@ app.post(
 // Lista de las descargas que siguen en disco. El control remoto la usa para
 // incluirlas en la búsqueda local (por título, canal o búsqueda original).
 app.get("/api/downloads", ensureAuthenticated, (req, res) => {
-  const list = Object.values(downloadedVideos)
+  const list = [...downloadedVideos.values()]
     .sort((a, b) => (a.downloadedAt < b.downloadedAt ? 1 : -1))
     .map((entry) => ({
       filename: entry.filename,
@@ -634,7 +642,7 @@ app.get("/api/ratings", ensureAuthenticated, async (req, res) => {
 
 // Registra un uso (se agregó a una cola): suma al contador y renueva su vida útil.
 function touchDownload(filename) {
-  const entry = downloadedVideos[filename];
+  const entry = downloadedVideos.get(filename);
   if (!entry) return;
   const now = new Date().toISOString();
   entry.lastUsedAt = now;
@@ -653,7 +661,7 @@ const UUID_PREFIX_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 // Archivos con nombre de uuid en DOWNLOADS_PATH que no tienen registro.
 function findOrphanFiles() {
-  const knownUuids = new Set(Object.values(downloadedVideos).map((entry) => entry.uuid));
+  const knownUuids = new Set(Array.from(downloadedVideos.values(), (entry) => entry.uuid));
   return fs.readdirSync(DOWNLOADS_PATH).filter((file) => {
     const match = UUID_PREFIX_RE.exec(file);
     return match && !knownUuids.has(match[0].toLowerCase());
@@ -692,7 +700,7 @@ async function initDownloads() {
   let restored = 0;
   for (const row of await downloadsStore.list()) {
     if (fs.existsSync(path.join(DOWNLOADS_PATH, row.filename))) {
-      downloadedVideos[row.filename] = toDownloadEntry(row);
+      downloadedVideos.set(row.filename, toDownloadEntry(row));
       restored++;
     } else {
       await downloadsStore.remove(row.filename);
@@ -947,7 +955,7 @@ function ratingRequestMessage(pending) {
 // La canción se identifica por el video de YouTube (no por el archivo, que se borra con el tiempo) o,
 // si es del catálogo, por su nombre de archivo.
 function songKeyOf(filename) {
-  const download = downloadedVideos[filename];
+  const download = downloadedVideos.get(filename);
   return download ? `yt:${download.videoId}` : `lib:${filename}`;
 }
 
@@ -1119,11 +1127,12 @@ wss.on("connection", (ws, req) => {
           // para que un cliente no pueda meter en la cola un "filename"
           // arbitrario que no exista (rompería /api/song-url al intentar
           // reproducirlo para todos).
-          if (downloadedVideos[filename]) {
+          const download = downloadedVideos.get(filename);
+          if (download) {
             // El título de YouTube lo pone el servidor (nunca el cliente) para
             // mostrar algo legible en la cola en lugar del UUID del archivo.
             touchDownload(filename);
-            enqueueSong(ws.roomId, data.payload, downloadedVideos[filename].title);
+            enqueueSong(ws.roomId, data.payload, download.title);
             return;
           }
 

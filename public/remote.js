@@ -36,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const toast = document.getElementById("toast");
     const miniPlayer = document.getElementById("mini-player");
     const pausedTag = document.getElementById("paused-tag");
+    const controlsLocked = document.getElementById("controls-locked");
     const ratingCard = document.getElementById("rating-card");
     const ratingTitle = document.getElementById("rating-title");
     const ratingUp = document.getElementById("rating-up");
@@ -71,6 +72,9 @@ document.addEventListener("DOMContentLoaded", () => {
     let toastTimeoutId = null;
     let playbackPaused = false;   // lo informa el host
     let hostConnected = true;
+    // Lo decide el servidor: pausar, reanudar y saltar son de quien canta la canción que suena (o de
+    // cualquiera si esa persona ya no está conectada).
+    let controlAllowed = false;
     let confirmSkipId = null;     // canción por la que se está pidiendo confirmación para saltar
     let confirmRemoveId = null;   // canción tuya por la que se está pidiendo confirmación para quitarla de la cola
     let skipPendingId = null;     // canción cuyo salto ya se pidió y aún no se ve reflejado en la cola
@@ -249,6 +253,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 playbackPaused = message.payload?.paused === true;
                 updateControls();
             }
+            if (message.type === "controlAccess") {
+                controlAllowed = message.payload?.allowed === true;
+                // Una confirmación de saltar que ya no se podría cumplir se cierra, como cuando cambia la canción.
+                if (!controlAllowed && confirmSkipId) confirmModalCancel.click();
+                updateControls();
+            }
             if (message.type === "ratingRequest") addRatingRequest(message.payload);
             if (message.type === "ratingResolved") resolveRating(message.payload?.id);
         };
@@ -385,12 +395,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Los botones y la etiqueta de pausa reflejan el estado real: play/pausa según lo que informó el
-    // host, y sin nada que controlar (cola vacía o host desconectado) quedan deshabilitados.
+    // host, y quedan deshabilitados sin nada que controlar (cola vacía o host desconectado) o si la
+    // canción que suena es de otra persona (con un aviso que lo explica).
     function updateControls() {
         const active = hostConnected && currentQueue.length > 0;
+        const usable = active && controlAllowed;
         const paused = active && playbackPaused;
-        playPauseBtn.disabled = !active;
-        skipBtn.disabled = !active || skipPendingId !== null;
+        playPauseBtn.disabled = !usable;
+        skipBtn.disabled = !usable || skipPendingId !== null;
+        controlsLocked.classList.toggle("hidden", !active || controlAllowed);
         playPauseBtn.dataset.state = paused ? "paused" : "playing";
         const label = t(paused ? "remote.play" : "remote.pause");
         playPauseBtn.setAttribute("aria-label", label);

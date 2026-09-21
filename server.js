@@ -35,6 +35,8 @@ const { moveOwnSong } = require("./lib/queuePolicy");
 const { hardenSessionStore } = require("./lib/sessionStore");
 const {
   isAllowed,
+  presentNames,
+  canControlPlayback,
   sanitizeControlAction,
   sanitizePlaybackState,
   sanitizePlayNext,
@@ -46,7 +48,12 @@ const {
   sweepIntervalMs,
   sanitizeSearchQuery,
 } = require("./lib/downloadPolicy");
-const { parseRoomGrace, roomSweepIntervalMs, isRoomExpired } = require("./lib/roomPolicy");
+const {
+  parseRoomGrace,
+  parseSingerGrace,
+  roomSweepIntervalMs,
+  isRoomExpired,
+} = require("./lib/roomPolicy");
 
 const app = express();
 
@@ -115,6 +122,12 @@ const { graceMs: ROOM_GRACE_MS, warning: roomGraceWarning } = parseRoomGrace(
   process.env.ROOM_GRACE_MINUTES
 );
 if (roomGraceWarning) console.warn(`⚠️  ${roomGraceWarning}`);
+// Segundos que se le da a quien canta para volver (SINGER_GRACE_SECONDS) antes de que los demás puedan
+// pausar o saltar su canción: un celular que se suspende pierde la conexión un rato.
+const { graceMs: SINGER_GRACE_MS, warning: singerGraceWarning } = parseSingerGrace(
+  process.env.SINGER_GRACE_SECONDS
+);
+if (singerGraceWarning) console.warn(`⚠️  ${singerGraceWarning}`);
 // Resultados de YouTube que se muestran (SEARCH_RESULTS, de 5 a 10). Se piden el
 // doble a YouTube para que, al subir los de los canales ya conocidos, entren
 // también los que YouTube dejó más abajo.
@@ -732,6 +745,11 @@ app.post("/api/rooms", createRoomLimiter, (req, res) => {
     clients: new Set(),
     hostToken,
     hostWs: null,
+    // Quién se desconectó y cuándo (nombre -> momento), y cuándo empezó a sonar la canción de arriba de
+    // la cola: con eso se da un tiempo de gracia a quien canta si pierde la conexión (SINGER_GRACE_SECONDS).
+    leftAt: new Map(),
+    headId: null,
+    headSince: 0,
     // Desde cuándo no hay nadie conectado (null mientras haya alguien): una sala recién creada
     // empieza vacía. Al pasar ROOM_GRACE_MS así, el barrido la borra.
     emptySince: Date.now(),
@@ -819,6 +837,57 @@ function broadcastToRoom(roomId, data) {
   }
 }
 
+// Nombres de las personas con algún control remoto conectado a la sala en este momento.
+function connectedNames(room) {
+  const names = new Set();
+  room.clients.forEach((client) => {
+    if (!client.isHost && client.userName && client.readyState === WebSocket.OPEN) names.add(client.userName);
+  });
+  return names;
+}
+
+// Las personas que cuentan como presentes ahora: las conectadas y las que se fueron hace menos que el
+// tiempo de gracia (ver presentNames).
+function roomPresentNames(room) {
+  return presentNames(connectedNames(room), room.leftAt, room.headSince, Date.now(), SINGER_GRACE_MS);
+}
+
+// Vuelve a avisar quién puede controlar cuando termine un tiempo de gracia: pasar el tiempo no dispara
+// ningún otro evento, y sin esto los botones de los demás seguirían deshabilitados aunque ya se pueda.
+function scheduleAccessRecheck(roomId, room) {
+  if (SINGER_GRACE_MS === 0) return;
+  setTimeout(() => {
+    if (rooms[roomId] === room) sendControlAccess(room);
+  }, SINGER_GRACE_MS + 100).unref();
+}
+
+// Le dice a cada control remoto si puede pausar, reanudar y saltar la canción que suena (ver
+// canControlPlayback): así deshabilita sus botones en lugar de dejarlos hacer algo que el servidor
+// rechazaría. Hay que llamarla cada vez que cambia la cola o quién está presente.
+function sendControlAccess(room) {
+  const online = roomPresentNames(room);
+  room.clients.forEach((client) => {
+    if (client.isHost || client.readyState !== WebSocket.OPEN) return;
+    const allowed = canControlPlayback(room.songQueue, client.userName, online);
+    client.send(JSON.stringify({ type: "controlAccess", payload: { allowed } }));
+  });
+}
+
+// Difunde la cola a todos los de la sala, junto con quién puede controlar la reproducción ahora.
+function broadcastQueue(roomId) {
+  const room = rooms[roomId];
+  if (!room) return;
+  // Cuando cambia la canción que suena, su dueño empieza a contar desde ahora (ver presentNames).
+  const headId = room.songQueue[0]?.id ?? null;
+  if (headId !== room.headId) {
+    room.headId = headId;
+    room.headSince = Date.now();
+    scheduleAccessRecheck(roomId, room);
+  }
+  broadcastToRoom(roomId, JSON.stringify({ type: "queueUpdate", payload: room.songQueue }));
+  sendControlAccess(room);
+}
+
 // Avisa a los controles remotos de todas las salas (no al host, que no usa la lista) de que
 // cambió la lista de descargas: ellos la vuelven a pedir. Varios cambios seguidos (por ejemplo,
 // el barrido que borra varias descargas) se juntan en un solo aviso.
@@ -849,10 +918,7 @@ function enqueueSong(roomId, payload, title) {
     id: crypto.randomUUID(),
     ...(title ? { title } : {}),
   });
-  broadcastToRoom(
-    roomId,
-    JSON.stringify({ type: "queueUpdate", payload: room.songQueue })
-  );
+  broadcastQueue(roomId);
 }
 
 // Cuántas calificaciones pendientes se recuerdan por sala (las más viejas se olvidan): son las de
@@ -981,10 +1047,13 @@ wss.on("connection", (ws, req) => {
       : null;
     room.clients.add(ws);
     room.emptySince = null; // ya hay alguien: si la sala estaba en su tiempo de gracia, se salva
+    if (ws.userName) room.leftAt.delete(ws.userName); // volvió: ya no cuenta como ausente
     console.log(
       `Client connected to room ${roomId}. Total clients: ${room.clients.size}`
     );
     ws.send(JSON.stringify({ type: "queueUpdate", payload: room.songQueue }));
+    // A todos, no solo a esta conexión: que vuelva quien canta cambia lo que pueden hacer los demás.
+    sendControlAccess(room);
     ws.send(
       JSON.stringify({
         type: "hostStatus",
@@ -1103,6 +1172,9 @@ wss.on("connection", (ws, req) => {
           // Al host solo le llega una orden válida y sin campos de más.
           const action = sanitizeControlAction(data.payload);
           if (!action) return;
+          // Pausar, reanudar y saltar son solo de quien canta la canción que suena (el host, que es
+          // la pantalla de la sala, queda fuera de la regla).
+          if (!isHost && !canControlPlayback(currentRoom.songQueue, ws.userName, roomPresentNames(currentRoom))) return;
           return broadcastToRoom(ws.roomId, JSON.stringify({ type: "controlAction", payload: action }));
         }
         case "playbackState":
@@ -1122,15 +1194,7 @@ wss.on("connection", (ws, req) => {
             })
           );
       }
-      if (updateQueue) {
-        broadcastToRoom(
-          ws.roomId,
-          JSON.stringify({
-            type: "queueUpdate",
-            payload: currentRoom.songQueue,
-          })
-        );
-      }
+      if (updateQueue) broadcastQueue(ws.roomId);
     });
 
     ws.on("close", () => {
@@ -1140,6 +1204,13 @@ wss.on("connection", (ws, req) => {
         console.log(
           `Client disconnected from room ${roomId}. Remaining: ${room.clients.size}`
         );
+        // Si se fue quien canta, empieza su tiempo de gracia; al terminar, los demás pasan a poder
+        // controlar su canción. Si todavía le queda otro dispositivo conectado, no se fue.
+        if (!ws.isHost && ws.userName && !connectedNames(room).has(ws.userName)) {
+          room.leftAt.set(ws.userName, Date.now());
+          scheduleAccessRecheck(roomId, room);
+        }
+        if (!ws.isHost) sendControlAccess(room);
         if (room.hostWs === ws) {
           room.hostWs = null;
           room.paused = undefined;

@@ -2,6 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   isAllowed,
+  presentNames,
+  canControlPlayback,
   sanitizeControlAction,
   sanitizePlaybackState,
   sanitizePlayNext,
@@ -104,4 +106,91 @@ test("sanitizeRating acepta 1 (bien), -1 (mal) y 0 (ahora no), y solo eso", () =
   for (const bad of [null, undefined, 5, "1", [], {}, { id: "abc" }, { value: 1 }, { id: "", value: 1 }, { id: 7, value: 1 }, { id: "abc", value: 2 }, { id: "abc", value: -5 }, { id: "abc", value: "1" }, { id: "abc", value: true }, { id: "abc", value: NaN }, { id: "x".repeat(65), value: 1 }]) {
     assert.equal(sanitizeRating(bad), null, JSON.stringify(bad));
   }
+});
+
+// ---------- quién puede pausar, reanudar y saltar
+
+const queue = [
+  { id: "1", name: "Ana", song: "A - Uno.mp4" },
+  { id: "2", name: "Beto", song: "B - Dos.mp4" },
+];
+
+test("quien canta la canción que suena puede controlarla, esté o no en la lista de conectados", () => {
+  assert.equal(canControlPlayback(queue, "Ana", new Set(["Ana", "Beto"])), true);
+  assert.equal(canControlPlayback(queue, "Ana", new Set()), true);
+});
+
+test("los demás no pueden controlar la canción de alguien que sigue conectado", () => {
+  assert.equal(canControlPlayback(queue, "Beto", new Set(["Ana", "Beto"])), false);
+  assert.equal(canControlPlayback(queue, "Carla", new Set(["Ana", "Carla"])), false);
+  // Ser dueño de una canción que espera no da control sobre la que suena.
+  assert.equal(canControlPlayback([queue[0], queue[1]], "Beto", new Set(["Ana"])), false);
+});
+
+test("si quien canta ya no está conectado, cualquiera puede controlar su canción", () => {
+  assert.equal(canControlPlayback(queue, "Beto", new Set(["Beto"])), true);
+  assert.equal(canControlPlayback(queue, "Carla", new Set()), true);
+});
+
+test("sin canción sonando no hay nada que controlar", () => {
+  for (const empty of [[], undefined, null, "no es una lista", {}]) {
+    assert.equal(canControlPlayback(empty, "Ana", new Set(["Ana"])), false, JSON.stringify(empty));
+  }
+});
+
+test("un nombre vacío o ausente no cuenta como ser el dueño", () => {
+  const anonymous = [{ id: "9", name: "", song: "X - Y.mp4" }];
+  for (const name of [null, undefined, "", 5]) {
+    assert.equal(canControlPlayback(anonymous, name, new Set([""])), false, String(name));
+  }
+  // Una canción sin dueño conocido (ni conectado) la puede controlar cualquiera, como si se hubiera ido.
+  assert.equal(canControlPlayback([{ id: "9", song: "X - Y.mp4" }], "Ana", new Set(["Ana"])), true);
+});
+
+// ---------- quién cuenta como presente (tiempo de gracia)
+
+const GRACE = 120 * 1000;
+const NOW = 1_000_000;
+
+test("presentNames: los conectados cuentan siempre, aunque nadie los haya visto irse", () => {
+  assert.deepEqual([...presentNames(new Set(["Ana"]), new Map(), 0, NOW, GRACE)], ["Ana"]);
+  assert.deepEqual([...presentNames(new Set(["Ana"]), new Map([["Ana", 0]]), 0, NOW, 0)], ["Ana"]);
+});
+
+test("presentNames: quien se fue hace menos del tiempo de gracia sigue contando; al cumplirse, ya no", () => {
+  const leftAt = new Map([["Ana", NOW - GRACE + 1]]);
+  assert.equal(presentNames(new Set(), leftAt, 0, NOW, GRACE).has("Ana"), true);
+  assert.equal(presentNames(new Set(), new Map([["Ana", NOW - GRACE]]), 0, NOW, GRACE).has("Ana"), false);
+  assert.equal(presentNames(new Set(), new Map([["Ana", NOW - 10 * GRACE]]), 0, NOW, GRACE).has("Ana"), false);
+});
+
+test("presentNames: el tiempo se cuenta desde que empezó su canción si eso es más reciente que su desconexión", () => {
+  // Se fue hace mucho (bloqueó el celular esperando su turno), pero su canción empezó hace poco.
+  const leftAt = new Map([["Ana", NOW - 10 * GRACE]]);
+  assert.equal(presentNames(new Set(), leftAt, NOW - 1000, NOW, GRACE).has("Ana"), true, "acaba de empezar su canción");
+  assert.equal(presentNames(new Set(), leftAt, NOW - GRACE, NOW, GRACE).has("Ana"), false, "su gracia desde que empezó ya venció");
+  // Y si se fue después de que empezó su canción, cuenta desde que se fue.
+  assert.equal(presentNames(new Set(), new Map([["Ana", NOW - 1000]]), NOW - 10 * GRACE, NOW, GRACE).has("Ana"), true);
+});
+
+test("presentNames: con gracia 0 quien se fue deja de contar de inmediato", () => {
+  assert.equal(presentNames(new Set(), new Map([["Ana", NOW]]), NOW, NOW, 0).has("Ana"), false);
+});
+
+test("presentNames no modifica lo que recibe", () => {
+  const connected = new Set(["Ana"]);
+  const leftAt = new Map([["Beto", NOW]]);
+  presentNames(connected, leftAt, 0, NOW, GRACE);
+  assert.deepEqual([...connected], ["Ana"]);
+  assert.deepEqual([...leftAt], [["Beto", NOW]]);
+});
+
+test("con la gracia vigente, los demás no pueden controlar; al vencer, sí", () => {
+  const q = [{ id: "1", name: "Ana", song: "A - Uno.mp4" }];
+  const during = presentNames(new Set(["Beto"]), new Map([["Ana", NOW - 1000]]), 0, NOW, GRACE);
+  assert.equal(canControlPlayback(q, "Beto", during), false);
+  const after = presentNames(new Set(["Beto"]), new Map([["Ana", NOW - 2 * GRACE]]), 0, NOW, GRACE);
+  assert.equal(canControlPlayback(q, "Beto", after), true);
+  // Ana, mientras tanto, sigue pudiendo controlar la suya al volver.
+  assert.equal(canControlPlayback(q, "Ana", during), true);
 });

@@ -41,6 +41,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const ratingUp = document.getElementById("rating-up");
     const ratingDown = document.getElementById("rating-down");
     const ratingSkip = document.getElementById("rating-skip");
+    const helpBtn = document.getElementById("help-btn");
+
+    // El tutorial se abre solo la primera vez que alguien entra a una sala desde este navegador;
+    // después, con el botón "Tutorial" del encabezado.
+    const TOUR_SEEN_KEY = "xaraoke.remoteTourSeen";
+    const tour = createTour({ steps: REMOTE_TOUR_STEPS, t });
 
     let songData = {};
     let flatSongList = [];
@@ -253,6 +259,20 @@ document.addEventListener("DOMContentLoaded", () => {
         connectWebSocket(roomId);
         await Promise.all([loadDownloads(), loadRatings()]);
         await loadSongs();
+        showTourFirstTime();
+    }
+
+    // Se marca como visto al abrirlo, no al terminarlo: quien lo cierra o recarga a la mitad no lo
+    // vuelve a ver solo (puede abrirlo con el botón). Si el navegador no deja guardar nada, no se
+    // abre solo, para no repetirlo en cada visita.
+    function showTourFirstTime() {
+        try {
+            if (localStorage.getItem(TOUR_SEEN_KEY)) return;
+            localStorage.setItem(TOUR_SEEN_KEY, "1");
+        } catch {
+            return;
+        }
+        tour.start();
     }
 
     // Igual que las descargas: si falla se conserva lo último que se sabía, porque son solo un
@@ -1047,6 +1067,8 @@ document.addEventListener("DOMContentLoaded", () => {
         skipPendingTimerId = setTimeout(clearSkipPending, 4000);
         updateControls();
     });
+
+    helpBtn.addEventListener("click", () => tour.start());
 
     tabSearch.addEventListener("click", () => selectTab("search"));
     tabQueue.addEventListener("click", () => selectTab("queue"));

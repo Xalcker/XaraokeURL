@@ -152,7 +152,7 @@ function keysUsedInCode(source) {
 }
 
 test("toda clave que pide el código existe en el diccionario", () => {
-  const files = ["server.js", "public/remote.js", "public/karaoke.js"];
+  const files = ["server.js", "public/remote.js", "public/karaoke.js", "public/js/tour.js"];
   for (const file of files) {
     const keys = keysUsedInCode(read(file));
     assert.ok(keys.size > 0, `${file}: no se encontró ninguna clave (¿cambió el patrón de la prueba?)`);
@@ -192,7 +192,7 @@ test("los scripts no escriben textos de interfaz a mano: van en el diccionario",
   // que empieza con mayúscula seguida de minúsculas ("Quitar", "Volver a intentar").
   const accented = /(["'`])(?:(?!\1)[^\\\n]|\\.)*[áéíóúñÁÉÍÓÚÑ¿¡](?:(?!\1)[^\\\n]|\\.)*\1/;
   const capitalized = /(["'`])[A-ZÁÉÍÓÚÑ¿¡][a-záéíóúñ]+(?=[ .,:!?"'`])/;
-  for (const file of ["public/remote.js", "public/karaoke.js", "public/js/shared.js", "public/js/icons.js"]) {
+  for (const file of ["public/remote.js", "public/karaoke.js", "public/js/shared.js", "public/js/icons.js", "public/js/tour.js"]) {
     read(file).split(/\r?\n/).forEach((line, i) => {
       // Excepciones: los console.* y los Error internos son para quien desarrolla, no para
       // quien usa la pantalla; y el valor por defecto de unknownArtist en shared.js.

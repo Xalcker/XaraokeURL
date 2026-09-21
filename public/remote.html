@@ -37,7 +37,10 @@
             <div id="remote-room-code">SALA: ----</div>
             <div id="user-display">
                 <span id="userNameDisplay" data-i18n="remote.userLoading">Cargando usuario...</span>
-                <a id="logout-link" href="/logout" data-i18n="remote.logout">Salir</a>
+                <div id="user-actions">
+                    <button type="button" id="help-btn"><span data-icon="help"></span><span data-i18n="tour.open">Tutorial</span></button>
+                    <a id="logout-link" href="/logout" data-i18n="remote.logout">Salir</a>
+                </div>
             </div>
         </header>
 
@@ -111,9 +114,24 @@
 
     <div id="toast" class="hidden" role="status" aria-live="polite"></div>
 
+    <div id="tour" class="hidden" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text">
+        <div id="tour-spot" aria-hidden="true"></div>
+        <div id="tour-card">
+            <p id="tour-counter"></p>
+            <p id="tour-title"></p>
+            <p id="tour-text"></p>
+            <div id="tour-actions">
+                <button type="button" id="tour-skip" data-i18n="tour.skip">Saltar tutorial</button>
+                <button type="button" id="tour-back" class="control-btn confirm-btn-cancel" data-i18n="tour.back">Atrás</button>
+                <button type="button" id="tour-next" class="control-btn confirm-btn-yes" data-i18n="tour.next">Siguiente</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/icons.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/shared.js"></script>
+    <script src="js/tour.js"></script>
     <script src="remote.js"></script>
 </body>
 </html>

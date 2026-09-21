@@ -213,10 +213,44 @@ a:focus-visible {
     border-radius: 20px;
 }
 
+#userNameDisplay {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+#user-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+}
+
 #logout-link {
     color: var(--danger);
     text-decoration: none;
     font-weight: bold;
+}
+
+/* Vuelve a abrir el tutorial. */
+#help-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 4px;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+#help-btn .icon {
+    margin-right: 0.3em;
+}
+
+#help-btn:hover {
+    color: var(--accent-hover);
 }
 
 #remote-room-code {
@@ -932,4 +966,93 @@ body.has-rating-card {
     .spinner {
         animation: none;
     }
+}
+
+/* Tutorial guiado: un fondo oscuro con un hueco (el "resaltado") sobre el elemento que se explica,
+   y una tarjeta con el texto. El hueco es un elemento con una sombra enorme: lo que queda fuera se
+   oscurece y lo de adentro se ve normal. Sin elemento (paso centrado) el hueco es un punto. */
+#tour {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 40;
+}
+
+#tour-spot {
+    position: fixed;
+    border-radius: 12px;
+    box-shadow: 0 0 0 2px var(--accent), 0 0 0 100vmax rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+    transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+
+#tour.no-motion #tour-spot {
+    transition: none;
+}
+
+#tour.is-centered #tour-spot {
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.8);
+}
+
+#tour-card {
+    position: fixed;
+    box-sizing: border-box;
+    width: min(340px, calc(100vw - 24px));
+    padding: 1rem 1.1rem 0.9rem;
+    background-color: #1e1e1e;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    text-align: left;
+}
+
+#tour-counter {
+    margin: 0 0 0.25rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+#tour-title {
+    margin: 0 0 0.4rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+#tour-text {
+    margin: 0 0 1rem;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+#tour-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+#tour-actions .control-btn {
+    padding: 10px 16px;
+    font-size: 0.95rem;
+    touch-action: manipulation;
+}
+
+/* "Saltar tutorial" queda a la izquierda, como enlace; los otros dos botones, a la derecha. */
+#tour-skip {
+    margin-right: auto;
+    padding: 8px 0;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.85rem;
+    text-decoration: underline;
+    cursor: pointer;
 }

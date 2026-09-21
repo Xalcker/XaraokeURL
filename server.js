@@ -30,8 +30,17 @@ const {
   downloadYoutubeVideo,
 } = require("./lib/ytdlp");
 const { openDownloadsStore } = require("./lib/downloadsStore");
+const { openRatingsStore } = require("./lib/ratingsStore");
+const { moveOwnSong } = require("./lib/queuePolicy");
 const { hardenSessionStore } = require("./lib/sessionStore");
-const { isAllowed, sanitizeControlAction, sanitizePlaybackState } = require("./lib/wsPolicy");
+const {
+  isAllowed,
+  sanitizeControlAction,
+  sanitizePlaybackState,
+  sanitizePlayNext,
+  sanitizeMoveSong,
+  sanitizeRating,
+} = require("./lib/wsPolicy");
 const {
   parseDownloadTtl,
   sweepIntervalMs,
@@ -88,6 +97,12 @@ const DOWNLOADS_DB_PATH =
   process.env.DOWNLOADS_DB_PATH ||
   (process.env.NODE_ENV === "production" ? "/data/downloads.db" : "./downloads.db");
 fs.mkdirSync(path.dirname(path.resolve(DOWNLOADS_DB_PATH)), { recursive: true });
+// Tercera base de datos, con las calificaciones del karaoke. Aparte de downloads.db porque las
+// descargas se borran solas con el tiempo y las calificaciones deben quedar.
+const RATINGS_DB_PATH =
+  process.env.RATINGS_DB_PATH ||
+  (process.env.NODE_ENV === "production" ? "/data/ratings.db" : "./ratings.db");
+fs.mkdirSync(path.dirname(path.resolve(RATINGS_DB_PATH)), { recursive: true });
 // Horas que vive una descarga sin usarse (DOWNLOAD_TTL_HOURS); null = no borrar nunca.
 const { ttlMs: DOWNLOAD_TTL_MS, warning: downloadTtlWarning } = parseDownloadTtl(
   process.env.DOWNLOAD_TTL_HOURS
@@ -138,6 +153,8 @@ let rooms = {};
 // consultarla de forma síncrona. Nunca se escribe en karaoke.db.
 let downloadedVideos = {};
 let downloadsStore = null;
+// null si la base de calificaciones no se pudo abrir: entonces no se pide calificar (ver initRatings).
+let ratingsStore = null;
 // Descargas en curso por id de video, para que dos personas que piden el mismo
 // video a la vez no lo descarguen dos veces.
 const inflightDownloads = new Map();
@@ -667,6 +684,7 @@ app.post("/api/rooms", createRoomLimiter, (req, res) => {
   const hostToken = crypto.randomUUID();
   rooms[roomId] = {
     songQueue: [],
+    pendingRatings: [],
     clients: new Set(),
     hostToken,
     hostWs: null,
@@ -758,6 +776,83 @@ function enqueueSong(roomId, payload, title) {
   );
 }
 
+// Cuántas calificaciones pendientes se recuerdan por sala (las más viejas se olvidan): son las de
+// canciones que terminaron y cuya persona aún no ha respondido.
+const MAX_PENDING_RATINGS = 20;
+
+// Manda un mensaje a todos los controles remotos de esa persona en la sala (puede tener varios
+// dispositivos). Al host no: su pantalla no califica.
+function sendToUser(room, name, message) {
+  const text = JSON.stringify(message);
+  room.clients.forEach((client) => {
+    if (!client.isHost && client.userName === name && client.readyState === WebSocket.OPEN) {
+      client.send(text);
+    }
+  });
+}
+
+// Lo que se le dice a la persona de una calificación pendiente (sin datos internos como la clave).
+function ratingRequestMessage(pending) {
+  return {
+    type: "ratingRequest",
+    payload: { id: pending.id, song: pending.song, ...(pending.title ? { title: pending.title } : {}) },
+  };
+}
+
+// La canción se identifica por el video de YouTube (no por el archivo, que se borra con el tiempo) o,
+// si es del catálogo, por su nombre de archivo.
+function songKeyOf(filename) {
+  const download = downloadedVideos[filename];
+  return download ? `yt:${download.videoId}` : `lib:${filename}`;
+}
+
+// La canción terminó por sí sola: se le pide a quien la cantó que califique el karaoke.
+function requestRating(roomId, item) {
+  const room = rooms[roomId];
+  if (!room || !ratingsStore || !item.name) return;
+  const pending = {
+    id: item.id,
+    song: item.song,
+    title: item.title,
+    name: item.name,
+    songKey: songKeyOf(item.song),
+  };
+  room.pendingRatings.push(pending);
+  if (room.pendingRatings.length > MAX_PENDING_RATINGS) room.pendingRatings.shift();
+  sendToUser(room, pending.name, ratingRequestMessage(pending));
+}
+
+// Respuesta de una persona a una calificación pendiente: solo puede responder quien cantó esa canción.
+// Con 0 ("ahora no") se descarta sin guardar nada.
+async function handleRating(ws, room, payload) {
+  const rating = sanitizeRating(payload);
+  if (!rating || !ws.userName) return;
+  const findPending = () =>
+    room.pendingRatings.findIndex((p) => p.id === rating.id && p.name === ws.userName);
+  const pending = room.pendingRatings[findPending()];
+  if (!pending) return;
+
+  if (rating.value !== 0) {
+    try {
+      await ratingsStore.upsert({
+        songKey: pending.songKey,
+        rater: pending.name,
+        value: rating.value,
+        title: pending.title || pending.song,
+        ratedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      // Sigue pendiente: se le vuelve a pedir si se reconecta.
+      console.error(`No se pudo guardar la calificación de ${pending.songKey}:`, err.message);
+      return;
+    }
+  }
+  const index = findPending(); // la sala pudo cambiar mientras se guardaba
+  if (index !== -1) room.pendingRatings.splice(index, 1);
+  // Todos los dispositivos de esa persona cierran la petición, no solo el que respondió.
+  sendToUser(room, pending.name, { type: "ratingResolved", payload: { id: pending.id } });
+}
+
 wss.on("connection", (ws, req) => {
   // Reject cross-site WebSocket handshakes: browsers always send Origin,
   // so only same-origin connections (or non-browser clients with none) pass.
@@ -798,6 +893,13 @@ wss.on("connection", (ws, req) => {
 
     ws.roomId = roomId;
     ws.isHost = isHost;
+    // Quién es esta conexión, decidido por el servidor (nunca por el cliente). En modo desarrollo es
+    // el nombre que la persona eligió en su sesión.
+    ws.userName = isAuthenticated
+      ? AUTH_DISABLED
+        ? req.session?.devName || devUserName(req)
+        : req.session.passport.user.displayName
+      : null;
     room.clients.add(ws);
     console.log(
       `Client connected to room ${roomId}. Total clients: ${room.clients.size}`
@@ -811,6 +913,12 @@ wss.on("connection", (ws, req) => {
     );
     if (typeof room.paused === "boolean") {
       ws.send(JSON.stringify({ type: "playbackState", payload: { paused: room.paused } }));
+    }
+    // Si terminó una canción suya mientras no estaba conectada (o recargó la página), se le vuelve a pedir.
+    if (ws.userName && !isHost) {
+      room.pendingRatings
+        .filter((pending) => pending.name === ws.userName)
+        .forEach((pending) => ws.send(JSON.stringify(ratingRequestMessage(pending))));
     }
 
     if (isHost) {
@@ -843,11 +951,8 @@ wss.on("connection", (ws, req) => {
         isAuthenticated &&
         (data.type === "addSong" || data.type === "removeSong")
       ) {
-        // El nombre lo pone siempre el servidor (nunca el cliente). En modo
-        // desarrollo es el que la persona eligió en su sesión.
-        data.payload.name = AUTH_DISABLED
-          ? req.session?.devName || devUserName(req)
-          : req.session.passport.user.displayName;
+        // El nombre lo pone siempre el servidor (nunca el cliente).
+        data.payload.name = ws.userName;
       }
 
       let updateQueue = false;
@@ -886,10 +991,29 @@ wss.on("connection", (ws, req) => {
           );
           updateQueue = true;
           break;
-        case "playNext":
-          if (currentRoom.songQueue.length > 0) currentRoom.songQueue.shift();
+        case "moveSong": {
+          // Cada persona ordena solo sus canciones entre sí (ver lib/queuePolicy.js).
+          const move = sanitizeMoveSong(data.payload);
+          if (!move || !ws.userName) return;
+          const moved = moveOwnSong(currentRoom.songQueue, move.id, ws.userName, move.direction);
+          if (!moved) return;
+          currentRoom.songQueue = moved;
           updateQueue = true;
           break;
+        }
+        case "playNext": {
+          const { ended, id } = sanitizePlayNext(data.payload);
+          const finished = currentRoom.songQueue.shift();
+          // Solo si terminó por sí sola, y era la que el host tenía cargada, se pide calificarla.
+          if (finished && ended && id === finished.id) requestRating(ws.roomId, finished);
+          updateQueue = true;
+          break;
+        }
+        case "rateSong":
+          handleRating(ws, currentRoom, data.payload).catch((err) =>
+            console.error("Error al procesar una calificación:", err.message)
+          );
+          return;
         case "controlAction": {
           // Al host solo le llega una orden válida y sin campos de más.
           const action = sanitizeControlAction(data.payload);
@@ -948,10 +1072,24 @@ wss.on("connection", (ws, req) => {
   });
 });
 
+// A diferencia de las descargas, las calificaciones no son imprescindibles: si su base no se puede abrir
+// (por ejemplo, sin permisos de escritura) el servidor arranca igual, avisa, y no pide calificar.
+async function initRatings() {
+  try {
+    ratingsStore = await openRatingsStore(RATINGS_DB_PATH);
+    console.log(`Calificaciones del karaoke: se guardan en ${RATINGS_DB_PATH}.`);
+  } catch (err) {
+    console.warn(
+      `⚠️  No se pudo abrir la base de calificaciones (${RATINGS_DB_PATH}): no se pedirá calificar las canciones. ${err.message}`
+    );
+  }
+}
+
 // El servidor empieza a atender cuando la base de descargas ya está abierta y
 // su registro restaurado. Si no se puede abrir (por ejemplo, sin permisos de
 // escritura), el error es fatal, igual que con karaoke.db, para no ocultarlo.
 initDownloads()
+  .then(initRatings)
   .then(() => {
     server.listen(PORT, () => {
       console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);

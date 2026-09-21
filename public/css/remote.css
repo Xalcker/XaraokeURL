@@ -486,6 +486,132 @@ a:focus-visible {
     margin-left: 10px;
 }
 
+/* Acciones de una canción tuya en la cola: subir, bajar y quitar. */
+.queue-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: 10px;
+}
+
+.queue-actions .remove-btn {
+    margin-left: 4px;
+}
+
+/* Botones cuadrados solo con el ícono (el nombre va en aria-label y title). */
+.move-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: none;
+    border-radius: 5px;
+    background-color: #3a3a3a;
+    color: #fff;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.move-btn .icon {
+    margin: 0;
+}
+
+.move-btn:hover:not(:disabled) {
+    background-color: #4a4a4a;
+}
+
+/* La primera de tus canciones no puede subir más, ni la última bajar. */
+.move-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Petición de calificar el karaoke de la canción que acaba de terminar: una tarjeta abajo, sin tapar
+   la pantalla (no es un modal), que se puede ignorar con "Ahora no". */
+#rating-card {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 15;
+    box-sizing: border-box;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 0.75rem;
+    text-align: center;
+    background-color: #1e1e1e;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-bottom: none;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* Deja espacio al final de la página para que la tarjeta no tape el último elemento de la lista. */
+body.has-rating-card {
+    padding-bottom: 12rem;
+}
+
+#rating-title {
+    margin: 0 0 0.25rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+#rating-hint {
+    margin: 0 0 0.8rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+#rating-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.rating-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    border: none;
+    border-radius: 25px;
+    font: inherit;
+    font-weight: 600;
+    color: #fff;
+    background-color: #444;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.rating-btn-up {
+    background-color: var(--accent);
+    color: var(--on-accent);
+}
+
+.rating-btn-up:hover {
+    background-color: var(--accent-hover);
+}
+
+.rating-btn-down:hover {
+    background-color: #555;
+}
+
+#rating-skip {
+    margin-top: 0.4rem;
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.85rem;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
 /* Campo de búsqueda con la lupa dentro (un ícono SVG; un emoji no puede ir en el placeholder). */
 .search-field {
     position: relative;

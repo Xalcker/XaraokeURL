@@ -12,6 +12,8 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Cola de Reproducción Compartida:** Múltiples usuarios pueden ver y añadir canciones a la misma cola de reproducción en tiempo real.
 * **Controles de Reproducción con estado real:** los controles remotos pueden pausar, reanudar y saltar canciones. El botón de play/pausa muestra siempre lo que hará según el estado **real** del video (lo informa el host, y quien entra a la sala tarde lo ve enseguida), aparece una etiqueta "En pausa" en el mini-reproductor y un aviso sobre el video en la pantalla principal. Sin canción en la cola o con el host desconectado, los botones quedan deshabilitados.
 * **Saltar pide confirmación:** saltar afecta a todos, así que antes se pregunta qué canción es y de quién. Se pide saltar *esa* canción: si mientras se decidía ya cambió (terminó, la saltó otra persona), no se salta la siguiente por error, y una confirmación abierta se cierra sola.
+* **Reordena tus canciones:** si tienes más de una en espera, en **Mi cola** cada una trae botones para subirla o bajarla. Solo ordenas las tuyas entre sí: las canciones de los demás nunca cambian de turno, y la que ya está sonando no se mueve ni se puede pasar por encima de ella.
+* **Califica el karaoke:** cuando tu canción termina, te sale una tarjeta con un pulgar arriba o abajo. Es la calidad del **karaoke** (el video, la letra, la música), no cómo cantaste. Se puede ignorar con "Ahora no". Ver "Calificar el karaoke" más abajo.
 * **Modo TV en la pantalla principal:** letra y tarjetas que crecen con la pantalla, "quién canta" en grande y de color, pantalla completa (botón, tecla `F` o doble clic) y una pantalla de espera con el código QR enorme cuando la cola está vacía. Mantiene la pantalla encendida durante la sesión (ver "Modo TV").
 * **Remoto pensado para el celular:** una barra fija arriba con lo que suena, su avance y los botones de play/pausa y saltar, siempre a la vista aunque bajes por una lista larga. Debajo, dos pestañas: **Buscar** (el buscador y el explorador) y **Mi cola** (la cola de todos, tus canciones resaltadas, cuántas tienes y cuántas faltan para tu turno). El aviso de "tu turno" aparece pegado bajo el mini-reproductor.
 * **Salas Virtuales:** Soporte de salas virtuales con colas independientes mediante códigos de 4 letras.
@@ -146,9 +148,9 @@ Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control r
 4.  Inicia sesión con tu cuenta de Google (debe ser del dominio autorizado configurado en el código).
 5.  Introduce el código de sala de 4 letras para unirte a la sesión.
 6.  En la pestaña **Buscar**, usa el explorador alfabético o el buscador de texto para encontrar tu canción favorita y añadirla a la cola (si no aparece, puedes buscarla en YouTube — ver la sección "Búsqueda y descarga desde YouTube" más abajo).
-7.  Un aviso confirma que se añadió, y la cola se actualiza en la pantalla principal y en todos los remotos conectados; en la pestaña **Mi cola** ves tu posición y puedes quitar tus canciones.
+7.  Un aviso confirma que se añadió, y la cola se actualiza en la pantalla principal y en todos los remotos conectados; en la pestaña **Mi cola** ves tu posición, puedes quitar tus canciones y, si tienes varias en espera, cambiarles el orden con las flechas.
 8.  Recibirás una notificación (vibración, sonido y un aviso visual) 10 segundos antes de que empiece tu canción.
-9.  ¡Espera tu turno y canta!
+9.  ¡Espera tu turno y canta! Al terminar, califica con un pulgar qué tal estuvo el karaoke.
 
 Si el host se desconecta (por ejemplo, alguien cierra la pestaña de la pantalla principal por error), todos los remotos muestran un aviso hasta que se reconecte.
 
@@ -160,6 +162,16 @@ La pantalla principal está pensada para verse de lejos:
 * **Pantalla de espera:** con la cola vacía, el video negro deja su lugar a un código QR grande, el código de sala y la dirección escrita por si no se puede escanear. En cuanto alguien añade una canción, vuelve el video.
 * **Pantalla completa:** botón discreto abajo a la izquierda, tecla `F` o doble clic sobre el video. Entra toda la página (no solo el video), así que la cola y el QR siguen a la vista; `Esc` sale. Tras 3 segundos sin mover el ratón ni pulsar teclas, se ocultan el cursor y el botón.
 * **Pantalla siempre encendida:** al comenzar la sesión se pide al navegador que no apague la pantalla (Screen Wake Lock API), y se vuelve a pedir si la pestaña se oculta y regresa. **El navegador solo lo permite en `localhost` o con HTTPS**: si abres la pantalla por la IP de la red con HTTP (`http://192.168.0.72:8081`), no está disponible y la pantalla puede apagarse por inactividad del sistema (mientras suena un video, los navegadores suelen mantenerla encendida). Por eso conviene abrirla como `localhost`.
+
+## ⭐ Calificar el karaoke
+
+Al terminar una canción, a **quien la cantó** (y solo a esa persona) le aparece abajo una tarjeta: *"¿Cómo estuvo el karaoke de …?"*, con **Bien** (pulgar arriba), **Mal** (pulgar abajo) y **Ahora no**. Lo que se califica es el video y la música, no el desempeño de quien cantó; la tarjeta lo dice.
+
+* **Solo cuando la canción termina sola.** Si alguien la salta, no se pide calificar.
+* **No estorba:** no es una ventana que bloquee la pantalla y se puede ignorar. Si se termina otra canción tuya antes de responder, se muestran una tras otra. Si pierdes la conexión o recargas la página, se te vuelve a pedir mientras la sala siga abierta.
+* **Una calificación por persona y canción.** Las de YouTube se identifican por el video (no por el archivo, que se borra con el tiempo), así que una calificación sobrevive aunque la descarga se borre; las de la biblioteca, por su nombre de archivo. Si la misma persona vuelve a calificarla más adelante, la nueva reemplaza a la anterior.
+* **Se guardan en `ratings.db`** (`RATINGS_DB_PATH`; `./ratings.db` en desarrollo, `/data/ratings.db` en producción, se crea sola), aparte de `downloads.db` porque las descargas se borran solas y las calificaciones deben quedar. Cada fila trae la clave de la canción (`yt:<id del video>` o `lib:<archivo>`), quién calificó, el valor (1 o -1), el título y la fecha. Si esa base no se puede abrir, el servidor arranca igual, deja un aviso en los logs y simplemente no pide calificar.
+* Por ahora las calificaciones **solo se guardan**: todavía no se muestran ni influyen en los resultados de búsqueda.
 
 ## 🔎 Búsqueda y descarga desde YouTube
 
@@ -187,6 +199,7 @@ Detalles a tener en cuenta:
 * Las sesiones se almacenan de forma segura en el servidor; en producción, las cookies usan el flag `secure` para HTTPS.
 * **El host de una sala se autentica con un token secreto** (`hostToken`, generado al crear la sala), no con un flag que el cliente pueda falsificar — solo quien creó la sala puede controlar la reproducción o suplantar el nombre en la cola.
 * **Solo el host manda `playNext`, `timeUpdate` y `playbackState`** (el servidor los ignora de un control remoto), y las órdenes de reproducción de los remotos (`play`, `pause`, `skip`) se validan y se limpian antes de reenviarse al host. Así la confirmación al saltar no se puede esquivar mandando el mensaje a mano, ni un remoto puede falsear el tiempo o el estado que ven los demás.
+* **Solo puedes reordenar y calificar lo tuyo.** Para `moveSong` y `rateSong` el servidor usa el nombre de la sesión de esa conexión (fijado al conectarse), nunca un nombre que venga en el mensaje; una calificación solo se acepta si el servidor la pidió antes para esa canción y esa persona, con un valor de 1, -1 o 0. Que el host avise que una canción terminó sola (`playNext` con `ended` y el id de la canción) solo lo puede hacer el host, como el resto de `playNext`.
 * **El WebSocket valida el header `Origin`** en el handshake, rechazando conexiones cross-site que intenten aprovechar la cookie de sesión del navegador.
 * **Headers de seguridad HTTP** vía `helmet` (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.).
 * **Rate limiting** en los endpoints más sensibles: creación de salas (10/min), búsqueda en YouTube (20/min) y descarga de YouTube (5/min, máximo 3 descargas simultáneas).
@@ -226,6 +239,8 @@ XaraokeURL/
 │   ├── downloadPolicy.js         # Vida útil de las descargas (DOWNLOAD_TTL_HOURS) y limpieza de la búsqueda original
 │   ├── downloadsStore.js         # Registro de las descargas de YouTube en downloads.db
 │   ├── network.js                # Detección de las IPs de la red local (testeable)
+│   ├── queuePolicy.js            # Reordenar las canciones propias sin mover las de los demás (testeable)
+│   ├── ratingsStore.js           # Calificaciones del karaoke en ratings.db
 │   ├── roomId.js                 # Generación de códigos de sala (testeable)
 │   ├── wsPolicy.js               # Qué mensajes del WebSocket acepta el servidor y de quién (testeable)
 │   ├── sessionStore.js           # Endurece las sesiones en archivo ante bloqueos transitorios en Windows (EPERM)
@@ -241,6 +256,7 @@ XaraokeURL/
 ├── songs.csv                     # Catálogo de canciones (no incluido en git)
 ├── karaoke.db                    # Base de datos SQLite (generada automáticamente)
 ├── downloads.db                  # Registro de las descargas de YouTube (generada automáticamente)
+├── ratings.db                    # Calificaciones del karaoke (generada automáticamente)
 └── downloads/                    # Videos descargados de YouTube (no incluido en git)
 ```
 
@@ -266,6 +282,7 @@ Para desplegar en producción:
    - Base de datos: `/data/karaoke.db`
    - Sesiones: `/data/sessions`
    - Descargas de YouTube: `/data/downloads` (archivos) y `/data/downloads.db` (registro; necesita permiso de escritura)
+   - Calificaciones del karaoke: `/data/ratings.db` (necesita permiso de escritura; si no se puede abrir, el servidor arranca igual pero no pide calificar)
 4. Actualiza las URLs de callback de Google OAuth con tu dominio de producción
 5. Si vas a usar la búsqueda/descarga de YouTube, instala `yt-dlp` y `ffmpeg` en el host de producción (no se instalan solos con `npm install`)
 

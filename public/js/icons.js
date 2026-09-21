@@ -37,6 +37,10 @@
     download: '<path d="M12 3v12"/><path d="M7 10.5l5 5 5-5"/><path d="M4 20h16"/>',
     refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 3.5v4.5H15"/>',
     "arrow-left": '<path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/>',
+    "arrow-up": '<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>',
+    "arrow-down": '<path d="M12 5v14"/><path d="M6 13l6 6 6-6"/>',
+    "thumb-up": '<path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/>',
+    "thumb-down": '<path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/>',
     // Rellenables (con fill: currentColor) para los controles de reproducción.
     play: '<path d="M7 4.5v15l12.5-7.5z"/>',
     pause: '<rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/>',

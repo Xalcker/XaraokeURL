@@ -299,7 +299,8 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   showUi();
 
-  player.addEventListener("ended", () => send({ type: "playNext" }));
+  // Terminó por sí sola (no la saltó nadie): se indica cuál era para que el servidor pida calificarla.
+  player.addEventListener("ended", () => send({ type: "playNext", payload: { ended: true, id: currentSongId } }));
   player.addEventListener("play", () => reportPlayback(false));
   // La pausa que importa es la de una persona: al terminar la canción o al vaciar el reproductor
   // para pasar a otra, el video también "se pausa", pero no es una pausa.

@@ -257,7 +257,10 @@ XaraokeURL/
 │   ├── wsPolicy.js               # Qué mensajes del WebSocket acepta el servidor y de quién (testeable)
 │   ├── sessionStore.js           # Endurece las sesiones en archivo ante bloqueos transitorios en Windows (EPERM)
 │   └── ytdlp.js                  # Wrapper seguro sobre el binario yt-dlp
-├── test/                         # Pruebas unitarias (node --test)
+├── test/                         # Pruebas unitarias y de integración (node --test)
+├── test-helpers/                 # Levanta el servidor de verdad para las de integración
+│   ├── testServer.js             # Arranca server.js en un puerto libre con datos temporales
+│   └── wsClient.js               # Cliente de WebSocket que sabe esperar a un mensaje
 ├── .github/workflows/ci.yml      # CI: lint + test en cada push/PR
 ├── eslint.config.js              # Configuración de ESLint
 ├── server.js                     # Servidor principal con WebSockets y OAuth
@@ -271,6 +274,17 @@ XaraokeURL/
 ├── ratings.db                    # Calificaciones del karaoke (generada automáticamente)
 └── downloads/                    # Videos descargados de YouTube (no incluido en git)
 ```
+
+### Pruebas
+
+Dos tipos, ambas con `npm test`:
+
+* **Unitarias.** Todo lo de `lib/` y `public/js/` se prueba directo y aislado: son rápidas y no levantan nada.
+* **De integración.** `test/httpApi.test.js`, `test/wsHandshake.test.js` y `test/wsQueue.test.js` arrancan `server.js` de verdad, en un puerto libre y con sus bases en una carpeta temporal, y hablan con él por HTTP y por WebSocket como lo haría un navegador. Son las que comprueban que una ruta siga pidiendo sesión, que un control remoto no pueda hacerse pasar por el host y que "solo quien canta controla" se cumpla con varios clientes conectados a la vez.
+
+Los ayudantes viven en `test-helpers/` y no en `test/` a propósito: `node --test` trata como archivo de prueba a todo `.js` que cuelgue de `test/`.
+
+Quedan algunas comprobaciones sobre el **código fuente** (leen un archivo y le pasan una expresión regular) en `queueAndRating`, `roomGrace` y compañía. Son frágiles —un refactor correcto las rompe— y se irán reemplazando por pruebas de integración a medida que se vayan tocando esas partes.
 
 ### Idiomas
 
@@ -302,5 +316,5 @@ Para desplegar en producción:
 
 * `npm start` - Inicia el servidor de producción
 * `npm run lint` - Corre ESLint sobre todo el proyecto
-* `npm test` - Corre las pruebas unitarias (`node --test`)
+* `npm test` - Corre las pruebas (`node --test`)
 * `npm run import` - Importa canciones desde `songs.csv` a la base de datos

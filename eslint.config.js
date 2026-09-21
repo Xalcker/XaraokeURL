@@ -9,6 +9,7 @@ module.exports = [
       "import_csv.js",
       "lib/**/*.js",
       "test/**/*.js",
+      "test-helpers/**/*.js",
       "eslint.config.js",
     ],
     languageOptions: {

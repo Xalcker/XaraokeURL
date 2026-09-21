@@ -194,3 +194,52 @@ test("con la gracia vigente, los demás no pueden controlar; al vencer, sí", ()
   // Ana, mientras tanto, sigue pudiendo controlar la suya al volver.
   assert.equal(canControlPlayback(q, "Ana", during), true);
 });
+
+// --- pruneLeftAt: limpieza del registro de quién se fue y cuándo ---
+
+const { pruneLeftAt, presentNames: presentes } = require("../lib/wsPolicy");
+
+const cola = (...nombres) => nombres.map((name, i) => ({ id: `s${i}`, name, song: `${name}.mp4` }));
+
+test("pruneLeftAt conserva a quien todavía tiene una canción en la cola", () => {
+  const leftAt = new Map([["Ana", 1000], ["Beto", 2000]]);
+  const limpio = pruneLeftAt(leftAt, cola("Ana"));
+  assert.deepEqual([...limpio.keys()], ["Ana"]);
+  assert.equal(limpio.get("Ana"), 1000, "se conserva el momento original, no se reinicia");
+});
+
+test("pruneLeftAt quita a quien ya no tiene nada en la cola", () => {
+  const leftAt = new Map([["Ana", 1000], ["Beto", 2000], ["Caro", 3000]]);
+  assert.equal(pruneLeftAt(leftAt, cola()).size, 0, "con la cola vacía no queda nadie");
+  assert.deepEqual([...pruneLeftAt(leftAt, cola("Caro")).keys()], ["Caro"]);
+});
+
+test("pruneLeftAt no modifica el Map que recibe", () => {
+  const leftAt = new Map([["Ana", 1000]]);
+  pruneLeftAt(leftAt, cola());
+  assert.equal(leftAt.size, 1);
+});
+
+test("pruneLeftAt aguanta una cola ausente o que no es un arreglo", () => {
+  const leftAt = new Map([["Ana", 1000]]);
+  for (const queue of [undefined, null, "no soy una cola", 42]) {
+    assert.equal(pruneLeftAt(leftAt, queue).size, 0, JSON.stringify(queue));
+  }
+});
+
+// Esta es la razón por la que pruneLeftAt mira la cola y no el reloj: una entrada vencida hace
+// rato vuelve a valer cuando la canción de esa persona llega a sonar (headSince se renueva).
+test("pruneLeftAt no purga por tiempo vencido: una entrada vieja revive al llegar su turno", () => {
+  const GRACE = 120000;
+  const ahora = 1000000;
+  const leftAt = new Map([["Ana", ahora - 3600000]]); // se fue hace una hora
+
+  assert.equal(presentes(new Set(), leftAt, ahora - 3600000, ahora, GRACE).has("Ana"), false,
+    "su canción aún no suena: está ausente");
+  assert.equal(presentes(new Set(), leftAt, ahora, ahora, GRACE).has("Ana"), true,
+    "su canción empieza a sonar: recupera la gracia aunque se fuera hace una hora");
+
+  // Por eso solo se borra cuando ya no tiene nada que pueda llegar a sonar.
+  assert.equal(pruneLeftAt(leftAt, cola("Ana")).size, 1);
+  assert.equal(pruneLeftAt(leftAt, cola("Beto")).size, 0);
+});

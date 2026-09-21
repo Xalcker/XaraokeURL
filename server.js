@@ -14,7 +14,7 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FileStore = require("session-file-store")(session);
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const { generateRoomId } = require("./lib/roomId");
+const { generateRoomId, normalizeRoomId } = require("./lib/roomId");
 const { getServerAddresses, parseLanIpOverride, formatAccessLines, remoteBaseUrl } = require("./lib/network");
 const { sanitizeDisplayName } = require("./lib/displayName");
 const { escapeHtml } = require("./public/js/shared");
@@ -231,9 +231,14 @@ if (!AUTH_DISABLED) {
 
   app.get(
     "/auth/google/callback",
-    passport.authenticate("google", { failureRedirect: "/login-failed" }),
+    // keepSessionInfo: al iniciar sesión, passport renueva la sesión y borraría la sala que se
+    // guardó antes de ir a Google (ver ensureAuthenticatedRemote).
+    passport.authenticate("google", { failureRedirect: "/login-failed", keepSessionInfo: true }),
     (req, res) => {
-      res.redirect("/remote.html");
+      // Quien escaneó el QR sin haber iniciado sesión vuelve al control remoto con su sala ya puesta.
+      const roomId = normalizeRoomId(req.session.joinRoomId);
+      delete req.session.joinRoomId;
+      res.redirect(roomId ? `/remote.html?sala=${roomId}` : "/remote.html");
     }
   );
 }
@@ -244,6 +249,16 @@ passport.deserializeUser((obj, done) => done(null, obj));
 function ensureAuthenticated(req, res, next) {
   if (AUTH_DISABLED || req.isAuthenticated()) return next();
   res.redirect("/login");
+}
+
+// Igual que ensureAuthenticated, pero para /remote.html: si el enlace del QR trae la sala y falta
+// iniciar sesión, la sala se guarda en la sesión para no perderla en el recorrido por Google.
+function ensureAuthenticatedRemote(req, res, next) {
+  if (!AUTH_DISABLED && !req.isAuthenticated()) {
+    const roomId = normalizeRoomId(req.query.sala);
+    if (roomId) req.session.joinRoomId = roomId;
+  }
+  ensureAuthenticated(req, res, next);
 }
 
 // Página completa (con viewport, título e iconos) para las pantallas de acceso.
@@ -765,13 +780,17 @@ app.get("/api/qr", (req, res) => {
     addresses: process.env.NODE_ENV === "production" ? [] : getServerAddresses(process.env.LAN_IP),
   });
   const remoteUrl = `${baseUrl}/remote.html`;
+  // Con la sala en el enlace, el teléfono entra directo: no tiene que escribir el código.
+  const roomId = normalizeRoomId(req.query.sala);
+  const joinUrl = roomId ? `${remoteUrl}?sala=${roomId}` : remoteUrl;
 
-  QRCode.toDataURL(remoteUrl, (err, url) => {
+  QRCode.toDataURL(joinUrl, (err, url) => {
     if (err) {
       console.error("Error generando QR:", err);
       res.status(500).send("Error generando QR");
     } else {
-      res.send({ qrUrl: url, remoteUrl });
+      // remoteUrl es la dirección corta que se escribe bajo el QR; joinUrl es lo que el QR contiene.
+      res.send({ qrUrl: url, remoteUrl, joinUrl });
     }
   });
 });
@@ -780,7 +799,7 @@ app.get("/api/qr", (req, res) => {
 app.get("/favicon.ico", (req, res) =>
   res.sendFile(path.join(__dirname, "public", "img", "favicon-32.png"))
 );
-app.use("/remote.html", ensureAuthenticated);
+app.use("/remote.html", ensureAuthenticatedRemote);
 app.use(express.static(path.join(__dirname, "public")));
 // Sin auth a propósito: el host (pantalla principal) reproduce estos
 // archivos sin sesión de Google, igual que ya pasa con las URLs externas

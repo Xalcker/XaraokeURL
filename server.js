@@ -33,9 +33,11 @@ const { openDownloadsStore } = require("./lib/downloadsStore");
 const { openRatingsStore } = require("./lib/ratingsStore");
 const { moveOwnSong } = require("./lib/queuePolicy");
 const { hardenSessionStore } = require("./lib/sessionStore");
+const { checkSessionSecret } = require("./lib/config");
 const {
   isAllowed,
   presentNames,
+  pruneLeftAt,
   canControlPlayback,
   sanitizeControlAction,
   sanitizePlaybackState,
@@ -171,7 +173,14 @@ let rooms = {};
 // url, título, canal, búsqueda original, fechas, etc.). Es una copia en memoria
 // de la base downloads.db (que es la que persiste entre reinicios), para
 // consultarla de forma síncrona. Nunca se escribe en karaoke.db.
-let downloadedVideos = {};
+//
+// Es un Map y no un objeto a propósito: en un objeto, las claves que se heredan de
+// Object.prototype ("__proto__", "constructor", "toString"...) devuelven un valor
+// truthy en una consulta directa, así que un nombre de archivo inventado por el
+// cliente pasaba por descarga válida y se colaba en la cola. Peor aún, escribir en
+// esa "entrada" (ver touchDownload) modificaba el prototipo de todo el proceso. Un
+// Map no tiene cadena de prototipos, así que el problema no puede volver a aparecer.
+const downloadedVideos = new Map();
 let downloadsStore = null;
 // null si la base de calificaciones no se pudo abrir: entonces no se pide calificar (ver initRatings).
 let ratingsStore = null;
@@ -190,6 +199,18 @@ function warnSessionTouchFailed(err) {
     `⚠️  No se pudo renovar una sesión (${err.code || err.message}). Suele ser un antivirus o un sincronizador usando la carpeta ${SESSIONS_PATH}; se reintenta solo.`
   );
 }
+
+// express-session no lanza si falta el secreto: arrancaría entero y después respondería 500 en
+// todas las peticiones. Se comprueba antes para fallar con un mensaje claro y no a medias.
+const { error: sessionSecretError, warning: sessionSecretWarning } = checkSessionSecret(
+  process.env.SESSION_SECRET,
+  { production: process.env.NODE_ENV === "production" }
+);
+if (sessionSecretError) {
+  console.error(`❌ ${sessionSecretError}`);
+  process.exit(1);
+}
+if (sessionSecretWarning) console.warn(`⚠️  ${sessionSecretWarning}`);
 
 const sessionMiddleware = session({
   store: hardenSessionStore(
@@ -395,8 +416,9 @@ app.get("/api/song-url", (req, res) => {
   const { song } = req.query;
   if (!song)
     return res.status(400).json({ error: tr(req, "api.songNameMissing") });
-  if (downloadedVideos[song]) {
-    return res.json({ url: downloadedVideos[song].url });
+  const download = downloadedVideos.get(song);
+  if (download) {
+    return res.json({ url: download.url });
   }
   if (!db) return res.status(404).json({ error: tr(req, "api.songNotFound") });
   db.get("SELECT url FROM songs WHERE filename = ?", [song], (err, row) => {
@@ -441,7 +463,7 @@ app.get(
     }
     try {
       const found = await searchYoutube(query, { limit: SEARCH_FETCH_LIMIT, suffix });
-      const downloadedChannels = Object.values(downloadedVideos).map((entry) => entry.channel);
+      const downloadedChannels = Array.from(downloadedVideos.values(), (entry) => entry.channel);
       const results = rankByKnownChannels(found, downloadedChannels).slice(0, SEARCH_RESULT_LIMIT);
       res.json({ results });
     } catch (err) {
@@ -467,7 +489,7 @@ function toDownloadEntry(row) {
 }
 
 function findDownloadByVideoId(videoId) {
-  return Object.values(downloadedVideos).find((entry) => entry.videoId === videoId);
+  return [...downloadedVideos.values()].find((entry) => entry.videoId === videoId);
 }
 
 // Quién hace la petición, para dejarlo registrado junto a la descarga.
@@ -478,7 +500,7 @@ function getRequestUserName(req) {
 
 // Borra el archivo, el registro en la base y la copia en memoria.
 async function removeDownload(filename) {
-  delete downloadedVideos[filename];
+  downloadedVideos.delete(filename);
   notifyDownloadsChanged();
   try {
     fs.unlinkSync(path.join(DOWNLOADS_PATH, filename));
@@ -532,7 +554,7 @@ async function downloadNewVideo({ videoId, searchQuery, searchSuffix, requestedB
     };
     await downloadsStore.insert(row);
     const entry = toDownloadEntry({ ...row, lastUsedAt: row.downloadedAt, useCount: 0 });
-    downloadedVideos[filename] = entry;
+    downloadedVideos.set(filename, entry);
     notifyDownloadsChanged();
     return entry;
   } catch (err) {
@@ -599,7 +621,7 @@ app.post(
 // Lista de las descargas que siguen en disco. El control remoto la usa para
 // incluirlas en la búsqueda local (por título, canal o búsqueda original).
 app.get("/api/downloads", ensureAuthenticated, (req, res) => {
-  const list = Object.values(downloadedVideos)
+  const list = [...downloadedVideos.values()]
     .sort((a, b) => (a.downloadedAt < b.downloadedAt ? 1 : -1))
     .map((entry) => ({
       filename: entry.filename,
@@ -634,7 +656,7 @@ app.get("/api/ratings", ensureAuthenticated, async (req, res) => {
 
 // Registra un uso (se agregó a una cola): suma al contador y renueva su vida útil.
 function touchDownload(filename) {
-  const entry = downloadedVideos[filename];
+  const entry = downloadedVideos.get(filename);
   if (!entry) return;
   const now = new Date().toISOString();
   entry.lastUsedAt = now;
@@ -653,7 +675,7 @@ const UUID_PREFIX_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 // Archivos con nombre de uuid en DOWNLOADS_PATH que no tienen registro.
 function findOrphanFiles() {
-  const knownUuids = new Set(Object.values(downloadedVideos).map((entry) => entry.uuid));
+  const knownUuids = new Set(Array.from(downloadedVideos.values(), (entry) => entry.uuid));
   return fs.readdirSync(DOWNLOADS_PATH).filter((file) => {
     const match = UUID_PREFIX_RE.exec(file);
     return match && !knownUuids.has(match[0].toLowerCase());
@@ -692,7 +714,7 @@ async function initDownloads() {
   let restored = 0;
   for (const row of await downloadsStore.list()) {
     if (fs.existsSync(path.join(DOWNLOADS_PATH, row.filename))) {
-      downloadedVideos[row.filename] = toDownloadEntry(row);
+      downloadedVideos.set(row.filename, toDownloadEntry(row));
       restored++;
     } else {
       await downloadsStore.remove(row.filename);
@@ -826,7 +848,27 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/downloads", express.static(DOWNLOADS_PATH));
 
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+// maxPayload: todo lo que manda un cliente es JSON pequeño (un nombre de archivo, una orden de
+// reproducción, una calificación). El tope por defecto de ws son 100 MB por mensaje.
+const wss = new WebSocket.Server({ server, maxPayload: 64 * 1024 });
+
+// Latido: una desconexión sucia (el celular se sale del alcance del WiFi, se queda sin batería,
+// se corta la red) no manda ningún "close", así que la conexión se quedaría viva para siempre. Y
+// con ella se quedaría trabada media sala: quien canta seguiría contando como presente y nadie
+// podría saltar su canción por mucho que venciera SINGER_GRACE_SECONDS, y la sala nunca llegaría
+// a tener cero clientes, así que el barrido no la borraría nunca (fuga de memoria).
+const HEARTBEAT_MS = 30 * 1000;
+const heartbeat = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    // No contestó al ping anterior: se da por muerta. terminate() dispara su "close", que es
+    // donde ya está toda la lógica de salir de la sala; no hace falta duplicarla aquí.
+    if (ws.isAlive === false) return ws.terminate();
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, HEARTBEAT_MS);
+heartbeat.unref();
+wss.on("close", () => clearInterval(heartbeat));
 
 function broadcastToRoom(roomId, data) {
   const room = rooms[roomId];
@@ -884,6 +926,9 @@ function broadcastQueue(roomId) {
     room.headSince = Date.now();
     scheduleAccessRecheck(roomId, room);
   }
+  // Quien ya no tiene nada en la cola no necesita que se recuerde cuándo se fue (ver pruneLeftAt):
+  // sin esto, leftAt acumula un nombre por cada persona que pasó por la sala y nunca se vacía.
+  room.leftAt = pruneLeftAt(room.leftAt, room.songQueue);
   broadcastToRoom(roomId, JSON.stringify({ type: "queueUpdate", payload: room.songQueue }));
   sendControlAccess(room);
 }
@@ -947,7 +992,7 @@ function ratingRequestMessage(pending) {
 // La canción se identifica por el video de YouTube (no por el archivo, que se borra con el tiempo) o,
 // si es del catálogo, por su nombre de archivo.
 function songKeyOf(filename) {
-  const download = downloadedVideos[filename];
+  const download = downloadedVideos.get(filename);
   return download ? `yt:${download.videoId}` : `lib:${filename}`;
 }
 
@@ -1004,6 +1049,12 @@ async function handleRating(ws, room, payload) {
 const MAX_MENSAJES_EN_ESPERA = 32;
 
 wss.on("connection", (ws, req) => {
+  // Para el latido de arriba: se marca viva al conectar y cada vez que contesta un ping.
+  ws.isAlive = true;
+  ws.on("pong", () => {
+    ws.isAlive = true;
+  });
+
   // El manejador de verdad se instala más abajo, cuando la sesión termina de cargar, y esa carga
   // es asíncrona si el handshake trae cookie (hay que leer su archivo del disco). Hasta entonces
   // la conexión ya está abierta y el cliente puede estar mandando: sin escuchar desde ya, todo
@@ -1143,11 +1194,12 @@ wss.on("connection", (ws, req) => {
           // para que un cliente no pueda meter en la cola un "filename"
           // arbitrario que no exista (rompería /api/song-url al intentar
           // reproducirlo para todos).
-          if (downloadedVideos[filename]) {
+          const download = downloadedVideos.get(filename);
+          if (download) {
             // El título de YouTube lo pone el servidor (nunca el cliente) para
             // mostrar algo legible en la cola en lugar del UUID del archivo.
             touchDownload(filename);
-            enqueueSong(ws.roomId, data.payload, downloadedVideos[filename].title);
+            enqueueSong(ws.roomId, data.payload, download.title);
             return;
           }
 

@@ -52,6 +52,10 @@
         <div class="player-column">
             <!-- <video id="karaokePlayer" controls controlslist="nodownload" autoplay></video> -->
              <video oncontextmenu="return false;" id="karaokePlayer"></video>
+            <div id="paused-overlay" class="hidden">
+                <span data-icon="pause"></span>
+                <span data-i18n="host.paused">En pausa</span>
+            </div>
             <div id="idle-screen">
                 <img class="brand-logo" src="img/logo.svg" alt="" width="96" height="96">
                 <p id="idle-title" data-i18n="host.idle.title">Escanea el código para elegir tu canción</p>

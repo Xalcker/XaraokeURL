@@ -15,10 +15,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const idleHint = document.getElementById("idle-hint");
   const remoteUrlEl = document.getElementById("remote-url");
   const fullscreenBtn = document.getElementById("fullscreen-btn");
+  const pausedOverlay = document.getElementById("paused-overlay");
 
   let currentQueue = [], ws, lastTimeUpdate = 0;
   let roomId = null;
   let hostToken = null;
+  // Id (de la cola) de la canción que ya se cargó en el reproductor, suene, esté en pausa o no.
+  let currentSongId = null;
 
   const songDisplay = (item) => getSongDisplay(item, t("song.unknownArtist"));
 
@@ -59,11 +62,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  function send(message) {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+    else console.warn("Sin conexión con el servidor: no se envió", message.type);
+  }
+
   function connectWebSocket() {
     if (!roomId || !hostToken) return;
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${protocol}://${window.location.host}?sala=${roomId}&hostToken=${hostToken}`);
-    ws.onopen = () => console.log(`Host conectado a la sala: ${roomId}`);
+    ws.onopen = () => {
+      console.log(`Host conectado a la sala: ${roomId}`);
+      // Los remotos que ya estaban (o entran ahora) necesitan saber si el video está en pausa.
+      send({ type: "playbackState", payload: { paused: isPaused() } });
+    };
     ws.onclose = () => setTimeout(connectWebSocket, 3000);
     ws.onerror = (err) => console.error("Error de WebSocket en Host:", err);
     ws.onmessage = (event) => {
@@ -172,27 +184,57 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // ¿Hay una canción cargada y detenida por una pausa (no por haber terminado)?
+  function isPaused() {
+    return !!player.getAttribute("src") && player.paused && !player.ended;
+  }
+
+  // Avisa a los remotos (y muestra en la pantalla) que el video se pausó o se reanudó.
+  function reportPlayback(paused) {
+    pausedOverlay.classList.toggle("hidden", !paused);
+    send({ type: "playbackState", payload: { paused } });
+  }
+
   function handleControlAction(payload) {
+    const loaded = !!player.getAttribute("src");
     switch (payload.action) {
-      case "playPause":
-        if (player.src) {
-          if (player.paused) player.play();
+      case "play":
+        if (loaded && player.paused) player.play().catch((e) => console.error("No se pudo reanudar:", e));
+        break;
+      case "pause":
+        if (loaded && !player.paused) player.pause();
+        break;
+      case "playPause": // orden de alternar de versiones anteriores del remoto
+        if (loaded) {
+          if (player.paused) player.play().catch((e) => console.error("No se pudo reanudar:", e));
           else player.pause();
         }
         break;
       case "skip":
+        // El remoto indica cuál canción vio al confirmar: si ya cambió (terminó sola, la saltó otra
+        // persona o llegó una confirmación repetida), no se salta la siguiente por error.
+        if (payload.id && currentQueue[0]?.id !== payload.id) break;
+        currentSongId = null;
         player.pause();
         player.src = "";
-        ws.send(JSON.stringify({ type: "playNext" }));
+        pausedOverlay.classList.add("hidden");
+        send({ type: "playNext" });
         break;
     }
   }
 
+  // Cada vez que cambia la cola: si la canción de arriba es otra que la cargada, se reproduce. Si es
+  // la misma (alguien añadió una canción mientras esta suena o está en pausa) no se toca: antes se
+  // volvía a cargar y la canción en pausa se reiniciaba sola desde el principio.
   function checkAndPlayNext() {
-    const isPlaying = player.currentTime > 0 && !player.paused && !player.ended && player.readyState > 2;
-    if (!isPlaying && currentQueue.length > 0) {
-      playSong(currentQueue[0].song);
+    const head = currentQueue[0];
+    if (!head) {
+      currentSongId = null;
+      return;
     }
+    if (head.id === currentSongId) return;
+    currentSongId = head.id;
+    playSong(head.song);
   }
 
   async function playSong(songFilename) {
@@ -203,6 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
       await player.play();
     } catch (e) {
       console.error("Error al reproducir la canción:", e);
+      currentSongId = null; // no se cargó: el próximo cambio de la cola lo vuelve a intentar
     }
   }
 
@@ -243,7 +286,17 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   showUi();
 
-  player.addEventListener("ended", () => ws.send(JSON.stringify({ type: "playNext" })));
+  player.addEventListener("ended", () => send({ type: "playNext" }));
+  player.addEventListener("play", () => reportPlayback(false));
+  // La pausa que importa es la de una persona: al terminar la canción o al vaciar el reproductor
+  // para pasar a otra, el video también "se pausa", pero no es una pausa.
+  player.addEventListener("pause", () => {
+    if (player.ended || !player.getAttribute("src")) return;
+    reportPlayback(true);
+  });
+  player.addEventListener("error", () => {
+    currentSongId = null; // el archivo no cargó: el próximo cambio de la cola lo vuelve a intentar
+  });
   player.addEventListener("loadedmetadata", () => {
     const durationEl = document.getElementById("song-duration");
     if (durationEl) {

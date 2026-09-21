@@ -10,7 +10,8 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Conexión por QR:** Escanea un código QR en la pantalla principal para abrir la interfaz remota en cualquier teléfono, sin necesidad de instalar una app.
 * **Explorador de Canciones Alfabético:** Navega por la biblioteca de canciones de forma intuitiva, filtrando por artista y luego seleccionando la canción.
 * **Cola de Reproducción Compartida:** Múltiples usuarios pueden ver y añadir canciones a la misma cola de reproducción en tiempo real.
-* **Controles de Reproducción:** Los controles remotos pueden pausar, reanudar y saltar canciones.
+* **Controles de Reproducción con estado real:** los controles remotos pueden pausar, reanudar y saltar canciones. El botón de play/pausa muestra siempre lo que hará según el estado **real** del video (lo informa el host, y quien entra a la sala tarde lo ve enseguida), aparece una etiqueta "En pausa" en el mini-reproductor y un aviso sobre el video en la pantalla principal. Sin canción en la cola o con el host desconectado, los botones quedan deshabilitados.
+* **Saltar pide confirmación:** saltar afecta a todos, así que antes se pregunta qué canción es y de quién. Se pide saltar *esa* canción: si mientras se decidía ya cambió (terminó, la saltó otra persona), no se salta la siguiente por error, y una confirmación abierta se cierra sola.
 * **Modo TV en la pantalla principal:** letra y tarjetas que crecen con la pantalla, "quién canta" en grande y de color, pantalla completa (botón, tecla `F` o doble clic) y una pantalla de espera con el código QR enorme cuando la cola está vacía. Mantiene la pantalla encendida durante la sesión (ver "Modo TV").
 * **Remoto pensado para el celular:** una barra fija arriba con lo que suena, su avance y los botones de play/pausa y saltar, siempre a la vista aunque bajes por una lista larga. Debajo, dos pestañas: **Buscar** (el buscador y el explorador) y **Mi cola** (la cola de todos, tus canciones resaltadas, cuántas tienes y cuántas faltan para tu turno). El aviso de "tu turno" aparece pegado bajo el mini-reproductor.
 * **Salas Virtuales:** Soporte de salas virtuales con colas independientes mediante códigos de 4 letras.
@@ -185,6 +186,7 @@ Detalles a tener en cuenta:
 * Por defecto, solo se permiten cuentas del dominio `@xalcker.xyz` (configurable con la variable de entorno `ALLOWED_DOMAIN`).
 * Las sesiones se almacenan de forma segura en el servidor; en producción, las cookies usan el flag `secure` para HTTPS.
 * **El host de una sala se autentica con un token secreto** (`hostToken`, generado al crear la sala), no con un flag que el cliente pueda falsificar — solo quien creó la sala puede controlar la reproducción o suplantar el nombre en la cola.
+* **Solo el host manda `playNext`, `timeUpdate` y `playbackState`** (el servidor los ignora de un control remoto), y las órdenes de reproducción de los remotos (`play`, `pause`, `skip`) se validan y se limpian antes de reenviarse al host. Así la confirmación al saltar no se puede esquivar mandando el mensaje a mano, ni un remoto puede falsear el tiempo o el estado que ven los demás.
 * **El WebSocket valida el header `Origin`** en el handshake, rechazando conexiones cross-site que intenten aprovechar la cookie de sesión del navegador.
 * **Headers de seguridad HTTP** vía `helmet` (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, etc.).
 * **Rate limiting** en los endpoints más sensibles: creación de salas (10/min), búsqueda en YouTube (20/min) y descarga de YouTube (5/min, máximo 3 descargas simultáneas).
@@ -225,6 +227,7 @@ XaraokeURL/
 │   ├── downloadsStore.js         # Registro de las descargas de YouTube en downloads.db
 │   ├── network.js                # Detección de las IPs de la red local (testeable)
 │   ├── roomId.js                 # Generación de códigos de sala (testeable)
+│   ├── wsPolicy.js               # Qué mensajes del WebSocket acepta el servidor y de quién (testeable)
 │   ├── sessionStore.js           # Endurece las sesiones en archivo ante bloqueos transitorios en Windows (EPERM)
 │   └── ytdlp.js                  # Wrapper seguro sobre el binario yt-dlp
 ├── test/                         # Pruebas unitarias (node --test)

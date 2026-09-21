@@ -47,10 +47,12 @@
                 <div id="now-playing-info">
                     <div id="current-song-title" data-i18n="remote.loading">Cargando...</div>
                     <div id="current-song-time"></div>
+                    <div id="paused-tag" class="hidden" data-i18n="remote.pausedTag">En pausa</div>
                 </div>
                 <div id="controls">
-                    <button id="playPauseBtn" class="control-btn" type="button" aria-label="Reproducir o pausar" title="Reproducir o pausar" data-i18n-aria-label="remote.playPauseLabel" data-i18n-title="remote.playPauseLabel">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5v14l9-7z"/><path d="M14 5h3v14h-3zM19 5h3v14h-3z"/></svg>
+                    <button id="playPauseBtn" class="control-btn" type="button" data-state="playing" aria-label="Pausar" title="Pausar" data-i18n-aria-label="remote.pause" data-i18n-title="remote.pause">
+                        <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 4.5v15l12.5-7.5z"/></svg>
+                        <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg>
                     </button>
                     <button id="skipBtn" class="control-btn" type="button" aria-label="Saltar canción" title="Saltar canción" data-i18n-aria-label="remote.skip" data-i18n-title="remote.skip">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5v14l10-7z"/><path d="M17 5h2.5v14H17z"/></svg>

@@ -8,6 +8,7 @@ module.exports = [
       "server.js",
       "import_csv.js",
       "lib/**/*.js",
+      "src/**/*.js",
       "test/**/*.js",
       "test-helpers/**/*.js",
       "eslint.config.js",

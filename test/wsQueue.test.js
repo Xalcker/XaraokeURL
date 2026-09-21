@@ -478,3 +478,154 @@ test("sin topes configurados la cola puede crecer (para quien lo prefiera así)"
   const { payload } = await ana.waitFor("queueUpdate", (p) => p.length === 12, { timeoutMs: 8000 });
   assert.equal(payload.length, 12);
 });
+
+// El estado de pausa y el ciclo de calificar: hasta ahora solo estaban cubiertos por
+// comprobaciones sobre el código fuente, que un refactor rompe sin que cambie el comportamiento
+// (pasó justo al partir server.js en #36). Aquí se ejercitan de verdad.
+test("estado de reproducción y calificaciones", async (t) => {
+  const server = await startServer({ songs: CANCIONES });
+  t.after(() => server.stop());
+
+  await t.test("quien entra tarde se entera de que el video está en pausa", async (t) => {
+    const { roomId, host, ana } = await abrirSala(server, t);
+    host.send({ type: "playbackState", payload: { paused: true } });
+    await ana.waitFor("playbackState", (p) => p.paused === true);
+
+    // Un remoto que llega después lo recibe al conectarse, sin que el host repita nada.
+    const tarde = await remotoLlamado(server, roomId, "Caro");
+    t.after(() => tarde.close());
+    const estado = await tarde.waitFor("playbackState");
+    assert.equal(estado.payload.paused, true, "debe recordarse para quien entre después");
+  });
+
+  await t.test("al reanudar, el estado deja de estar en pausa", async (t) => {
+    const { roomId, host, ana } = await abrirSala(server, t);
+    host.send({ type: "playbackState", payload: { paused: true } });
+    await ana.waitFor("playbackState", (p) => p.paused === true);
+    host.send({ type: "playbackState", payload: { paused: false } });
+    await ana.waitFor("playbackState", (p) => p.paused === false);
+
+    const tarde = await remotoLlamado(server, roomId, "Caro");
+    t.after(() => tarde.close());
+    await tarde.waitFor("playbackState", (p) => p.paused === false);
+  });
+
+  await t.test("cuando la canción termina sola, se le pide calificar a quien la cantó", async (t) => {
+    const { host, ana, beto } = await abrirSala(server, t);
+    ana.send({ type: "addSong", payload: { song: A } });
+    const { payload: cola } = await host.waitFor("queueUpdate", (p) => p.length === 1);
+    const cancion = cola[0];
+
+    ana.clear();
+    beto.clear();
+    host.send({ type: "playNext", payload: { ended: true, id: cancion.id } });
+
+    const peticion = await ana.waitFor("ratingRequest");
+    assert.equal(peticion.payload.id, cancion.id);
+    assert.equal(peticion.payload.song, A);
+    assert.equal(peticion.payload.songKey, undefined, "no debe filtrar datos internos");
+    // Ni a quien no la cantó, ni al host: su pantalla no califica.
+    await assertNoMessage(beto, "ratingRequest");
+    await assertNoMessage(host, "ratingRequest");
+
+    ana.send({ type: "rateSong", payload: { id: cancion.id, value: 1 } });
+    const resuelta = await ana.waitFor("ratingResolved");
+    assert.equal(resuelta.payload.id, cancion.id);
+  });
+
+  await t.test("saltar una canción no pide calificarla: solo terminar sola", async (t) => {
+    const { host, ana } = await abrirSala(server, t);
+    ana.send({ type: "addSong", payload: { song: B } });
+    await host.waitFor("queueUpdate", (p) => p.length === 1);
+
+    ana.clear();
+    host.send({ type: "playNext", payload: {} }); // sin `ended`: se saltó
+    await ana.waitFor("queueUpdate", (p) => p.length === 0);
+    await assertNoMessage(ana, "ratingRequest");
+  });
+
+  await t.test("la calificación queda guardada y sale en /api/ratings", async (t) => {
+    const { host, ana } = await abrirSala(server, t);
+    ana.send({ type: "addSong", payload: { song: C } });
+    const { payload: cola } = await host.waitFor("queueUpdate", (p) => p.length === 1);
+
+    host.send({ type: "playNext", payload: { ended: true, id: cola[0].id } });
+    await ana.waitFor("ratingRequest");
+    ana.send({ type: "rateSong", payload: { id: cola[0].id, value: 1 } });
+    await ana.waitFor("ratingResolved");
+
+    const totales = await fetch(`${server.baseUrl}/api/ratings`).then((r) => r.json());
+    assert.deepEqual(totales[C], { up: 1, down: 0 }, `no quedó registrada: ${JSON.stringify(totales)}`);
+  });
+
+  await t.test('con "ahora no" se descarta sin guardar nada', async (t) => {
+    const { host, ana } = await abrirSala(server, t);
+    ana.send({ type: "addSong", payload: { song: B } });
+    const { payload: cola } = await host.waitFor("queueUpdate", (p) => p.length === 1);
+
+    host.send({ type: "playNext", payload: { ended: true, id: cola[0].id } });
+    await ana.waitFor("ratingRequest");
+    ana.send({ type: "rateSong", payload: { id: cola[0].id, value: 0 } });
+    await ana.waitFor("ratingResolved");
+
+    const totales = await fetch(`${server.baseUrl}/api/ratings`).then((r) => r.json());
+    assert.equal(totales[B], undefined, "con 0 no se debe guardar nada");
+  });
+
+  await t.test("otra persona no puede calificar una canción que no cantó", async (t) => {
+    const { roomId, host, ana, beto } = await abrirSala(server, t);
+    ana.send({ type: "addSong", payload: { song: A } });
+    const { payload: cola } = await host.waitFor("queueUpdate", (p) => p.length === 1);
+
+    host.send({ type: "playNext", payload: { ended: true, id: cola[0].id } });
+    await ana.waitFor("ratingRequest");
+
+    // Beto intenta responder por Ana. El getQueue hace de barrera: cuando llega su respuesta,
+    // el servidor ya procesó el rateSong, así que si no pasó nada es que lo descartó.
+    ana.clear();
+    beto.send({ type: "rateSong", payload: { id: cola[0].id, value: -1 } });
+    beto.send({ type: "getQueue" });
+    await beto.waitFor("queueUpdate");
+    await assertNoMessage(ana, "ratingResolved");
+
+    // La petición de Ana sigue pendiente: al reconectar se le vuelve a pedir.
+    await ana.close();
+    const vuelve = await remotoLlamado(server, roomId, "Ana");
+    t.after(() => vuelve.close());
+    const repetida = await vuelve.waitFor("ratingRequest");
+    assert.equal(repetida.payload.id, cola[0].id, "se reenvía al reconectar");
+
+    // Y el pulgar abajo de Beto no entró. Se mira `down` y no la ausencia de la canción porque
+    // los subtests de este bloque comparten servidor, y por tanto la misma base de
+    // calificaciones: un subtest anterior ya dejó un pulgar arriba sobre esta canción.
+    const totales = await fetch(`${server.baseUrl}/api/ratings`).then((r) => r.json());
+    assert.equal(totales[A]?.down ?? 0, 0, "Beto no debe haber podido calificarla");
+  });
+});
+
+// El tiempo de gracia de quien canta, con el reloj de verdad: se levanta un servidor con una
+// gracia de un segundo para poder ver cómo vence sin que la prueba tarde una eternidad.
+test("el tiempo de gracia de quien canta vence de verdad", async (t) => {
+  const server = await startServer({ songs: CANCIONES, env: { SINGER_GRACE_SECONDS: "1" } });
+  t.after(() => server.stop());
+
+  const { roomId, ana, beto } = await abrirSala(server, t);
+  ana.send({ type: "addSong", payload: { song: A } });
+  await beto.waitFor("controlAccess", (p) => p.allowed === false);
+
+  // Ana se va. El servidor recalcula y avisa, pero durante la gracia Ana sigue contando como
+  // presente, así que ese aviso debe seguir diciendo que Beto NO puede.
+  beto.clear();
+  await ana.close();
+  const durante = await beto.waitFor("controlAccess");
+  assert.equal(durante.payload.allowed, false, "en plena gracia, la canción de Ana sigue siendo suya");
+
+  // Al vencer, el servidor avisa solo: pasar el tiempo no dispara ningún otro evento, y sin
+  // ese aviso los botones de los demás seguirían deshabilitados aunque ya se pudiera.
+  await beto.waitFor("controlAccess", (p) => p.allowed === true, { timeoutMs: 5000 });
+
+  // Y si Ana vuelve, deja de contar como ausente y Beto pierde el control otra vez.
+  const vuelve = await remotoLlamado(server, roomId, "Ana");
+  t.after(() => vuelve.close());
+  await beto.waitFor("controlAccess", (p) => p.allowed === false);
+});

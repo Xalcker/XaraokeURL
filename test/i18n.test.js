@@ -1,4 +1,5 @@
 const test = require("node:test");
+
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -14,6 +15,20 @@ const { normalizeSearchSuffix } = require("../lib/ytdlp");
 
 const ROOT = path.join(__dirname, "..");
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
+
+// Todos los .js del servidor bajo src/, recursivo: server.js se partió en módulos (#36) y las
+// claves de traducción viven ahora repartidas entre ellos.
+function fuentesDelServidor(dir = "src") {
+  const base = path.join(__dirname, "..", dir);
+  if (!fs.existsSync(base)) return [];
+  return fs.readdirSync(base, { withFileTypes: true }).flatMap((entrada) =>
+    entrada.isDirectory()
+      ? fuentesDelServidor(path.join(dir, entrada.name))
+      : entrada.name.endsWith(".js")
+        ? [path.join(dir, entrada.name)]
+        : []
+  );
+}
 const es = MESSAGES.es;
 const placeholders = (text) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
@@ -152,15 +167,27 @@ function keysUsedInCode(source) {
 }
 
 test("toda clave que pide el código existe en el diccionario", () => {
-  const files = ["server.js", "public/remote.js", "public/karaoke.js", "public/js/tour.js"];
+  // El servidor está repartido en src/ (ver #36), así que se recorre entero en vez de mirar
+  // solo server.js: si no, una clave nueva en un módulo se colaría sin traducción.
+  const files = [
+    "server.js",
+    ...fuentesDelServidor(),
+    "public/remote.js",
+    "public/karaoke.js",
+    "public/js/tour.js",
+  ];
+  let total = 0;
   for (const file of files) {
     const keys = keysUsedInCode(read(file));
-    assert.ok(keys.size > 0, `${file}: no se encontró ninguna clave (¿cambió el patrón de la prueba?)`);
+    total += keys.size;
     for (const key of keys) {
       const exists = key in es || `${key}.other` in es;
       assert.ok(exists, `${file} pide la clave "${key}", que no existe en public/js/i18n.js`);
     }
   }
+  // Se cuenta en total y no por archivo: tras partir el servidor (#36) hay módulos que no piden
+  // ninguna clave, pero si el patrón de la prueba dejara de encontrar nada, hay que enterarse.
+  assert.ok(total > 20, `solo se encontraron ${total} claves en el código: ¿cambió el patrón?`);
 });
 
 test("todo data-i18n* del HTML apunta a una clave existente, y el texto en español coincide", () => {
@@ -205,8 +232,8 @@ test("los scripts no escriben textos de interfaz a mano: van en el diccionario",
   }
 });
 
-test("las respuestas de error de server.js pasan por tr(), no llevan texto fijo", () => {
-  const server = read("server.js");
+test("las respuestas de error del servidor pasan por tr(), no llevan texto fijo", () => {
+  const server = ["server.js", ...fuentesDelServidor()].map((f) => read(f)).join("\n");
   const fixed = /\berror:\s*["'`]/;
   server.split("\n").forEach((line, i) => {
     assert.doesNotMatch(line, fixed, `server.js:${i + 1} responde con un texto fijo: usa tr(req, "clave")`);

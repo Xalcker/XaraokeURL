@@ -263,13 +263,21 @@ XaraokeURL/
 │   ├── wsPolicy.js               # Qué mensajes del WebSocket acepta el servidor y de quién (testeable)
 │   ├── sessionStore.js           # Endurece las sesiones en archivo ante bloqueos transitorios en Windows (EPERM)
 │   └── ytdlp.js                  # Wrapper seguro sobre el binario yt-dlp
+├── src/                          # El servidor, por piezas (lo junta server.js)
+│   ├── config.js                 # Toda la configuración que sale de .env, ya validada
+│   ├── auth.js                   # Sesiones, Google OAuth y las pantallas de acceso
+│   ├── rooms.js                  # Registro de salas en memoria y su ciclo de vida
+│   ├── downloads.js              # Registro de descargas y orquestación de yt-dlp
+│   ├── realtime.js               # El WebSocket: conexión, despacho y difusión a la sala
+│   └── routes/
+│       └── api.js                # Los endpoints HTTP
 ├── test/                         # Pruebas unitarias y de integración (node --test)
 ├── test-helpers/                 # Levanta el servidor de verdad para las de integración
 │   ├── testServer.js             # Arranca server.js en un puerto libre con datos temporales
 │   └── wsClient.js               # Cliente de WebSocket que sabe esperar a un mensaje
 ├── .github/workflows/ci.yml      # CI: lint + test en cada push/PR
 ├── eslint.config.js              # Configuración de ESLint
-├── server.js                     # Servidor principal con WebSockets y OAuth
+├── server.js                     # Arranque: crea las piezas de src/, las conecta y escucha
 ├── import_csv.js                 # Script para importar canciones desde CSV
 ├── package.json                  # Dependencias del proyecto
 ├── .env.example                  # Plantilla de variables de entorno
@@ -290,7 +298,13 @@ Dos tipos, ambas con `npm test`:
 
 Los ayudantes viven en `test-helpers/` y no en `test/` a propósito: `node --test` trata como archivo de prueba a todo `.js` que cuelgue de `test/`.
 
-Quedan algunas comprobaciones sobre el **código fuente** (leen un archivo y le pasan una expresión regular) en `queueAndRating`, `roomGrace` y compañía. Son frágiles —un refactor correcto las rompe— y se irán reemplazando por pruebas de integración a medida que se vayan tocando esas partes.
+Quedan unas pocas comprobaciones sobre el **código fuente** (leen el servidor y le pasan una expresión regular), solo para las reglas que no se pueden observar desde fuera sin `yt-dlp` o sin una cuenta de Google de verdad. Leen el servidor entero a través de `test-helpers/serverSources.js`, así que mover código de un módulo a otro ya no las rompe.
+
+### Cómo está organizado el servidor
+
+`server.js` solo arranca: lee la configuración, crea las piezas de `src/`, las conecta y escucha. No tiene reglas de negocio.
+
+Cada pieza **recibe lo que necesita** en vez de buscarlo, así que no hay `require` circulares y se pueden probar por separado. El caso más claro: las descargas avisan de sus cambios con un callback (`onChange`) en vez de llamar al WebSocket, y es el arranque quien conecta los dos cables.
 
 ### Idiomas
 

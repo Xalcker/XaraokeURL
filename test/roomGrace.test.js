@@ -17,7 +17,9 @@ const { MESSAGES } = require("../public/js/i18n");
 const MIN = 60 * 1000;
 const ROOT = path.join(__dirname, "..");
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
-const serverJs = read("server.js");
+const { serverSource } = require("../test-helpers/serverSources");
+// Todo el servidor junto: server.js + src/ (ver #36 y test-helpers/serverSources.js).
+const serverJs = serverSource();
 const hostJs = read("public", "karaoke.js");
 const remoteJs = read("public", "remote.js");
 const indexHtml = read("public", "index.html");
@@ -66,32 +68,6 @@ test("una sala con alguien conectado nunca vence, por vieja que sea", () => {
   assert.equal(isRoomExpired({ emptySince: null }, Number.MAX_SAFE_INTEGER, 1), false);
 });
 
-test("el servidor empieza la cuenta al quedarse vacía y la cancela cuando alguien se conecta", () => {
-  assert.match(serverJs, /emptySince: Date\.now\(\)/, "una sala recién creada empieza vacía");
-  assert.match(serverJs, /room\.clients\.add\(ws\);\s*room\.emptySince = null;/, "conectarse la salva");
-  assert.match(serverJs, /room\.emptySince = Date\.now\(\);/, "al irse el último empieza la gracia");
-  assert.match(serverJs, /isRoomExpired\(room, now, ROOM_GRACE_MS\)/, "el barrido usa la política");
-});
-
-test("al irse el último cliente la sala ya no se borra al momento, salvo con ROOM_GRACE_MINUTES=0", () => {
-  const closeHandler = serverJs.slice(serverJs.indexOf('ws.on("close"'));
-  assert.match(closeHandler, /if \(ROOM_GRACE_MS === 0\) \{\s*delete rooms\[roomId\];/);
-  assert.match(closeHandler, /else \{\s*room\.emptySince = Date\.now\(\);/);
-});
-
-test("el servidor deja recuperar la sala solo con el token del host", () => {
-  const start = serverJs.indexOf('app.post("/api/rooms/:roomId/resume"');
-  assert.ok(start >= 0, "falta el endpoint para recuperar la sala");
-  const handler = serverJs.slice(start, serverJs.indexOf("});", start));
-  assert.match(handler, /hostToken !== room\.hostToken/);
-  assert.match(handler, /status\(404\)/);
-});
-
-test("si se recupera la sala, el host anterior se desconecta con 4006 y la sala avisa que volvió", () => {
-  assert.match(serverJs, /previousHost\.close\(4006, "Host replaced"\)/);
-  assert.match(serverJs, /type: "hostStatus", payload: \{ connected: true \}/);
-});
-
 test("el host guarda la sala en el navegador y ofrece recuperarla al abrir la página", () => {
   assert.match(hostJs, /localStorage\.setItem\(SAVED_ROOM_KEY/);
   assert.match(hostJs, /\/api\/rooms\/\$\{encodeURIComponent\(saved\.roomId\)\}\/resume/);
@@ -119,12 +95,15 @@ test("el servidor avisa a los remotos de todas las salas, no al host, cuando cam
   const start = serverJs.indexOf("function notifyDownloadsChanged()");
   assert.ok(start >= 0);
   const body = serverJs.slice(start, serverJs.indexOf("\n}\n", start));
-  assert.match(body, /for \(const room of Object\.values\(rooms\)\)/);
+  assert.match(body, /salas\.all\(\)/, "debe recorrer todas las salas, no solo una");
   assert.match(body, /!client\.isHost/);
   assert.match(body, /type: "downloadsChanged"/);
   // Toda alta o baja del índice de descargas debe avisar. El índice es un Map (ver #30).
-  assert.match(serverJs, /downloadedVideos\.set\(filename, entry\);\s*notifyDownloadsChanged\(\);/);
-  assert.match(serverJs, /downloadedVideos\.delete\(filename\);\s*notifyDownloadsChanged\(\);/);
+  // El índice de descargas vive en src/downloads.js y avisa con el callback onChange, que el
+  // arranque conecta con notifyDownloadsChanged (así no hay require circular).
+  assert.match(serverJs, /entries\.set\(filename, entry\);\s*onChange\(\);/, "un alta debe avisar");
+  assert.match(serverJs, /entries\.delete\(filename\);\s*onChange\(\);/, "una baja debe avisar");
+  assert.match(serverJs, /onChange: \(\) => avisarCambioDescargas\(\)/, "el aviso se conecta al arrancar");
 });
 
 test("el remoto actualiza la lista de descargas al recibir el aviso, sin tocar otras pantallas", () => {

@@ -6,7 +6,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const ROOT = path.join(__dirname, "..");
-const serverJs = fs.readFileSync(path.join(ROOT, "server.js"), "utf8");
+const { serverSource } = require("../test-helpers/serverSources");
+// Todo el servidor junto: server.js + src/ (ver #36 y test-helpers/serverSources.js).
+const serverJs = serverSource();
 const remoteJs = fs.readFileSync(path.join(ROOT, "public", "remote.js"), "utf8");
 const hostJs = fs.readFileSync(path.join(ROOT, "public", "karaoke.js"), "utf8");
 
@@ -22,14 +24,6 @@ function bodyFrom(source, marker) {
   }
   throw new Error(`llaves sin cerrar en ${marker}`);
 }
-
-test("el QR contiene el enlace con la sala validada, y la dirección corta sigue sin ella", () => {
-  const handler = bodyFrom(serverJs, 'app.get("/api/qr"');
-  assert.match(handler, /const roomId = normalizeRoomId\(req\.query\.sala\)/);
-  assert.match(handler, /const joinUrl = roomId \? `\$\{remoteUrl\}\?sala=\$\{roomId\}` : remoteUrl/);
-  assert.match(handler, /QRCode\.toDataURL\(joinUrl,/);
-  assert.match(handler, /res\.send\(\{ qrUrl: url, remoteUrl, joinUrl \}\)/);
-});
 
 test("la pantalla principal pide el QR de su sala", () => {
   assert.match(hostJs, /fetch\(`\/api\/qr\?sala=\$\{roomId\}`\)/);

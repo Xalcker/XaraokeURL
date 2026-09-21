@@ -14,7 +14,9 @@ const remoteHtml = read("public", "remote.html");
 const remoteJs = read("public", "remote.js");
 const remoteCss = read("public", "css", "remote.css");
 const hostJs = read("public", "karaoke.js");
-const serverJs = read("server.js");
+const { serverSource } = require("../test-helpers/serverSources");
+// Todo el servidor junto: server.js + src/ (ver #36 y test-helpers/serverSources.js).
+const serverJs = serverSource();
 
 // Cuerpo de una función `function nombre(...) { ... }` o de un `case "x": { ... }`.
 function bodyFrom(source, marker) {
@@ -39,17 +41,6 @@ test("existen los íconos de subir, bajar y pulgares", () => {
 
 // ---------- reordenar
 
-test("el servidor mueve solo las canciones de quien lo pide, con el nombre de su conexión (no el del mensaje)", () => {
-  const move = bodyFrom(serverJs, 'case "moveSong"');
-  assert.match(move, /moveOwnSong\(currentRoom\.songQueue, move\.id, ws\.userName, move\.direction\)/);
-  assert.match(move, /!ws\.userName\) return/, "sin identidad no se mueve nada");
-  assert.doesNotMatch(move, /payload\.name/, "el nombre nunca debe salir del cliente");
-});
-
-test("el servidor fija el nombre de cada conexión al conectarse, según su sesión", () => {
-  assert.match(serverJs, /ws\.userName = isAuthenticated\s*\?\s*AUTH_DISABLED\s*\?\s*req\.session\?\.devName \|\| devUserName\(req\)\s*:\s*req\.session\.passport\.user\.displayName\s*:\s*null;/);
-});
-
 test("los botones de mover solo aparecen si tienes más de una canción en espera, y se deshabilitan en los extremos", () => {
   const render = bodyFrom(remoteJs, "function renderQueue(queue)");
   assert.match(render, /const waiting = queue\.slice\(1\)/, "la que suena (la primera) no se puede mover");
@@ -67,31 +58,12 @@ test("los botones de solo ícono de mover tienen nombre accesible y avisan si no
 
 // ---------- calificar
 
-test("solo se pide calificar cuando la canción terminó sola y era la que el host tenía cargada", () => {
-  const playNext = bodyFrom(serverJs, 'case "playNext"');
-  assert.match(playNext, /sanitizePlayNext\(data\.payload\)/);
-  assert.match(playNext, /if \(finished && ended && id === finished\.id\) requestRating\(ws\.roomId, finished\)/);
-});
-
 test("el host avisa que terminó una canción por sí sola; saltar no lo hace", () => {
   assert.match(hostJs, /player\.addEventListener\("ended", \(\) => send\(\{ type: "playNext", payload: \{ ended: true, id: currentSongId \} \}\)\)/);
   const handler = bodyFrom(hostJs, "function handleControlAction(payload)");
   const skip = handler.slice(handler.indexOf('case "skip":'));
   assert.match(skip, /send\(\{ type: "playNext" \}\)/);
   assert.doesNotMatch(skip, /ended/);
-});
-
-test("solo quien cantó la canción puede calificarla, con el nombre de su conexión", () => {
-  const rating = bodyFrom(serverJs, "async function handleRating(");
-  assert.match(rating, /!ws\.userName\) return/);
-  assert.match(rating, /p\.id === rating\.id && p\.name === ws\.userName/);
-  assert.match(rating, /rater: pending\.name/, "la calificación se guarda a nombre de quien cantó, no de un dato del mensaje");
-  assert.match(rating, /songKey: pending\.songKey/, "la clave la decide el servidor, no el cliente");
-});
-
-test("la petición de calificar le llega solo a los remotos de quien cantó (nunca al host) y se reenvía al reconectar", () => {
-  assert.match(bodyFrom(serverJs, "function sendToUser("), /!client\.isHost && client\.userName === name/);
-  assert.match(serverJs, /if \(ws\.userName && !isHost\) \{\s*room\.pendingRatings\s*\.filter\(\(pending\) => pending\.name === ws\.userName\)/);
 });
 
 test("la canción se identifica por el video de YouTube, no por el archivo (que se borra con el tiempo)", () => {
@@ -104,7 +76,11 @@ test("si la base de calificaciones no abre, el servidor arranca y no pide califi
   const init = bodyFrom(serverJs, "async function initRatings(");
   assert.match(init, /catch \(err\)/);
   assert.doesNotMatch(init, /process\.exit|throw/);
-  assert.match(serverJs, /if \(!room \|\| !ratingsStore \|\| !item\.name\) return;/);
+  assert.match(
+    serverJs,
+    /if \(!room \|\| !ratings\(\) \|\| !item\.name\) return;/,
+    "sin base de calificaciones no se debe pedir calificar"
+  );
 });
 
 test("la tarjeta de calificar empieza oculta, tiene pulgar arriba y abajo con texto, y una salida", () => {

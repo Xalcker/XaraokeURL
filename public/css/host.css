@@ -132,8 +132,10 @@ a:focus-visible {
 
 .sidebar-left,
 .sidebar-right {
-    /* Ancho proporcional a la pantalla, sin bajar de lo que necesitan los textos. */
-    flex: 0 0 clamp(220px, 14vw, 440px);
+    /* Ancho proporcional a la pantalla, sin bajar de lo que necesitan los textos. El mínimo se
+       mantiene bajo porque algunos hosts (p. ej. el Silk Browser de un Fire TV Stick) reportan un
+       viewport angosto, y ahí las barras no deben comerse el video. */
+    flex: 0 0 clamp(160px, 14vw, 440px);
     min-width: 0;
     display: flex;
     flex-direction: column;

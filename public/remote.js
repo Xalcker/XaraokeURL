@@ -6,6 +6,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const devNameField = document.getElementById("dev-name-field");
     const devNameInput = document.getElementById("devNameInput");
     const roomError = document.getElementById("room-error");
+    const scanQrBtn = document.getElementById("scanQrBtn");
+    const qrScanModal = document.getElementById("qr-scan-modal");
+    const qrScanVideo = document.getElementById("qr-scan-video");
+    const qrScanError = document.getElementById("qr-scan-error");
+    const qrScanCancel = document.getElementById("qr-scan-cancel");
     const mainContent = document.getElementById("main-content");
     const userNameDisplay = document.getElementById("userNameDisplay");
     const songQueueContainer = document.getElementById("songQueue");
@@ -223,6 +228,81 @@ document.addEventListener("DOMContentLoaded", () => {
             joinRoomBtn.disabled = false;
             joinRoomBtn.textContent = t("remote.join.button");
         }
+    });
+
+    // Escanear el QR de la pantalla principal para completar el código de sala sin
+    // escribirlo a mano. El QR codifica la URL del remoto con ?sala=XXXX (igual que
+    // joinFromLink); si el texto leído es directamente un código de 4 letras, también.
+    const qrScanCanvas = document.createElement("canvas");
+    const qrScanCtx = qrScanCanvas.getContext("2d", { willReadFrequently: true });
+    let qrScanStream = null;
+    let qrScanRafId = null;
+
+    function parseRoomCodeFromScan(text) {
+        const trimmed = String(text || "").trim().toUpperCase();
+        if (/^[A-Z]{4}$/.test(trimmed)) return trimmed;
+        try {
+            const sala = new URL(text, window.location.href).searchParams.get("sala");
+            if (sala && /^[A-Z]{4}$/.test(sala.toUpperCase())) return sala.toUpperCase();
+        } catch {
+            // No es una URL válida: no hay código que extraer.
+        }
+        return null;
+    }
+
+    function stopQrScan() {
+        if (qrScanRafId !== null) cancelAnimationFrame(qrScanRafId);
+        qrScanRafId = null;
+        if (qrScanStream) qrScanStream.getTracks().forEach((track) => track.stop());
+        qrScanStream = null;
+        qrScanVideo.srcObject = null;
+        qrScanModal.classList.add("hidden");
+    }
+
+    function scanFrame() {
+        if (qrScanVideo.readyState === qrScanVideo.HAVE_ENOUGH_DATA) {
+            qrScanCanvas.width = qrScanVideo.videoWidth;
+            qrScanCanvas.height = qrScanVideo.videoHeight;
+            qrScanCtx.drawImage(qrScanVideo, 0, 0, qrScanCanvas.width, qrScanCanvas.height);
+            const frame = qrScanCtx.getImageData(0, 0, qrScanCanvas.width, qrScanCanvas.height);
+            const code = jsQR(frame.data, frame.width, frame.height);
+            if (code) {
+                const roomCode = parseRoomCodeFromScan(code.data);
+                if (roomCode) {
+                    stopQrScan();
+                    roomCodeInput.value = roomCode;
+                    roomForm.requestSubmit();
+                    return;
+                }
+                qrScanError.textContent = t("remote.scan.notFound");
+                qrScanError.classList.remove("hidden");
+            }
+        }
+        qrScanRafId = requestAnimationFrame(scanFrame);
+    }
+
+    async function startQrScan() {
+        if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
+            roomError.textContent = t("remote.scan.unavailable");
+            return;
+        }
+        roomError.textContent = "";
+        qrScanError.classList.add("hidden");
+        qrScanModal.classList.remove("hidden");
+        try {
+            qrScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            qrScanVideo.srcObject = qrScanStream;
+            qrScanRafId = requestAnimationFrame(scanFrame);
+        } catch {
+            qrScanError.textContent = t("remote.scan.permissionDenied");
+            qrScanError.classList.remove("hidden");
+        }
+    }
+
+    scanQrBtn.addEventListener("click", startQrScan);
+    qrScanCancel.addEventListener("click", stopQrScan);
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden && !qrScanModal.classList.contains("hidden")) stopQrScan();
     });
 
     // Muestra u oculta el aviso de conexión. Sin clave, se oculta.

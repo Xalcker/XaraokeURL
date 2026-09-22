@@ -1,0 +1,17 @@
+{
+  "name": "XaraokeURL Remoto",
+  "short_name": "Xaraoke Remoto",
+  "description": "Control remoto para agregar canciones a la cola de XaraokeURL.",
+  "lang": "es",
+  "start_url": "/remote.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#171124",
+  "theme_color": "#171124",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

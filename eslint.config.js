@@ -44,10 +44,13 @@ module.exports = [
         // Definidas por public/js/reconnect.js: qué hacer al cerrarse el WebSocket.
         reconnectPolicy: "readonly",
         nextRetryDelay: "readonly",
+        // Definida por public/js/jsQR.js (librería de terceros vendorizada).
+        jsQR: "readonly",
       },
     },
   },
   {
-    ignores: ["node_modules/", "public/notification.mp3"],
+    // jsQR.js es una librería de terceros vendorizada tal cual (ver public/js/jsQR.LICENSE).
+    ignores: ["node_modules/", "public/notification.mp3", "public/js/jsQR.js"],
   },
 ];

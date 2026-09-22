@@ -39,6 +39,11 @@
       "remote.join.nameSaveFailed": "No se pudo guardar el nombre.",
       "remote.join.roomMissing": 'La sala "{code}" no existe.',
       "remote.join.verifyFailed": "Error al verificar la sala.",
+      "remote.join.scan": "Escanear código QR",
+      "remote.scan.hint": "Apuntá la cámara al código QR de la pantalla principal.",
+      "remote.scan.notFound": "No se reconoció un código de sala en ese QR. Probá de nuevo.",
+      "remote.scan.unavailable": "El escaneo por cámara no está disponible en este navegador o conexión (hace falta HTTPS).",
+      "remote.scan.permissionDenied": "No se pudo acceder a la cámara. Revisá los permisos.",
 
       // ----- Control remoto: pantalla principal
       "remote.header": "Control Remoto",
@@ -222,6 +227,11 @@
       "remote.join.nameSaveFailed": "Couldn't save the name.",
       "remote.join.roomMissing": 'Room "{code}" doesn\'t exist.',
       "remote.join.verifyFailed": "Couldn't check the room.",
+      "remote.join.scan": "Scan QR code",
+      "remote.scan.hint": "Point the camera at the main screen's QR code.",
+      "remote.scan.notFound": "Couldn't recognize a room code in that QR. Try again.",
+      "remote.scan.unavailable": "Camera scanning isn't available in this browser or connection (HTTPS is required).",
+      "remote.scan.permissionDenied": "Couldn't access the camera. Check your permissions.",
 
       "remote.header": "Remote Control",
       "remote.room": "ROOM: {code}",

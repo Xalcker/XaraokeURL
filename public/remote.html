@@ -8,10 +8,11 @@
     <link rel="icon" href="img/logo.svg" type="image/svg+xml" sizes="any">
     <link rel="icon" href="img/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
-    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="manifest" href="remote-manifest.webmanifest">
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/icons.css">
     <link rel="stylesheet" href="css/remote.css">
+    <script src="js/registerRemoteSW.js"></script>
 </head>
 <body>
     <div id="room-modal">
@@ -24,10 +25,24 @@
                     <label for="devNameInput" data-i18n="remote.join.nameLabel">Tu nombre</label>
                     <input type="text" id="devNameInput" maxlength="30" placeholder="Tu nombre" data-i18n-placeholder="remote.join.nameLabel" autocomplete="nickname">
                 </div>
-                <input type="text" id="roomCodeInput" maxlength="4" placeholder="ABCD" required>
+                <div id="room-code-row">
+                    <input type="text" id="roomCodeInput" maxlength="4" placeholder="ABCD" required>
+                    <button type="button" id="scanQrBtn" aria-label="Escanear código QR" title="Escanear código QR" data-i18n-aria-label="remote.join.scan" data-i18n-title="remote.join.scan">
+                        <span data-icon="camera"></span>
+                    </button>
+                </div>
                 <button type="submit" id="joinRoomBtn" data-i18n="remote.join.button">Unirse</button>
             </form>
             <p id="room-error"></p>
+        </div>
+    </div>
+
+    <div id="qr-scan-modal" class="hidden">
+        <div id="qr-scan-modal-content">
+            <p data-i18n="remote.scan.hint">Apuntá la cámara al código QR de la pantalla principal.</p>
+            <video id="qr-scan-video" autoplay playsinline muted></video>
+            <p id="qr-scan-error" class="hidden" role="alert"></p>
+            <button type="button" id="qr-scan-cancel" class="control-btn confirm-btn-cancel" data-i18n="confirm.cancel">Cancelar</button>
         </div>
     </div>
 
@@ -135,6 +150,7 @@
     <script src="js/shared.js"></script>
     <script src="js/reconnect.js"></script>
     <script src="js/tour.js"></script>
+    <script src="js/jsQR.js"></script>
     <script src="remote.js"></script>
 </body>
 </html>

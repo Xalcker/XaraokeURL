@@ -27,6 +27,8 @@ Un reproductor de karaoke interactivo basado en la web, construido con HTML5, No
 * **Notificaciones Confiables:** El control remoto vibra, suena y muestra un aviso visual pulsante para avisar cuando la canción está a punto de empezar (10 segundos antes), incluso en navegadores que bloquean el autoplay de audio.
 * **Multi-idioma (español e inglés):** la interfaz y los mensajes del servidor se muestran en el idioma del navegador de cada persona, con español como predeterminado (ver "Idiomas" más abajo).
 * **Búsqueda y Descarga desde YouTube:** Si una canción no está en la biblioteca, se puede buscar en YouTube (con sufijos como "karaoke", "instrumental" o "pista"), elegir entre varios resultados y agregarla a la cola. Las descargas se registran en su propia base de datos, son buscables y se reutilizan (no se descargan dos veces), y se borran solas pasado el tiempo que configures.
+* **Control remoto instalable (PWA):** `/remote.html` tiene su propio manifiesto y un service worker que cachea sus assets estáticos, así que Android/Chrome lo ofrece como app instalable (ícono en el launcher, se abre en pantalla completa sin la barra del navegador); en iOS/Safari basta con "Agregar a inicio". Solo cachea archivos estáticos (CSS, JS, íconos): la API, el WebSocket y el login siguen yendo directo a la red.
+* **Unirse a una sala escaneando su QR desde el remoto:** además de que el QR de la pantalla principal ya lleva la sala en el enlace (ver "Cómo Usar"), en la pantalla de "Unirse a una Sala" el ícono de cámara junto al código abre la cámara del teléfono y lee cualquier QR de sala (con [jsQR](https://github.com/cozmo/jsQR), vendorizado en `public/js/jsQR.js`), completando el código de 4 letras solo. Útil para unirse a una sala sin volver a escanear con la cámara del sistema, por ejemplo con la app ya instalada. Requiere HTTPS (o `localhost`): la cámara del navegador no funciona por HTTP en la IP de la red local, así que el ícono avisa si no está disponible en vez de fallar en silencio.
 
 ---
 ## 🛠️ Stack Tecnológico
@@ -244,12 +246,17 @@ XaraokeURL/
 │   │   ├── icons.js              # Íconos SVG (iconSvg / data-icon); la interfaz no usa emojis
 │   │   ├── i18n.js               # Textos en español e inglés y detección del idioma (navegador y servidor)
 │   │   ├── tour.js               # Tutorial guiado del control remoto (pasos y colocación de la tarjeta)
-│   │   └── shared.js             # Utilidades compartidas (escapeHtml, parseSongFilename)
+│   │   ├── shared.js             # Utilidades compartidas (escapeHtml, parseSongFilename)
+│   │   ├── registerRemoteSW.js   # Registra el service worker del control remoto (fuera de línea por CSP)
+│   │   ├── jsQR.js               # Librería de terceros vendorizada: lee códigos QR desde la cámara
+│   │   └── jsQR.LICENSE          # Licencia (Apache-2.0) de jsQR
 │   ├── index.html                # Interfaz del host/reproductor
 │   ├── karaoke.js                # Lógica del reproductor principal
 │   ├── manifest.webmanifest      # Manifiesto de la app (nombre, íconos, colores)
 │   ├── remote.html               # Interfaz del control remoto
 │   ├── remote.js                 # Lógica del control remoto
+│   ├── remote-manifest.webmanifest # Manifiesto del control remoto (app instalable aparte)
+│   ├── sw-remote.js              # Service worker del control remoto (cachea sus assets estáticos)
 │   └── notification.mp3          # Sonido de notificación
 ├── lib/
 │   ├── displayName.js            # Validación del nombre elegido en modo desarrollo (testeable)

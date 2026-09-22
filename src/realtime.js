@@ -21,6 +21,8 @@ const {
   sanitizePlayNext,
   sanitizeMoveSong,
   sanitizeRating,
+  sanitizeVoteSkip,
+  SKIP_VOTE_THRESHOLD,
 } = require("../lib/wsPolicy");
 
 // Cuántas calificaciones pendientes se recuerdan por sala (las más viejas se olvidan): son las
@@ -105,6 +107,25 @@ function createRealtime({ server, config, auth, salas, descargas, catalogo, rati
     });
   }
 
+  // Le dice a cada control remoto cuántos votos lleva saltar la canción que suena y si ya votó
+  // (ver SKIP_VOTE_THRESHOLD): así puede mostrar "2 de 3" y deshabilitar su propio botón sin
+  // esperar a volver a votar. Hay que llamarla cada vez que cambian los votos o la canción de arriba.
+  function sendSkipVotes(room) {
+    const headId = room.songQueue[0]?.id ?? null;
+    const votes = room.skipVotes && room.skipVotes.id === headId ? room.skipVotes.voters : null;
+    const count = votes ? votes.size : 0;
+    room.clients.forEach((client) => {
+      if (client.isHost || client.readyState !== WebSocket.OPEN) return;
+      const voted = !!votes && !!client.userName && votes.has(client.userName);
+      client.send(
+        JSON.stringify({
+          type: "skipVotes",
+          payload: { id: headId, count, threshold: SKIP_VOTE_THRESHOLD, voted },
+        })
+      );
+    });
+  }
+
   // Difunde la cola a todos los de la sala, junto con quién puede controlar la reproducción ahora.
   function broadcastQueue(roomId) {
     const room = salas.get(roomId);
@@ -114,6 +135,7 @@ function createRealtime({ server, config, auth, salas, descargas, catalogo, rati
     if (headId !== room.headId) {
       room.headId = headId;
       room.headSince = Date.now();
+      room.skipVotes = null; // los votos eran por la canción anterior
       scheduleAccessRecheck(roomId, room);
     }
     // Quien ya no tiene nada en la cola no necesita que se recuerde cuándo se fue (ver pruneLeftAt):
@@ -121,6 +143,7 @@ function createRealtime({ server, config, auth, salas, descargas, catalogo, rati
     room.leftAt = pruneLeftAt(room.leftAt, room.songQueue);
     broadcastToRoom(roomId, JSON.stringify({ type: "queueUpdate", payload: room.songQueue }));
     sendControlAccess(room);
+    sendSkipVotes(room);
   }
 
   // Avisa a los controles remotos de todas las salas (no al host, que no usa la lista) de que
@@ -315,6 +338,7 @@ function createRealtime({ server, config, auth, salas, descargas, catalogo, rati
       ws.send(JSON.stringify({ type: "queueUpdate", payload: room.songQueue }));
       // A todos, no solo a esta conexión: que vuelva quien canta cambia lo que pueden hacer los demás.
       sendControlAccess(room);
+      sendSkipVotes(room);
       ws.send(
         JSON.stringify({
           type: "hostStatus",
@@ -466,6 +490,31 @@ function createRealtime({ server, config, auth, salas, descargas, catalogo, rati
             // la pantalla de la sala, queda fuera de la regla).
             if (!isHost && !canControlPlayback(currentRoom.songQueue, ws.userName, roomPresentNames(currentRoom))) return;
             return broadcastToRoom(ws.roomId, JSON.stringify({ type: "controlAction", payload: action }));
+          }
+          case "voteSkip": {
+            // Solo de un control remoto identificado, y no por la propia canción (quien canta ya
+            // tiene el botón de saltar directo, sin necesidad de votos).
+            if (isHost || !ws.userName) return;
+            const vote = sanitizeVoteSkip(data.payload);
+            const head = currentRoom.songQueue[0];
+            if (!vote || !head || head.id !== vote.id || head.name === ws.userName) return;
+
+            if (!currentRoom.skipVotes || currentRoom.skipVotes.id !== head.id) {
+              currentRoom.skipVotes = { id: head.id, voters: new Set() };
+            }
+            currentRoom.skipVotes.voters.add(ws.userName);
+
+            if (currentRoom.skipVotes.voters.size >= SKIP_VOTE_THRESHOLD) {
+              // Se reinicia antes de avisar: si llegara otro voto mientras el host todavía está
+              // procesando este salto, que empiece a contar de cero en vez de saltar dos veces.
+              currentRoom.skipVotes = null;
+              broadcastToRoom(
+                ws.roomId,
+                JSON.stringify({ type: "controlAction", payload: { action: "skip", id: head.id } })
+              );
+            }
+            sendSkipVotes(currentRoom);
+            return;
           }
           case "playbackState":
             // Lo informa el host cuando el video se pausa o se reanuda; se recuerda para quien entre después.

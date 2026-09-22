@@ -235,6 +235,121 @@ test("reglas de reproducción: solo quien canta controla", async (t) => {
   });
 });
 
+// Votar para saltar la canción de otra persona sin pasar por ella: pensado para cuando quien canta
+// sigue "presente" (no venció su tiempo de gracia) pero en realidad no está, y por eso se prueba
+// aparte de "solo quien canta controla" de arriba, que es justo la regla que este voto evita.
+test("votos para saltar sin pasar por quien canta", async (t) => {
+  const server = await startServer({ songs: CANCIONES });
+  t.after(() => server.stop());
+
+  // Cuatro personas: Ana canta, y hacen falta tres votos (Beto, Caro y Dana) para saltarla.
+  async function abrirSalaConCuatro(t) {
+    const { roomId, hostToken } = await crearSala(server);
+    const host = await conectarHost(server, roomId, hostToken);
+    const ana = await remotoLlamado(server, roomId, "Ana");
+    const beto = await remotoLlamado(server, roomId, "Beto");
+    const caro = await remotoLlamado(server, roomId, "Caro");
+    const dana = await remotoLlamado(server, roomId, "Dana");
+    t.after(() => Promise.all([host, ana, beto, caro, dana].map((c) => c.close())));
+    return { roomId, host, ana, beto, caro, dana };
+  }
+
+  await t.test("cada voto se ve reflejado, y al tercero se salta sin que Ana lo pida", async (t) => {
+    const { host, ana, beto, caro, dana } = await abrirSalaConCuatro(t);
+    ana.send({ type: "addSong", payload: { song: A } });
+    const { payload: cola } = await beto.waitFor("queueUpdate", (p) => p.length === 1);
+    const cancion = cola[0];
+
+    beto.send({ type: "voteSkip", payload: { id: cancion.id } });
+    const propio = await beto.waitFor("skipVotes", (p) => p.count === 1);
+    assert.equal(propio.payload.threshold, 3);
+    assert.equal(propio.payload.voted, true, "Beto ve que su propio voto ya cuenta");
+    const visto = await caro.waitFor("skipVotes", (p) => p.count === 1);
+    assert.equal(visto.payload.voted, false, "Caro todavía no votó");
+
+    caro.send({ type: "voteSkip", payload: { id: cancion.id } });
+    await dana.waitFor("skipVotes", (p) => p.count === 2);
+
+    host.clear();
+    dana.send({ type: "voteSkip", payload: { id: cancion.id } });
+    const orden = await host.waitFor("controlAction");
+    assert.deepEqual(orden.payload, { action: "skip", id: cancion.id }, "el tercer voto salta sola, sin que Ana lo pida");
+
+    // Y el conteo vuelve a cero para todos: no se queda mostrando "2 de 3" de más.
+    const reinicio = await beto.waitFor("skipVotes", (p) => p.count === 0);
+    assert.equal(reinicio.payload.voted, false);
+  });
+
+  await t.test("quien canta no vota por la suya, y su intento no cuenta", async (t) => {
+    const { ana, beto } = await abrirSalaConCuatro(t);
+    ana.send({ type: "addSong", payload: { song: A } });
+    const { payload: cola } = await beto.waitFor("queueUpdate", (p) => p.length === 1);
+    // skipVotes es lo último que manda ese aviso (ver broadcastQueue): esperarlo antes de limpiar
+    // evita confundir un "todavía no llegó" con un "no llegó nunca" por una carrera con la red.
+    await beto.waitFor("skipVotes");
+
+    // Ana intenta votar por la suya. El getQueue de después hace de barrera: cuando su respuesta
+    // llega, el servidor ya procesó el voto, así que si Beto no vio nada es que lo descartó.
+    beto.clear();
+    ana.send({ type: "voteSkip", payload: { id: cola[0].id } });
+    ana.send({ type: "getQueue" });
+    await ana.waitFor("queueUpdate");
+    await assertNoMessage(beto, "skipVotes");
+
+    // El primer voto de verdad, el de Beto, es el 1, no el 2: el de Ana no sumó.
+    beto.send({ type: "voteSkip", payload: { id: cola[0].id } });
+    const voto = await beto.waitFor("skipVotes");
+    assert.equal(voto.payload.count, 1);
+  });
+
+  await t.test("el host no puede votar", async (t) => {
+    const { host, ana, beto } = await abrirSalaConCuatro(t);
+    ana.send({ type: "addSong", payload: { song: A } });
+    const { payload: cola } = await beto.waitFor("queueUpdate", (p) => p.length === 1);
+    await beto.waitFor("skipVotes"); // ver el comentario de la prueba anterior
+
+    beto.clear();
+    host.send({ type: "voteSkip", payload: { id: cola[0].id } });
+    host.send({ type: "getQueue" });
+    await host.waitFor("queueUpdate");
+    await assertNoMessage(beto, "skipVotes");
+  });
+
+  await t.test("votar por una canción que ya no es la de arriba no cuenta", async (t) => {
+    const { host, ana, beto } = await abrirSalaConCuatro(t);
+    ana.send({ type: "addSong", payload: { song: A } });
+    const { payload: primera } = await beto.waitFor("queueUpdate", (p) => p.length === 1);
+    const idVieja = primera[0].id;
+
+    ana.send({ type: "addSong", payload: { song: B } });
+    await host.waitFor("queueUpdate", (p) => p.length === 2);
+    host.send({ type: "playNext", payload: {} }); // ahora suena B
+    await beto.waitFor("queueUpdate", (p) => p.length === 1 && p[0].song === B);
+    await beto.waitFor("skipVotes"); // ver el comentario más arriba sobre por qué se espera esto
+
+    beto.clear();
+    beto.send({ type: "voteSkip", payload: { id: idVieja } });
+    beto.send({ type: "getQueue" });
+    await beto.waitFor("queueUpdate");
+    await assertNoMessage(beto, "skipVotes");
+  });
+
+  await t.test("los votos se reinician cuando cambia la canción de arriba", async (t) => {
+    const { host, ana, beto } = await abrirSalaConCuatro(t);
+    ana.send({ type: "addSong", payload: { song: A } });
+    const { payload: cola } = await beto.waitFor("queueUpdate", (p) => p.length === 1);
+    ana.send({ type: "addSong", payload: { song: B } });
+    await host.waitFor("queueUpdate", (p) => p.length === 2);
+
+    beto.send({ type: "voteSkip", payload: { id: cola[0].id } });
+    await beto.waitFor("skipVotes", (p) => p.count === 1);
+
+    host.send({ type: "playNext", payload: {} }); // se saltó (o terminó) la de Ana
+    const reinicio = await beto.waitFor("skipVotes", (p) => p.count === 0);
+    assert.equal(reinicio.payload.voted, false, "los votos eran por la canción anterior");
+  });
+});
+
 test("el host: adelantar la cola, ser reemplazado y caerse", async (t) => {
   const server = await startServer({ songs: CANCIONES });
   t.after(() => server.stop());

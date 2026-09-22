@@ -26,6 +26,10 @@ function createRooms({ config }) {
       leftAt: new Map(),
       headId: null,
       headSince: 0,
+      // Votos para saltar la canción que suena sin pasar por quien la canta: { id, voters }, con
+      // el id de esa canción y el Set de nombres que ya votaron. null si nadie ha votado todavía.
+      // Se reinicia cada vez que cambia la canción de arriba (ver broadcastQueue).
+      skipVotes: null,
       // Desde cuándo no hay nadie conectado (null mientras haya alguien): una sala recién
       // creada empieza vacía. Al pasar el tiempo de gracia así, el barrido la borra.
       emptySince: Date.now(),

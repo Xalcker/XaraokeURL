@@ -9,7 +9,9 @@ const {
   sanitizePlayNext,
   sanitizeMoveSong,
   sanitizeRating,
+  sanitizeVoteSkip,
   HOST_ONLY_TYPES,
+  SKIP_VOTE_THRESHOLD,
 } = require("../lib/wsPolicy");
 
 test("el host puede enviar cualquier mensaje", () => {
@@ -106,6 +108,19 @@ test("sanitizeRating acepta 1 (bien), -1 (mal) y 0 (ahora no), y solo eso", () =
   for (const bad of [null, undefined, 5, "1", [], {}, { id: "abc" }, { value: 1 }, { id: "", value: 1 }, { id: 7, value: 1 }, { id: "abc", value: 2 }, { id: "abc", value: -5 }, { id: "abc", value: "1" }, { id: "abc", value: true }, { id: "abc", value: NaN }, { id: "x".repeat(65), value: 1 }]) {
     assert.equal(sanitizeRating(bad), null, JSON.stringify(bad));
   }
+});
+
+test("sanitizeVoteSkip acepta un id razonable y descarta lo demás", () => {
+  assert.deepEqual(sanitizeVoteSkip({ id: "abc-123" }), { id: "abc-123" });
+  assert.deepEqual(sanitizeVoteSkip({ id: "abc-123", extra: "x" }), { id: "abc-123" });
+  for (const bad of [null, undefined, 5, "abc", [], {}, { id: "" }, { id: 7 }, { id: [] }, { id: "x".repeat(65) }]) {
+    assert.equal(sanitizeVoteSkip(bad), null, JSON.stringify(bad));
+  }
+  assert.deepEqual(sanitizeVoteSkip({ id: "x".repeat(64) }), { id: "x".repeat(64) });
+});
+
+test("hacen falta al menos 3 votos para saltar sin pasar por quien canta", () => {
+  assert.equal(SKIP_VOTE_THRESHOLD, 3);
 });
 
 // ---------- quién puede pausar, reanudar y saltar

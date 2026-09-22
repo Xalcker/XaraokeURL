@@ -72,7 +72,34 @@ test("los botones de reproducción solo se habilitan si el servidor dice que se 
   const hint = /<div\b[^>]*id="controls-locked"[^>]*>/.exec(remoteHtml);
   assert.ok(hint, "falta el aviso de por qué están deshabilitados");
   assert.match(hint[0], /class="hidden"/);
-  assert.match(hint[0], /data-i18n="remote\.controlsLocked"/);
+  const hintBlock = /<div\b[^>]*id="controls-locked"[^>]*>[\s\S]*?<\/div>/.exec(remoteHtml)[0];
+  assert.match(hintBlock, /data-i18n="remote\.controlsLocked"/);
+});
+
+// ---------- remoto: votar para saltar la canción de otra persona
+
+test("cuando los controles están bloqueados, se puede votar para saltar y se ve cuántos votos van", () => {
+  const hintBlock = /<div\b[^>]*id="controls-locked"[^>]*>[\s\S]*?<\/div>/.exec(remoteHtml)[0];
+  assert.match(hintBlock, /<button\b[^>]*id="voteSkipBtn"[^>]*>/, "falta el botón de votar para saltar");
+  assert.match(hintBlock, /data-i18n="remote\.voteSkip"/);
+  assert.match(hintBlock, /id="voteSkipCount"/, "falta la marca visual con el conteo de votos");
+
+  const update = bodyFrom(remoteJs, "function updateControls()");
+  assert.match(update, /voteSkipBtn\.disabled = votedToSkip;/);
+  assert.match(update, /voteSkipCount\.textContent = `\$\{skipVoteCount\}\/\$\{skipVoteThreshold\}`;/);
+});
+
+test("votar para saltar manda voteSkip con el id de la canción que se ve, y no si ya se votó", () => {
+  const handler = bodyFrom(remoteJs, 'voteSkipBtn.addEventListener("click"');
+  assert.match(handler, /if \(!head \|\| voteSkipBtn\.disabled\) return;/);
+  assert.match(handler, /sendMessage\("voteSkip", \{ id: head\.id \}\)/);
+});
+
+test("el conteo de votos lo informa el servidor, no un valor fijo en el cliente", () => {
+  const skipVotes = remoteJs.slice(remoteJs.indexOf('message.type === "skipVotes"'));
+  assert.match(skipVotes.slice(0, 400), /skipVoteCount = message\.payload\?\.count \?\? 0;/);
+  assert.match(skipVotes.slice(0, 400), /skipVoteThreshold = message\.payload\?\.threshold \?\? skipVoteThreshold;/);
+  assert.match(skipVotes.slice(0, 400), /votedToSkip = message\.payload\?\.voted === true;/);
 });
 
 test("si el permiso se pierde con una confirmación de saltar abierta, esta se cierra", () => {

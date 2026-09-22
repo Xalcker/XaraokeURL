@@ -44,6 +44,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const miniPlayer = document.getElementById("mini-player");
     const pausedTag = document.getElementById("paused-tag");
     const controlsLocked = document.getElementById("controls-locked");
+    const voteSkipBtn = document.getElementById("voteSkipBtn");
+    const voteSkipCount = document.getElementById("voteSkipCount");
     const ratingCard = document.getElementById("rating-card");
     const ratingTitle = document.getElementById("rating-title");
     const ratingUp = document.getElementById("rating-up");
@@ -120,6 +122,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // Lo decide el servidor: pausar, reanudar y saltar son de quien canta la canción que suena (o de
     // cualquiera si esa persona ya no está conectada).
     let controlAllowed = false;
+    // Votos para saltar la canción de otra persona sin su permiso (ver SKIP_VOTE_THRESHOLD en el
+    // servidor). Solo importan mientras controlAllowed es false: el conteo es siempre por la
+    // canción que suena ahora, el servidor lo reinicia solo al cambiar.
+    let skipVoteCount = 0;
+    let skipVoteThreshold = 3;
+    let votedToSkip = false;
     let confirmSkipId = null;     // canción por la que se está pidiendo confirmación para saltar
     let confirmRemoveId = null;   // canción tuya por la que se está pidiendo confirmación para quitarla de la cola
     let skipPendingId = null;     // canción cuyo salto ya se pidió y aún no se ve reflejado en la cola
@@ -452,6 +460,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!controlAllowed && confirmSkipId) confirmModalCancel.click();
                 updateControls();
             }
+            if (message.type === "skipVotes") {
+                skipVoteCount = message.payload?.count ?? 0;
+                skipVoteThreshold = message.payload?.threshold ?? skipVoteThreshold;
+                votedToSkip = message.payload?.voted === true;
+                updateControls();
+            }
             if (message.type === "ratingRequest") addRatingRequest(message.payload);
             if (message.type === "ratingResolved") resolveRating(message.payload?.id);
         };
@@ -597,6 +611,9 @@ document.addEventListener("DOMContentLoaded", () => {
         playPauseBtn.disabled = !usable;
         skipBtn.disabled = !usable || skipPendingId !== null;
         controlsLocked.classList.toggle("hidden", !active || controlAllowed);
+        voteSkipBtn.disabled = votedToSkip;
+        voteSkipBtn.classList.toggle("voted", votedToSkip);
+        voteSkipCount.textContent = `${skipVoteCount}/${skipVoteThreshold}`;
         playPauseBtn.dataset.state = paused ? "paused" : "playing";
         const label = t(paused ? "remote.play" : "remote.pause");
         playPauseBtn.setAttribute("aria-label", label);
@@ -1272,6 +1289,14 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(skipPendingTimerId);
         skipPendingTimerId = setTimeout(clearSkipPending, 4000);
         updateControls();
+    });
+
+    // Votar para saltar la canción de otra persona que sigue "presente" pero no responde: no pide
+    // confirmación (el voto en sí ya es la confirmación) y el servidor decide cuándo son suficientes.
+    voteSkipBtn.addEventListener("click", () => {
+        const head = currentQueue[0];
+        if (!head || voteSkipBtn.disabled) return;
+        if (!sendMessage("voteSkip", { id: head.id })) showToast("toast.offline");
     });
 
     helpBtn.addEventListener("click", () => tour.start());

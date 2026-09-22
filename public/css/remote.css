@@ -231,6 +231,7 @@ a:focus-visible {
 
 #user-display {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     gap: 10px;
@@ -250,6 +251,22 @@ a:focus-visible {
     align-items: center;
     gap: 14px;
     flex-shrink: 0;
+    margin-left: auto;   /* si las acciones bajan a otra línea, se quedan a la derecha */
+}
+
+/* Vuelve a la pantalla del código para entrar a otra sala. */
+#leave-room-btn {
+    padding: 4px 4px;
+    border: none;
+    background: none;
+    color: var(--text-muted, inherit);
+    font: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+#leave-room-btn:hover {
+    text-decoration: underline;
 }
 
 #logout-link {

@@ -50,6 +50,41 @@ document.addEventListener("DOMContentLoaded", () => {
     const ratingDown = document.getElementById("rating-down");
     const ratingSkip = document.getElementById("rating-skip");
     const helpBtn = document.getElementById("help-btn");
+    const leaveRoomBtn = document.getElementById("leave-room-btn");
+
+    // La última sala a la que se entró se recuerda en este navegador: al recargar la página se vuelve
+    // a entrar sola, y solo si esa sala ya no existe se pide un código nuevo. Es solo el código de
+    // 4 letras (no hay ningún secreto), así que no hace falta más protección que la que ya tiene la sala.
+    const SAVED_ROOM_KEY = "xaraoke.remoteRoom";
+
+    function loadSavedRoom() {
+        try {
+            const saved = localStorage.getItem(SAVED_ROOM_KEY);
+            return saved && /^[A-Z]{4}$/.test(saved) ? saved : null;
+        } catch {
+            return null;   // sin almacenamiento: es como si no hubiera nada guardado
+        }
+    }
+
+    function saveRoom(roomCode) {
+        try {
+            localStorage.setItem(SAVED_ROOM_KEY, roomCode);
+        } catch {
+            // Sin almacenamiento: la sala funciona igual, solo que no se recordará al recargar.
+        }
+    }
+
+    function forgetSavedRoom() {
+        try {
+            localStorage.removeItem(SAVED_ROOM_KEY);
+        } catch {
+            // Nada que olvidar.
+        }
+    }
+
+    // Verdadero mientras se reingresa a la sala recordada (y no porque la persona tocara "Unirse"):
+    // si la sala ya no existe, en vez de un error se le explica y se le pide un código nuevo.
+    let autoJoining = false;
 
     // El tutorial se abre solo la primera vez que alguien entra a una sala desde este navegador;
     // después, con el botón "Tutorial" del encabezado.
@@ -169,21 +204,47 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // El QR de la pantalla principal lleva la sala en el enlace (?sala=ABCD): se pone el código y, si
     // el nombre ya lo da la cuenta de Google, se entra directo. Sin login (modo desarrollo) solo falta
-    // que la persona escriba su nombre y toque "Unirse".
+    // que la persona escriba su nombre y toque "Unirse". Devuelve true si el enlace traía una sala.
     function joinFromLink() {
         const roomCode = (new URLSearchParams(window.location.search).get("sala") || "").trim().toUpperCase();
-        if (!/^[A-Z]{4}$/.test(roomCode)) return;
+        if (!/^[A-Z]{4}$/.test(roomCode)) return false;
         roomCodeInput.value = roomCode;
         if (devMode) {
             (devNameInput.value ? joinRoomBtn : devNameInput).focus();
         } else {
             roomForm.requestSubmit();
         }
+        return true;
+    }
+
+    // Al abrir la página sin un enlace de sala, vuelve a entrar a la última sala. En modo desarrollo,
+    // si la sesión aún no tiene nombre, solo se pone el código: el nombre lo elige la persona.
+    function rejoinSavedRoom() {
+        const roomCode = loadSavedRoom();
+        if (!roomCode) return;
+        roomCodeInput.value = roomCode;
+        if (devMode && !myName) {
+            devNameInput.focus();
+            return;
+        }
+        autoJoining = true;
+        roomForm.requestSubmit();
+    }
+
+    // Quita ?sala= de la dirección una vez dentro: si no, al recargar el enlace mandaría a una sala
+    // vieja aunque la persona ya se hubiera cambiado a otra.
+    function dropRoomFromLink() {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has("sala")) return;
+        url.searchParams.delete("sala");
+        history.replaceState(null, "", url);
     }
 
     roomForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (joinRoomBtn.disabled) return;
+        const automatic = autoJoining;
+        autoJoining = false;
         const roomCode = roomCodeInput.value.trim().toUpperCase();
         if (roomCode.length !== 4) {
             roomError.textContent = t("remote.join.codeLength");
@@ -216,11 +277,18 @@ document.addEventListener("DOMContentLoaded", () => {
             const response = await fetch(`/api/rooms/${roomCode}`);
             const data = await response.json();
             if (data.exists) {
+                saveRoom(roomCode);
+                dropRoomFromLink();
                 roomModal.classList.add('hidden');
                 mainContent.classList.remove('hidden');
                 initializeMainApp(roomCode);
             } else {
-                roomError.textContent = t("remote.join.roomMissing", { code: roomCode });
+                if (loadSavedRoom() === roomCode) forgetSavedRoom();
+                if (automatic) {
+                    roomCodeInput.value = "";
+                    roomCodeInput.focus();
+                }
+                roomError.textContent = t(automatic ? "remote.join.savedRoomGone" : "remote.join.roomMissing", { code: roomCode });
             }
         } catch {
             roomError.textContent = t("remote.join.verifyFailed");
@@ -330,6 +398,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ws.onclose = (event) => {
             const { action, messageKey } = reconnectPolicy(event.code);
             showConnectionBanner(messageKey);
+            if (action === "roomGone") forgetSavedRoom();
             if (action === "retry") {
                 const delay = nextRetryDelay(reconnectAttempt++);
                 reconnectTimerId = setTimeout(() => connectWebSocket(roomId), delay);
@@ -1207,6 +1276,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     helpBtn.addEventListener("click", () => tour.start());
 
+    // Salir de la sala sin cerrar sesión: se olvida la sala recordada y se recarga sin ?sala= para
+    // volver a la pantalla del código (recargar cierra también el WebSocket).
+    leaveRoomBtn.addEventListener("click", () => {
+        forgetSavedRoom();
+        window.location.href = window.location.pathname;
+    });
+
     tabSearch.addEventListener("click", () => selectTab("search"));
     tabQueue.addEventListener("click", () => selectTab("queue"));
 
@@ -1220,6 +1296,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     updateControls();
     initializeAppFlow().then((signedIn) => {
-        if (signedIn) joinFromLink();
+        if (signedIn && !joinFromLink()) rejoinSavedRoom();
     });
 });

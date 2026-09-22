@@ -91,6 +91,29 @@ test("el remoto avisa cuando el host regresó, y solo si antes se había caído"
   assert.match(remoteJs, /if \(hostReturned\) showToast\("toast\.hostBack"\)/);
 });
 
+test("el remoto recuerda la última sala y vuelve a entrar sola al recargar", () => {
+  assert.match(remoteJs, /localStorage\.setItem\(SAVED_ROOM_KEY, roomCode\)/);
+  // Solo se guarda una vez confirmado que la sala existe.
+  assert.match(remoteJs, /if \(data\.exists\) \{\s*saveRoom\(roomCode\);/);
+  // Un enlace con ?sala= manda sobre la sala recordada.
+  assert.match(remoteJs, /if \(signedIn && !joinFromLink\(\)\) rejoinSavedRoom\(\);/);
+  const rejoin = remoteJs.slice(remoteJs.indexOf("function rejoinSavedRoom()"), remoteJs.indexOf("function dropRoomFromLink()"));
+  assert.match(rejoin, /autoJoining = true;\s*roomForm\.requestSubmit\(\)/);
+  // En modo desarrollo sin nombre no se entra sola: la persona elige su nombre.
+  assert.match(rejoin, /devMode && !myName\) \{\s*devNameInput\.focus\(\);\s*return;/);
+});
+
+test("el remoto olvida la sala recordada cuando ya no existe y pide un código nuevo", () => {
+  assert.match(remoteJs, /if \(loadSavedRoom\(\) === roomCode\) forgetSavedRoom\(\);/);
+  assert.match(remoteJs, /automatic \? "remote\.join\.savedRoomGone" : "remote\.join\.roomMissing"/);
+  assert.match(remoteJs, /if \(action === "roomGone"\) forgetSavedRoom\(\);/);
+});
+
+test("el remoto deja cambiar de sala sin cerrar sesión", () => {
+  assert.match(read("public", "remote.html"), /<button type="button" id="leave-room-btn"/);
+  assert.match(remoteJs, /leaveRoomBtn\.addEventListener\("click", \(\) => \{\s*forgetSavedRoom\(\);\s*window\.location\.href = window\.location\.pathname;/);
+});
+
 test("el servidor avisa a los remotos de todas las salas, no al host, cuando cambia la lista de descargas", () => {
   const start = serverJs.indexOf("function notifyDownloadsChanged()");
   assert.ok(start >= 0);
@@ -119,6 +142,7 @@ test("los textos nuevos existen en todos los idiomas", () => {
   const keys = [
     "host.resume", "host.resumeQueue", "host.startNew", "host.resuming", "host.resumeFailed",
     "host.resumeError", "host.roomLost", "host.replaced", "toast.hostBack", "api.roomGone",
+    "remote.join.savedRoomGone", "remote.leaveRoom",
   ];
   for (const lang of Object.keys(MESSAGES)) {
     for (const key of keys) assert.ok(MESSAGES[lang][key], `${lang}: falta ${key}`);

@@ -45,11 +45,12 @@ test("sin sesión, la sala del enlace se guarda antes de ir a Google y se recupe
 test("el remoto pone el código del enlace y entra solo cuando el nombre lo da la cuenta", () => {
   const join = bodyFrom(remoteJs, "function joinFromLink()");
   assert.match(join, /URLSearchParams\(window\.location\.search\)\.get\("sala"\)/);
-  assert.match(join, /!\/\^\[A-Z\]\{4\}\$\/\.test\(roomCode\)\) return/, "un código con mala forma debe ignorarse");
+  assert.match(join, /!\/\^\[A-Z\]\{4\}\$\/\.test\(roomCode\)\) return false/, "un código con mala forma debe ignorarse");
   assert.match(join, /roomCodeInput\.value = roomCode/);
   assert.match(join, /if \(devMode\)/);
   assert.match(join, /roomForm\.requestSubmit\(\)/);
   // Solo después de comprobar la sesión: sin ella la página ya está yendo a /login.
-  assert.match(remoteJs, /initializeAppFlow\(\)\.then\(\(signedIn\) => \{\s*if \(signedIn\) joinFromLink\(\);/);
+  // Y el enlace manda sobre la sala recordada (ver roomGrace.test.js).
+  assert.match(remoteJs, /initializeAppFlow\(\)\.then\(\(signedIn\) => \{\s*if \(signedIn && !joinFromLink\(\)\) rejoinSavedRoom\(\);/);
   assert.match(bodyFrom(remoteJs, "async function initializeAppFlow()"), /return false;/);
 });

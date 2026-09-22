@@ -340,12 +340,48 @@ Para desplegar en producción:
 5. Si vas a usar la búsqueda/descarga de YouTube, instala `yt-dlp` y `ffmpeg` en el host de producción (no se instalan solos con `npm install`)
 6. El servidor cierra ordenadamente con `SIGTERM` o `SIGINT`: deja de aceptar conexiones, cierra las que haya y cierra las bases de datos antes de salir, para no cortar una escritura a medias en un despliegue. Si algo se cuelga, se sale igual a los 10 segundos.
 
+## 🖥️ Modo Kiosko (Raspberry Pi / miniPC)
+
+Para dejar la pantalla principal montada de forma permanente en un Raspberry Pi o un miniPC conectado a un TV por HDMI (video y audio), sin teclado ni mouse: el equipo enciende, hace login solo y abre el navegador a pantalla completa directo sobre la sala, sin que nadie tenga que tocar nada.
+
+El script [`scripts/install-kiosk.sh`](scripts/install-kiosk.sh) automatiza esa instalación en Raspberry Pi OS (arm64) y en Debian/Ubuntu de un miniPC x86 — ambos son Debian-based, así que es el mismo script y los mismos paquetes en los dos. Usa Wayland (`cage`, un compositor mínimo hecho para mostrar una sola app a pantalla completa) + Chromium en modo `--kiosk`, arrancados por un servicio `systemd` que reemplaza el login de texto de la terminal — no hace falta escritorio.
+
+**Requisitos:** una distro basada en Debian con `systemd` y PipeWire o PulseAudio (Raspberry Pi OS Bookworm o más nuevo; Debian 12+; Ubuntu 22.04+).
+
+### Uso
+
+Si el Raspberry Pi/miniPC va a correr también el servidor Node (copia el proyecto a `/opt/xaraoke`, `npm install` y configura su `.env` ahí primero):
+
+```bash
+sudo INSTALL_NODE_SERVICE=true APP_DIR=/opt/xaraoke ./scripts/install-kiosk.sh
+```
+
+Si el servidor corre en otra máquina de la red y este equipo solo muestra la pantalla:
+
+```bash
+sudo KIOSK_URL="http://192.168.1.50:8081/" ./scripts/install-kiosk.sh
+```
+
+Luego `sudo reboot`. El navegador espera hasta 60 segundos a que el servidor responda antes de abrir, para no ganarle la carrera al arranque.
+
+### Qué configura
+
+* Un usuario del sistema sin privilegios (`kiosk` por defecto) para la sesión gráfica.
+* `xaraoke-kiosk.service`: arranca `cage` + Chromium en `tty1` al encender, sin login manual, y lo reinicia solo si se cae (`Restart=always`).
+* El audio del sistema (PipeWire/PulseAudio, lo que haya) se fuerza a la salida **HDMI**, para que el sonido salga por el mismo cable que el video.
+* Opcionalmente (`INSTALL_NODE_SERVICE=true`), `xaraoke-server.service` corriendo `node server.js` en el mismo equipo.
+
+Logs si algo no arranca: `journalctl -u xaraoke-kiosk.service -f`. Para revertir todo: `sudo ./scripts/install-kiosk.sh --uninstall` (no borra el usuario `kiosk`, por si guardó algo).
+
+**No probado en hardware real todavía** — antes de confiar en él para un evento, probarlo una vez en el Raspberry Pi/miniPC de destino, sobre todo el paso de audio por HDMI (depende de cómo ese equipo en particular nombre su salida HDMI) y el arranque de `cage` con el driver de GPU de esa placa.
+
 ## 🛠️ Scripts Disponibles
 
 * `npm start` - Inicia el servidor de producción
 * `npm run lint` - Corre ESLint sobre todo el proyecto
 * `npm test` - Corre las pruebas (`node --test`)
 * `npm run import` - Importa canciones desde `songs.csv` a la base de datos (ruta configurable con `CSV_PATH`)
+* `sudo ./scripts/install-kiosk.sh` - Instala el modo kiosko en un Raspberry Pi/miniPC (ver "Modo Kiosko" más arriba)
 
 ### Formato de `songs.csv`
 

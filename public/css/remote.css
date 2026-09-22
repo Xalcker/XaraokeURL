@@ -167,10 +167,17 @@ a:focus-visible {
     text-align: center;
 }
 
-#roomCodeInput {
+#room-code-row {
+    display: flex;
+    gap: 0.6rem;
     width: 80%;
+    margin: 0 auto 1rem;
+}
+
+#roomCodeInput {
+    flex: 1;
+    min-width: 0;
     padding: 12px;
-    margin-bottom: 1rem;
     border-radius: 5px;
     border: 1px solid #444;
     background-color: #333;
@@ -179,6 +186,25 @@ a:focus-visible {
     text-align: center;
     text-transform: uppercase;
     letter-spacing: 5px;
+}
+
+#scanQrBtn {
+    flex-shrink: 0;
+    width: 48px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    border: 1px solid #444;
+    background-color: #333;
+    color: #fff;
+    cursor: pointer;
+}
+
+#scanQrBtn svg {
+    width: 22px;
+    height: 22px;
 }
 
 #joinRoomBtn {
@@ -835,6 +861,46 @@ body.has-rating-card {
     background-color: var(--danger-banner);
     color: #fff;
     font-weight: 600;
+}
+
+#qr-scan-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 15;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+#qr-scan-modal-content {
+    background-color: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    padding: 1.5rem;
+    max-width: 320px;
+    width: 100%;
+    text-align: center;
+}
+
+#qr-scan-video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 8px;
+    margin: 0.75rem 0;
+    background-color: #000;
+}
+
+#qr-scan-error {
+    color: var(--danger);
+    margin: 0 0 0.75rem;
 }
 
 #songBrowser label {

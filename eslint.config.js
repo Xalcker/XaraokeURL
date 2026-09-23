@@ -11,6 +11,7 @@ module.exports = [
       "src/**/*.js",
       "test/**/*.js",
       "test-helpers/**/*.js",
+      "player/**/*.js",
       "eslint.config.js",
     ],
     languageOptions: {

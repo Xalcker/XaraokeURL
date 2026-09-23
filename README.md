@@ -374,12 +374,24 @@ curl -fsSL https://raw.githubusercontent.com/Xalcker/XaraokeURL/main/scripts/set
 
 Además de instalar el kiosko (con `install-kiosk.sh`), actualiza el sistema, instala fuentes (Lite casi no trae), activa el driver de video KMS, **fuerza la salida HDMI** (1080p, o 720p en placas con menos de 1.5 GB de RAM; así el kiosko aparece aunque el TV esté apagado al encender el Pi) y desactiva el ahorro de energía del Wi-Fi, que corta el WebSocket. Opciones por variables de entorno: `DISPLAY_MODE` (`1280x720@60`, `auto`...), `KIOSK_HOSTNAME`, `READ_ONLY=true` (sistema de solo lectura para proteger la microSD de apagones), `REBOOT=true`; los detalles están al inicio del script.
 
-**Hardware:** Raspberry Pi 4 (2 GB o más) o Pi 5. Una Pi 3 o una Zero 2 W (512 MB) instalan sin problema, pero Chromium reproduciendo video ahí va muy justo.
+**Hardware:** Raspberry Pi 4 (2 GB o más) o Pi 5 para la pantalla web con Chromium. En placas con menos de 1 GB de RAM (una Zero 2 W, por ejemplo) el script instala el **reproductor nativo** (ver abajo), porque ahí Chromium no alcanza.
+
+### Reproductor nativo (Raspberry Pi Zero 2 W y placas chicas)
+
+En una Pi Zero 2 W (512 MB) Chromium no llega a dibujar la página, y un navegador más liviano (WPE WebKit con `cog`) la dibuja pero decodifica el video por software y va a tirones. Por eso existe [`player/xaraoke-player.js`](player/xaraoke-player.js): la pantalla principal **sin navegador**. `mpv` reproduce el video con el decodificador H.264 por hardware del Pi y dibuja encima quién canta, quién sigue y el QR con el código de sala (sin canciones, el QR grande). Hace de host con las mismas APIs y mensajes que la pantalla web, así que el servidor y los remotos no notan la diferencia.
+
+* Se elige con `KIOSK_PLAYER=mpv` en `install-kiosk.sh`; `setup-raspberry-display.sh` lo elige solo con menos de 1 GB de RAM.
+* No necesita `npm`: solo `nodejs` y `mpv` del sistema. Usa el WebSocket que trae Node (Node 22+, o Node 20.10+ con `--experimental-websocket`, que el instalador agrega si hace falta).
+* Recuerda la sala en disco: tras un reinicio recupera la misma (si el servidor la sigue guardando) o crea otra.
+* En una Zero 2 W, un video de 720p se reproduce con ~70 % de un núcleo y pierde alrededor del 10 % de los cuadros: se nota poco, pero no es tan fluido como en una Pi 4.
+* Se puede probar a mano, sin instalar el servicio: `XARAOKE_MPV_ARGS="--vo=gpu --gpu-context=drm --hwdec=v4l2m2m-copy" node --experimental-websocket player/xaraoke-player.js http://<servidor>:8081/` (con el kiosko detenido).
+
+Frente a la pantalla web se ve más sencillo: sin barras laterales ni la lista de próximas canciones, sin tutorial ni pantalla completa (ya es pantalla completa). Si cambia cómo se comporta la pantalla principal en `public/karaoke.js` (pausas, saltos, reanudar tras un error), hay que reflejarlo también en `player/lib/hostLogic.js`.
 
 ### Qué configura
 
 * Un usuario del sistema sin privilegios (`kiosk` por defecto) para la sesión gráfica.
-* `xaraoke-kiosk.service`: arranca `cage` + Chromium en `tty1` al encender, sin login manual, y lo reinicia solo si se cae (`Restart=always`).
+* `xaraoke-kiosk.service`: arranca `cage` + Chromium (o el reproductor nativo, con `KIOSK_PLAYER=mpv`) en `tty1` al encender, sin login manual, y lo reinicia solo si se cae (`Restart=always`).
 * A la URL se le agrega `?autostart=1`: sin teclado ni mouse nadie puede pulsar "Comenzar", así que la pantalla principal recupera sola la sala anterior (si el servidor la sigue guardando) o crea una nueva. En ese modo los errores no abren diálogos, que nadie podría cerrar: quedan en la consola y se reintenta cada 5 segundos. Sirve igual en cualquier navegador: abre `http://<servidor>:8081/?autostart=1`.
 * Chromium arranca en español (`KIOSK_LANG=es`; la interfaz toma el idioma del navegador).
 * El audio del sistema (PipeWire/PulseAudio, lo que haya) se fuerza a la salida **HDMI**, para que el sonido salga por el mismo cable que el video.
@@ -396,6 +408,7 @@ Logs si algo no arranca: `journalctl -u xaraoke-kiosk.service -f`. Para revertir
 * `npm test` - Corre las pruebas (`node --test`)
 * `npm run import` - Importa canciones desde `songs.csv` a la base de datos (ruta configurable con `CSV_PATH`)
 * `sudo ./scripts/install-kiosk.sh` - Instala el modo kiosko en un Raspberry Pi/miniPC (ver "Modo Kiosko" más arriba)
+* `node player/xaraoke-player.js <url>` - La pantalla principal sin navegador, con `mpv` (ver "Reproductor nativo")
 * `sudo ./scripts/setup-raspberry-display.sh <url>` - Convierte un Raspberry Pi OS Lite limpio en pantalla de XaraokeURL (ver "Raspberry Pi desde cero")
 
 ### Formato de `songs.csv`

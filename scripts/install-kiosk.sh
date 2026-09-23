@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Instala un kiosko de pantalla completa (Wayland "cage" + Chromium) que arranca
-# solo al encender el equipo y muestra la pantalla host de XaraokeURL por HDMI
-# (video y audio). Sirve igual en Raspberry Pi OS (arm64) y en Debian/Ubuntu de
-# un miniPC x86 — ambos son Debian-based, mismos paquetes, misma unidad systemd.
+# Instala un kiosko de pantalla completa que arranca solo al encender el equipo y
+# muestra la pantalla host de XaraokeURL por HDMI (video y audio). Sirve igual en
+# Raspberry Pi OS (arm64) y en Debian/Ubuntu de un miniPC x86 — ambos son
+# Debian-based, mismos paquetes, misma unidad systemd.
+#
+# Dos formas de mostrar la pantalla (KIOSK_PLAYER):
+#   chromium  La pantalla web completa: Wayland "cage" + Chromium en modo kiosko.
+#             Para Raspberry Pi 4/5 y miniPC.
+#   mpv       El reproductor nativo (player/xaraoke-player.js): mpv con el
+#             decodificador por hardware y, encima, quién canta, quién sigue y el
+#             QR. Para placas donde un navegador no alcanza (Raspberry Pi Zero 2 W).
 #
 # Uso:
 #   sudo ./scripts/install-kiosk.sh
@@ -13,10 +20,18 @@ set -euo pipefail
 #   sudo ./scripts/install-kiosk.sh --uninstall
 #
 # Variables de entorno (todas opcionales):
-#   KIOSK_URL             URL que muestra el navegador (http://localhost:8081/)
+#   KIOSK_URL             URL del servidor (http://localhost:8081/)
+#   KIOSK_PLAYER          chromium o mpv (chromium)
 #   KIOSK_USER            Usuario del sistema que corre la sesión kiosko (kiosk)
 #   KIOSK_LANG            Idioma de la interfaz en pantalla (es). XaraokeURL toma el
 #                         idioma del navegador, y Chromium en Raspberry Pi OS sale en inglés.
+#   MPV_ARGS              Solo con mpv: opciones de video para mpv. Por defecto usa
+#                         el decodificador por hardware del Raspberry Pi, o el que
+#                         mpv detecte en otro equipo.
+#   PLAYER_SRC_DIR        Solo con mpv: carpeta del repo de donde copiar el
+#                         reproductor. Si no se da y el script no está dentro del
+#                         repo, se descarga de GitHub (rama XARAOKE_REF).
+#   XARAOKE_REF           Rama o tag de GitHub para esa descarga (main)
 #   INSTALL_NODE_SERVICE  "true" para instalar además un servicio systemd que
 #                         corre "node server.js" en este mismo equipo (false)
 #   APP_DIR               Carpeta del proyecto, si INSTALL_NODE_SERVICE=true
@@ -28,8 +43,12 @@ set -euo pipefail
 #   journalctl -u xaraoke-kiosk.service -f
 
 KIOSK_URL="${KIOSK_URL:-http://localhost:8081/}"
+KIOSK_PLAYER="${KIOSK_PLAYER:-chromium}"
 KIOSK_USER="${KIOSK_USER:-kiosk}"
 KIOSK_LANG="${KIOSK_LANG:-es}"
+MPV_ARGS="${MPV_ARGS:-}"
+PLAYER_SRC_DIR="${PLAYER_SRC_DIR:-}"
+XARAOKE_REF="${XARAOKE_REF:-main}"
 INSTALL_NODE_SERVICE="${INSTALL_NODE_SERVICE:-false}"
 APP_DIR="${APP_DIR:-/opt/xaraoke}"
 APP_USER="${APP_USER:-$KIOSK_USER}"
@@ -38,6 +57,16 @@ WAIT_SCRIPT=/usr/local/bin/xaraoke-wait-for-server.sh
 AUDIO_SCRIPT=/usr/local/bin/xaraoke-set-hdmi-audio.sh
 KIOSK_UNIT=/etc/systemd/system/xaraoke-kiosk.service
 SERVER_UNIT=/etc/systemd/system/xaraoke-server.service
+PLAYER_DIR=/opt/xaraoke-player
+
+case "$KIOSK_PLAYER" in
+  chromium|mpv) ;;
+  *) echo "KIOSK_PLAYER debe ser chromium o mpv (recibí: '$KIOSK_PLAYER')." >&2; exit 1 ;;
+esac
+
+# El reproductor nativo quiere la dirección del servidor tal cual; el navegador, la página con
+# ?autostart=1 (ver abajo).
+SERVER_URL="$KIOSK_URL"
 
 # Sin teclado ni mouse nadie puede pulsar "Comenzar": ?autostart=1 hace que la pantalla principal
 # cree (o recupere) la sala sola al abrir.
@@ -61,6 +90,7 @@ uninstall() {
   systemctl disable --now xaraoke-kiosk.service 2>/dev/null || true
   systemctl disable --now xaraoke-server.service 2>/dev/null || true
   rm -f "$KIOSK_UNIT" "$SERVER_UNIT" "$WAIT_SCRIPT" "$AUDIO_SCRIPT"
+  rm -rf "$PLAYER_DIR"
   systemctl daemon-reload
   systemctl enable --now getty@tty1.service 2>/dev/null || true
   echo "Kiosko desinstalado. El usuario '$KIOSK_USER' no se borró a propósito (userdel -r $KIOSK_USER si ya no lo quieres)."
@@ -74,15 +104,19 @@ fi
 echo "==> Actualizando índice de paquetes"
 apt-get update -qq
 
-CHROMIUM_BIN=/usr/bin/chromium
-if apt-cache show chromium >/dev/null 2>&1; then
-  CHROMIUM_PKG=chromium
+if [ "$KIOSK_PLAYER" = "chromium" ]; then
+  CHROMIUM_BIN=/usr/bin/chromium
+  if apt-cache show chromium >/dev/null 2>&1; then
+    CHROMIUM_PKG=chromium
+  else
+    CHROMIUM_PKG=chromium-browser
+    CHROMIUM_BIN=/usr/bin/chromium-browser
+  fi
+  PKGS="cage curl $CHROMIUM_PKG"
 else
-  CHROMIUM_PKG=chromium-browser
-  CHROMIUM_BIN=/usr/bin/chromium-browser
+  # El reproductor nativo no usa paquetes de npm: con Node y mpv del sistema alcanza.
+  PKGS="curl mpv nodejs fonts-dejavu-core"
 fi
-
-PKGS="cage curl $CHROMIUM_PKG"
 if ! command -v pactl >/dev/null 2>&1 && ! command -v wpctl >/dev/null 2>&1; then
   PKGS="$PKGS pipewire-audio"
 fi
@@ -172,7 +206,55 @@ EOF
   KIOSK_WANTS="network-online.target xaraoke-server.service"
 fi
 
-echo "==> Instalando servicio del kiosko (cage + $CHROMIUM_BIN)"
+KIOSK_ENV=""
+if [ "$KIOSK_PLAYER" = "chromium" ]; then
+  KIOSK_EXEC="/usr/bin/cage -- $CHROMIUM_BIN --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --autoplay-policy=no-user-gesture-required --ozone-platform=wayland --lang=$KIOSK_LANG $KIOSK_URL"
+else
+  echo "==> Instalando el reproductor nativo en $PLAYER_DIR"
+  SCRIPT_REPO="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd || true)"
+  if [ -z "$PLAYER_SRC_DIR" ] && [ -n "$SCRIPT_REPO" ] && [ -f "$SCRIPT_REPO/player/xaraoke-player.js" ]; then
+    PLAYER_SRC_DIR="$SCRIPT_REPO"
+  fi
+  PLAYER_TMP="$(mktemp -d)"
+  if [ -n "$PLAYER_SRC_DIR" ]; then
+    mkdir -p "$PLAYER_TMP/public/js"
+    cp -r "$PLAYER_SRC_DIR/player" "$PLAYER_TMP/"
+    cp "$PLAYER_SRC_DIR/public/js/i18n.js" "$PLAYER_SRC_DIR/public/js/shared.js" "$PLAYER_TMP/public/js/"
+  else
+    echo "    Descargando de GitHub ($XARAOKE_REF)"
+    curl -fsSL "https://codeload.github.com/Xalcker/XaraokeURL/tar.gz/$XARAOKE_REF" \
+      | tar -xz --strip-components=1 -C "$PLAYER_TMP" --wildcards '*/player/*' '*/public/js/i18n.js' '*/public/js/shared.js'
+  fi
+  [ -f "$PLAYER_TMP/player/xaraoke-player.js" ] || { echo "No se pudo obtener el reproductor." >&2; exit 1; }
+  rm -rf "$PLAYER_DIR"
+  mv "$PLAYER_TMP" "$PLAYER_DIR"
+  chmod -R a+rX "$PLAYER_DIR"
+
+  # Node 22+ trae WebSocket; en Node 20 (el de Debian 13) hay que pedirlo con una opción.
+  if node -e 'process.exit(typeof WebSocket === "function" ? 0 : 1)' 2>/dev/null; then
+    NODE_FLAGS=""
+  elif node --experimental-websocket -e 'process.exit(typeof WebSocket === "function" ? 0 : 1)' 2>/dev/null; then
+    NODE_FLAGS="--experimental-websocket"
+  else
+    echo "Este Node ($(node --version)) no trae WebSocket: se necesita Node 20.10 o más nuevo." >&2
+    exit 1
+  fi
+
+  if [ -z "$MPV_ARGS" ]; then
+    if tr -d '\0' < /proc/device-tree/model 2>/dev/null | grep -q "Raspberry Pi"; then
+      # Probado en una Pi Zero 2 W: el modo "-copy" es el que funciona con su GPU.
+      MPV_ARGS="--vo=gpu --gpu-context=drm --hwdec=v4l2m2m-copy"
+    else
+      MPV_ARGS="--vo=gpu --gpu-context=drm --hwdec=auto-safe"
+    fi
+  fi
+  KIOSK_EXEC="/usr/bin/node $NODE_FLAGS $PLAYER_DIR/player/xaraoke-player.js"
+  KIOSK_ENV="Environment=XARAOKE_SERVER=$SERVER_URL
+Environment=XARAOKE_LANG=$KIOSK_LANG
+Environment=\"XARAOKE_MPV_ARGS=$MPV_ARGS\""
+fi
+
+echo "==> Instalando servicio del kiosko ($KIOSK_PLAYER)"
 cat > "$KIOSK_UNIT" <<EOF
 [Unit]
 Description=XaraokeURL kiosk display
@@ -193,11 +275,14 @@ StandardOutput=journal
 StandardError=journal
 UtmpIdentifier=tty1
 Environment=XDG_RUNTIME_DIR=/run/user/$KIOSK_UID
+$KIOSK_ENV
 ExecStartPre=$WAIT_SCRIPT $KIOSK_URL
 ExecStartPre=-$AUDIO_SCRIPT
-ExecStart=/usr/bin/cage -- $CHROMIUM_BIN --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --autoplay-policy=no-user-gesture-required --ozone-platform=wayland --lang=$KIOSK_LANG $KIOSK_URL
+ExecStart=$KIOSK_EXEC
 Restart=always
 RestartSec=2
+# Si algo no responde al apagado, no esperar los 90 s por defecto.
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target

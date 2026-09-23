@@ -394,7 +394,8 @@ Frente a la pantalla web se ve más sencillo: sin barras laterales ni la lista d
 * `xaraoke-kiosk.service`: arranca `cage` + Chromium (o el reproductor nativo, con `KIOSK_PLAYER=mpv`) en `tty1` al encender, sin login manual, y lo reinicia solo si se cae (`Restart=always`).
 * A la URL se le agrega `?autostart=1`: sin teclado ni mouse nadie puede pulsar "Comenzar", así que la pantalla principal recupera sola la sala anterior (si el servidor la sigue guardando) o crea una nueva. En ese modo los errores no abren diálogos, que nadie podría cerrar: quedan en la consola y se reintenta cada 5 segundos. Sirve igual en cualquier navegador: abre `http://<servidor>:8081/?autostart=1`.
 * Chromium arranca en español (`KIOSK_LANG=es`; la interfaz toma el idioma del navegador).
-* El audio del sistema (PipeWire/PulseAudio, lo que haya) se fuerza a la salida **HDMI**, para que el sonido salga por el mismo cable que el video.
+* El audio del sistema (PipeWire/PulseAudio, lo que haya) se fuerza a la salida **HDMI** al 100 % y sin silencio, para que el sonido salga por el mismo cable que el video y el volumen se maneje desde el TV.
+* Audio HDMI estable: se instala `rtkit` (prioridad de tiempo real para PipeWire) y WirePlumber usa un búfer más grande para el HDMI y no lo suspende entre canciones. Sin esto, en una Pi Zero 2 W el sonido llegó a quedarse mudo a media sesión (`snd_pcm_mmap_commit error: Broken pipe` en el log).
 * Opcionalmente (`INSTALL_NODE_SERVICE=true`), `xaraoke-server.service` corriendo `node server.js` en el mismo equipo.
 
 Logs si algo no arranca: `journalctl -u xaraoke-kiosk.service -f`. Para revertir todo: `sudo ./scripts/install-kiosk.sh --uninstall` (no borra el usuario `kiosk`, por si guardó algo).

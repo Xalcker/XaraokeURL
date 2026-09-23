@@ -120,6 +120,10 @@ fi
 if ! command -v pactl >/dev/null 2>&1 && ! command -v wpctl >/dev/null 2>&1; then
   PKGS="$PKGS pipewire-audio"
 fi
+# rtkit le da prioridad de tiempo real a PipeWire. Sin él, cuando el video ocupa el CPU el audio
+# espera su turno, el búfer del HDMI se vacía ("snd_pcm_mmap_commit error: Broken pipe") y en un
+# Raspberry Pi el sonido puede quedarse mudo hasta reiniciar (pasó en una Pi Zero 2 W).
+PKGS="$PKGS rtkit"
 
 echo "==> Instalando paquetes: $PKGS"
 apt-get install -y --no-install-recommends $PKGS
@@ -138,6 +142,52 @@ fi
 # que systemd tumbe esa sesión de usuario entre arranque y arranque.
 loginctl enable-linger "$KIOSK_USER"
 KIOSK_UID="$(id -u "$KIOSK_USER")"
+KIOSK_HOME="$(getent passwd "$KIOSK_USER" | cut -d: -f6)"
+
+# Audio por HDMI más estable: un búfer más grande (aguanta mejor cuando el CPU va justo) y sin
+# suspender la salida a los 5 s de silencio. Al suspenderla y reactivarla entre canciones, el TV
+# puede mostrar un recuadro con el formato de audio. La sintaxis cambia con la versión de WirePlumber.
+if command -v wireplumber >/dev/null 2>&1; then
+  echo "==> Ajustando el audio HDMI en WirePlumber"
+  WP_VERSION="$(wireplumber --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -n1)"
+  case "$WP_VERSION" in
+    0.4)
+      WP_CONF="$KIOSK_HOME/.config/wireplumber/main.lua.d/51-xaraoke-hdmi.lua"
+      install -d -o "$KIOSK_USER" -g "$KIOSK_USER" "$(dirname "$WP_CONF")"
+      cat > "$WP_CONF" <<'EOS'
+-- Instalado por XaraokeURL (install-kiosk.sh): audio HDMI más estable.
+table.insert(alsa_monitor.rules, {
+  matches = { { { "node.name", "matches", "alsa_output.*hdmi*" } } },
+  apply_properties = {
+    ["api.alsa.period-size"] = 1024,
+    ["api.alsa.headroom"] = 8192,
+    ["session.suspend-timeout-seconds"] = 0,
+  },
+})
+EOS
+      ;;
+    *)
+      WP_CONF="$KIOSK_HOME/.config/wireplumber/wireplumber.conf.d/50-xaraoke-hdmi.conf"
+      install -d -o "$KIOSK_USER" -g "$KIOSK_USER" "$(dirname "$WP_CONF")"
+      cat > "$WP_CONF" <<'EOS'
+# Instalado por XaraokeURL (install-kiosk.sh): audio HDMI más estable.
+monitor.alsa.rules = [
+  {
+    matches = [ { node.name = "~alsa_output.*hdmi.*" } ]
+    actions = {
+      update-props = {
+        api.alsa.period-size = 1024
+        api.alsa.headroom = 8192
+        session.suspend-timeout-seconds = 0
+      }
+    }
+  }
+]
+EOS
+      ;;
+  esac
+  chown "$KIOSK_USER:$KIOSK_USER" "$WP_CONF"
+fi
 
 echo "==> Apagando el login de texto en tty1 (el kiosko toma esa terminal)"
 systemctl disable --now getty@tty1.service 2>/dev/null || true

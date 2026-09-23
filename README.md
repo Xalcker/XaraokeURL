@@ -362,7 +362,7 @@ Si el servidor corre en otra máquina de la red y este equipo solo muestra la pa
 sudo KIOSK_URL="http://192.168.1.50:8081/" ./scripts/install-kiosk.sh
 ```
 
-Luego `sudo reboot`. El navegador espera hasta 60 segundos a que el servidor responda antes de abrir, para no ganarle la carrera al arranque.
+Luego `sudo reboot`. El navegador espera hasta 60 segundos a que el servidor responda antes de abrir, para no ganarle la carrera al arranque. El reproductor nativo no espera: arranca de inmediato con "Conectando…" en pantalla y reintenta solo.
 
 ### Raspberry Pi desde cero (solo pantalla)
 
@@ -372,7 +372,7 @@ Si partes de un Raspberry Pi OS **Lite** recién instalado (graba la microSD con
 curl -fsSL https://raw.githubusercontent.com/Xalcker/XaraokeURL/main/scripts/setup-raspberry-display.sh | sudo bash -s -- http://192.168.1.50:8081/
 ```
 
-Además de instalar el kiosko (con `install-kiosk.sh`), actualiza el sistema, instala fuentes (Lite casi no trae), activa el driver de video KMS, **fuerza la salida HDMI** (1080p, o 720p en placas con menos de 1.5 GB de RAM; así el kiosko aparece aunque el TV esté apagado al encender el Pi) y desactiva el ahorro de energía del Wi-Fi, que corta el WebSocket. También **oculta los textos de Linux al arrancar** (la pantalla de colores del firmware, los mensajes del kernel y de systemd y el cursor): lo que queda sale en `tty3`, y SSH sigue igual. Opciones por variables de entorno: `DISPLAY_MODE` (`1280x720@60`, `auto`...), `KIOSK_HOSTNAME`, `BOOT_SPLASH=false` (deja ver los mensajes de arranque, para depurar), `READ_ONLY=true` (sistema de solo lectura para proteger la microSD de apagones), `REBOOT=true`; los detalles están al inicio del script.
+Además de instalar el kiosko (con `install-kiosk.sh`), actualiza el sistema, instala fuentes (Lite casi no trae), activa el driver de video KMS, **fuerza la salida HDMI** (1080p, o 720p en placas con menos de 1.5 GB de RAM; así el kiosko aparece aunque el TV esté apagado al encender el Pi) y desactiva el ahorro de energía del Wi-Fi, que corta el WebSocket. También **muestra el logo mientras arranca**, en lugar de los textos de Linux (la pantalla de colores del firmware, los mensajes del kernel y de systemd y el cursor): el logo sale con Plymouth desde el initramfs y se queda hasta que aparece la sala, en el mismo lugar que el de "Conectando…" del reproductor nativo. Los mensajes que quedan salen en `tty3`, y SSH sigue igual. Opciones por variables de entorno: `DISPLAY_MODE` (`1280x720@60`, `auto`...), `KIOSK_HOSTNAME`, `BOOT_SPLASH=false` (deja ver los mensajes de arranque, para depurar), `READ_ONLY=true` (sistema de solo lectura para proteger la microSD de apagones), `REBOOT=true`; los detalles están al inicio del script.
 
 **Hardware:** Raspberry Pi 4 (2 GB o más) o Pi 5 para la pantalla web con Chromium. En placas con menos de 1 GB de RAM (una Zero 2 W, por ejemplo) el script instala el **reproductor nativo** (ver abajo), porque ahí Chromium no alcanza.
 

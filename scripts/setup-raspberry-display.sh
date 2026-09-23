@@ -29,7 +29,8 @@ set -euo pipefail
 #                   chromium en las demás (ver install-kiosk.sh).
 #   KIOSK_HOSTNAME  Nombre del equipo en la red (p. ej. "xaraoke-tv"). Sin cambios si no se da.
 #   BOOT_SPLASH     "false" para ver los mensajes de Linux al arrancar (útil para depurar). Por
-#                   defecto se ocultan: sin pantalla de colores, mensajes ni cursor en el TV.
+#                   defecto se ocultan: el TV muestra el logo (Plymouth) desde que enciende hasta
+#                   que aparece la sala, sin pantalla de colores, mensajes ni cursor.
 #   SKIP_UPGRADE    "true" para no correr apt full-upgrade (más rápido, menos recomendable).
 #   READ_ONLY       "true" para activar el sistema de archivos de solo lectura (overlayfs):
 #                   protege la microSD si desconectan el Pi de golpe, pero cualquier cambio
@@ -54,6 +55,9 @@ main() {
 
   KIOSK_INSTALLER=/usr/local/sbin/xaraoke-install-kiosk.sh
   NM_WIFI_CONF=/etc/NetworkManager/conf.d/xaraoke-wifi-powersave.conf
+  PLYMOUTH_THEME_DIR=/usr/share/plymouth/themes/xaraoke
+  # Vacío si el script llegó por "curl | bash": entonces lo que falte se baja de GitHub.
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 
   warn() { echo "⚠️  $*" >&2; }
   die() { echo "❌ $*" >&2; exit 1; }
@@ -166,7 +170,9 @@ main() {
   # kernel y de systemd y el cursor de la consola hasta que el kiosko toma la
   # pantalla. Lo poco que queda sale en tty3 (Ctrl+Alt+F3 con un teclado); SSH
   # sigue igual. Se reaplica de cero cada vez, para no duplicar parámetros.
-  BOOT_QUIET_KEYS="quiet loglevel logo.nologo vt.global_cursor_default systemd.show_status rd.udev.log_level"
+  # splash enciende el logo de Plymouth (ver abajo); plymouth.ignore-serial-consoles
+  # hace falta porque con console=serial0 Plymouth se pasaría a modo texto.
+  BOOT_QUIET_KEYS="quiet splash plymouth.ignore-serial-consoles loglevel logo.nologo vt.global_cursor_default systemd.show_status rd.udev.log_level"
   if [ "$BOOT_SPLASH" = "true" ]; then
     echo "==> Ocultando los textos de arranque"
     boot_console=console=tty3
@@ -184,7 +190,7 @@ main() {
     kept_words+=("$word")
   done
   if [ "$BOOT_SPLASH" = "true" ]; then
-    kept_words+=(quiet loglevel=3 logo.nologo vt.global_cursor_default=0 systemd.show_status=false rd.udev.log_level=3)
+    kept_words+=(quiet splash plymouth.ignore-serial-consoles loglevel=3 logo.nologo vt.global_cursor_default=0 systemd.show_status=false rd.udev.log_level=3)
   fi
   # cmdline.txt debe quedar en una sola línea.
   printf '%s\n' "${kept_words[*]}" > "$CMDLINE_TXT"
@@ -198,6 +204,76 @@ main() {
   elif ! grep -qE '^[[:space:]]*disable_splash=1' "$CONFIG_TXT"; then
     [ -z "$(tail -c1 "$CONFIG_TXT")" ] || echo >> "$CONFIG_TXT"
     printf '%s\n[all]\ndisable_splash=1\n' "$SPLASH_MARK" >> "$CONFIG_TXT"
+  fi
+
+  # --- Logo mientras arranca (Plymouth) -----------------------------------------
+  # Plymouth dibuja el logo desde el initramfs, casi desde que se enciende, hasta
+  # que el kiosko toma la pantalla: install-kiosk.sh le pide que se quite dejando
+  # la imagen, para que no quede un negro en medio. Con BOOT_SPLASH=false basta
+  # con quitar "splash" del cmdline (arriba); el tema se queda instalado.
+  if [ "$BOOT_SPLASH" = "true" ]; then
+    echo "==> Instalando el logo de arranque (Plymouth)"
+    initramfs_stale=false
+    # Copia src en dest solo si cambió, y anota que hay que regenerar el initramfs.
+    install_theme_file() {
+      if ! cmp -s "$1" "$2"; then
+        install -D -m 644 "$1" "$2"
+        initramfs_stale=true
+      fi
+    }
+    tmp="$(mktemp)"
+    if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/../public/img/icon-512.png" ]; then
+      cp "$SCRIPT_DIR/../public/img/icon-512.png" "$tmp"
+    else
+      curl -fsSL "https://raw.githubusercontent.com/Xalcker/XaraokeURL/$XARAOKE_REF/public/img/icon-512.png" -o "$tmp"
+    fi
+    install_theme_file "$tmp" "$PLYMOUTH_THEME_DIR/logo.png"
+
+    cat > "$tmp" <<EOF
+[Plymouth Theme]
+Name=XaraokeURL
+Description=El logo de XaraokeURL mientras arranca la pantalla
+ModuleName=script
+
+[script]
+ImageDir=$PLYMOUTH_THEME_DIR
+ScriptFile=$PLYMOUTH_THEME_DIR/xaraoke.script
+EOF
+    install_theme_file "$tmp" "$PLYMOUTH_THEME_DIR/xaraoke.plymouth"
+
+    # logo.png es public/img/icon-512.png: el logo sobre el fondo de la marca (#171124),
+    # así que pintando la pantalla de ese color no se nota el cuadro del ícono.
+    cat > "$tmp" <<'EOF'
+# El logo queda del mismo tamaño y en el mismo lugar que el de "Conectando…" del
+# reproductor nativo (player/lib/screen.js): 150/720 del alto, empezando en 170/720.
+# En logo.png el trazo mide 270 px de alto, empieza en y=113 y se centra en x=271.
+Window.SetBackgroundTopColor(0.0902, 0.0667, 0.1412);
+Window.SetBackgroundBottomColor(0.0902, 0.0667, 0.1412);
+
+scale = Window.GetHeight() * 150 / (720 * 270);
+logo.image = Image("logo.png");
+logo.image = logo.image.Scale(Math.Int(512 * scale), Math.Int(512 * scale));
+logo.sprite = Sprite(logo.image);
+logo.sprite.SetX(Window.GetX() + Window.GetWidth() / 2 - 271 * scale);
+logo.sprite.SetY(Window.GetY() + Window.GetHeight() * 170 / 720 - 113 * scale);
+EOF
+    install_theme_file "$tmp" "$PLYMOUTH_THEME_DIR/xaraoke.script"
+    rm -f "$tmp"
+
+    if ! dpkg -s plymouth >/dev/null 2>&1; then
+      apt-get install -y --no-install-recommends plymouth
+      initramfs_stale=true
+    fi
+    if [ "$(plymouth-set-default-theme)" != "xaraoke" ]; then
+      plymouth-set-default-theme xaraoke
+      initramfs_stale=true
+    fi
+    # El tema va dentro del initramfs, para que el logo salga desde el principio.
+    # Solo el del kernel que está corriendo: en un Pi hay varios (uno por modelo).
+    if [ "$initramfs_stale" = "true" ]; then
+      echo "==> Regenerando el initramfs con el logo (en una Pi Zero 2 W tarda unos minutos)"
+      update-initramfs -u -k "$(uname -r)"
+    fi
   fi
 
   # --- Wi-Fi sin ahorro de energía ----------------------------------------------
@@ -218,7 +294,6 @@ main() {
   # --- Kiosko (cage + Chromium + systemd) ---------------------------------------
   # Se guarda una copia fija del instalador para poder desinstalar después con
   # "sudo xaraoke-install-kiosk.sh --uninstall", aunque se haya corrido vía curl.
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
   if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/install-kiosk.sh" ]; then
     install -m 755 "$SCRIPT_DIR/install-kiosk.sh" "$KIOSK_INSTALLER"
   else

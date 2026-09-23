@@ -8,6 +8,9 @@ const fs = require("node:fs");
 const BASE_ARGS = [
   "--idle=yes", // sin canción sigue abierto, esperando la siguiente
   "--force-window=yes", // y con la pantalla tomada, para dibujar el QR y los textos
+  // El fondo de la marca (--brand-dark), el mismo del logo de arranque: mientras mpv arranca y
+  // antes de dibujar "Conectando…", el paso desde el logo no se ve negro.
+  "--background-color=#171124",
   "--keep-open=no",
   "--osc=no", // sin los controles en pantalla de mpv
   "--osd-bar=no",

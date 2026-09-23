@@ -58,6 +58,7 @@ AUDIO_SCRIPT=/usr/local/bin/xaraoke-set-hdmi-audio.sh
 KIOSK_UNIT=/etc/systemd/system/xaraoke-kiosk.service
 SERVER_UNIT=/etc/systemd/system/xaraoke-server.service
 PLAYER_DIR=/opt/xaraoke-player
+PLYMOUTH_DROPIN=/etc/systemd/system/plymouth-quit.service.d/xaraoke.conf
 
 case "$KIOSK_PLAYER" in
   chromium|mpv) ;;
@@ -89,7 +90,7 @@ fi
 uninstall() {
   systemctl disable --now xaraoke-kiosk.service 2>/dev/null || true
   systemctl disable --now xaraoke-server.service 2>/dev/null || true
-  rm -f "$KIOSK_UNIT" "$SERVER_UNIT" "$WAIT_SCRIPT" "$AUDIO_SCRIPT"
+  rm -f "$KIOSK_UNIT" "$SERVER_UNIT" "$WAIT_SCRIPT" "$AUDIO_SCRIPT" "$PLYMOUTH_DROPIN"
   rm -rf "$PLAYER_DIR"
   systemctl daemon-reload
   systemctl enable --now getty@tty1.service 2>/dev/null || true
@@ -198,11 +199,13 @@ cat > "$WAIT_SCRIPT" <<'EOS'
 # Reintenta hasta 60s a que la URL responda, para no ganarle la carrera al
 # arranque del server Node. Si sigue sin responder, sigue igual (mejor mostrar
 # el error de conexión en pantalla que dejar el kiosko colgado para siempre).
+#
+# Se cuenta por reloj y cada intento tiene tope (-m): sin eso, si la máquina del server
+# no contesta, cada curl tarda lo que tarde la conexión en rendirse, la espera pasa de
+# los 90 s que systemd da para arrancar, y el kiosko falla y se reintenta sin fin.
 url="$1"
-tries=0
-until curl -fsS -o /dev/null "$url" 2>/dev/null; do
-  tries=$((tries + 1))
-  if [ "$tries" -ge 60 ]; then
+until curl -fsS -m 3 -o /dev/null "$url" 2>/dev/null; do
+  if [ "$SECONDS" -ge 60 ]; then
     echo "xaraoke-wait-for-server: sin respuesta de $url tras 60s, continúo igual" >&2
     break
   fi
@@ -267,7 +270,11 @@ EOF
 fi
 
 KIOSK_ENV=""
+# Chromium espera al servidor antes de abrir, para no mostrar una página de error. El reproductor
+# nativo no: arranca de inmediato con "Conectando…" en pantalla y reintenta solo.
+WAIT_PRE=""
 if [ "$KIOSK_PLAYER" = "chromium" ]; then
+  WAIT_PRE="ExecStartPre=$WAIT_SCRIPT $KIOSK_URL"
   KIOSK_EXEC="/usr/bin/cage -- $CHROMIUM_BIN --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --autoplay-policy=no-user-gesture-required --ozone-platform=wayland --lang=$KIOSK_LANG $KIOSK_URL"
 else
   echo "==> Instalando el reproductor nativo en $PLAYER_DIR"
@@ -315,6 +322,22 @@ Environment=XARAOKE_LANG=$KIOSK_LANG
 Environment=\"XARAOKE_MPV_ARGS=$MPV_ARGS\""
 fi
 
+# Si hay logo de arranque (Plymouth, lo instala setup-raspberry-display.sh), se queda en pantalla
+# mientras se espera al servidor y se quita justo antes de arrancar: "--retain-splash" deja la
+# imagen hasta que cage o mpv dibujan, sin un negro en medio. plymouth-quit.service lo quitaría
+# antes y dejaría ver la consola, así que espera a que el kiosko arranque.
+# El "+" lo corre como root: como el usuario del kiosko falla sin permiso, y entonces
+# plymouth-quit.service lo cerraría en el mismo instante en que arranca mpv, que abre la
+# pantalla mientras Plymouth la tiene tomada y se queda sin poder dibujar.
+PLYMOUTH_PRE=""
+if command -v plymouth >/dev/null 2>&1; then
+  PLYMOUTH_PRE="ExecStartPre=-+$(command -v plymouth) quit --retain-splash"
+  mkdir -p "$(dirname "$PLYMOUTH_DROPIN")"
+  printf '[Unit]\nAfter=xaraoke-kiosk.service\n' > "$PLYMOUTH_DROPIN"
+else
+  rm -f "$PLYMOUTH_DROPIN"
+fi
+
 echo "==> Instalando servicio del kiosko ($KIOSK_PLAYER)"
 cat > "$KIOSK_UNIT" <<EOF
 [Unit]
@@ -337,8 +360,9 @@ StandardError=journal
 UtmpIdentifier=tty1
 Environment=XDG_RUNTIME_DIR=/run/user/$KIOSK_UID
 $KIOSK_ENV
-ExecStartPre=$WAIT_SCRIPT $KIOSK_URL
+$WAIT_PRE
 ExecStartPre=-$AUDIO_SCRIPT
+$PLYMOUTH_PRE
 ExecStart=$KIOSK_EXEC
 Restart=always
 RestartSec=2

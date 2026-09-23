@@ -114,7 +114,22 @@ test("durante una canción, el logo va arriba a la derecha y semitransparente", 
   const width = (LOGO.width * logo.scale) / 100;
   assert.ok(Math.abs(logo.x + width - (1280 - 28)) <= 1, "pegado al margen derecho");
   assert.ok(logo.alpha > 0x40 && logo.alpha < 0xc0, "ni opaco ni invisible");
-  assert.doesNotMatch(ass, /\\blur/, "sobre el video no se dibuja el fondo");
+  assert.doesNotMatch(ass, /m 0 0 l 1280 0 l 1280 720/, "sobre el video no se dibuja el fondo de la pantalla de espera");
+});
+
+test("quién canta y quién sigue llevan un recuadro oscuro detrás, dibujado antes que los textos", () => {
+  const { ass } = buildScreen(room({ queue: [ANA, BETO] }), opts);
+  const lines = ass.split("\n");
+  // Un recuadro: la misma línea con el relleno invisible y un borde grueso, oscuro y difuminado.
+  const isBackdrop = (l) => /\\1a&HFF&\\bord\d+\\blur\d+\\3c&H000000&/.test(l);
+  const backdrops = lines.filter(isBackdrop);
+  for (const text of ["Ahora Suena", "Ana", "Queen — Bohemian Rhapsody", "A Continuación"]) {
+    assert.ok(backdrops.some((l) => l.includes(text)), `"${text}" tiene su recuadro`);
+    const lastBackdrop = lines.findLastIndex(isBackdrop);
+    const textLine = lines.findIndex((l) => !isBackdrop(l) && l.includes(text));
+    assert.ok(textLine > lastBackdrop, `el texto "${text}" va encima de todos los recuadros`);
+  }
+  assert.ok(!backdrops.some((l) => l.includes("Sala:")), "el código de sala no lo necesita (va junto al QR)");
 });
 
 test("sin canciones: fondo con los colores de la marca, logo arriba y el código en turquesa", () => {

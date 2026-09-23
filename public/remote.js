@@ -1220,8 +1220,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // los videos ya descargados); con la biblioteca vacía eso ocurre siempre.
     // Si hay coincidencias locales no hace nada. Antes de decidir se actualiza la
     // lista de descargas, para no mandar a YouTube algo que otra persona ya bajó.
+    // En todos los casos se quita el foco del campo para que el celular cierre el
+    // teclado y deje ver los resultados.
     songSearchForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        songSearch.blur();
         const query = songSearch.value.trim();
         if (!query) return;
         await Promise.all([loadDownloads(), loadRatings()]);

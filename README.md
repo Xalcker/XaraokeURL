@@ -364,6 +364,18 @@ sudo KIOSK_URL="http://192.168.1.50:8081/" ./scripts/install-kiosk.sh
 
 Luego `sudo reboot`. El navegador espera hasta 60 segundos a que el servidor responda antes de abrir, para no ganarle la carrera al arranque.
 
+### Raspberry Pi desde cero (solo pantalla)
+
+Si partes de un Raspberry Pi OS **Lite** recién instalado (graba la microSD con Raspberry Pi Imager y configura ahí el Wi-Fi y el SSH), [`scripts/setup-raspberry-display.sh`](scripts/setup-raspberry-display.sh) lo convierte en pantalla de un servidor que corre en otra máquina, sin tener que clonar el repo:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Xalcker/XaraokeURL/main/scripts/setup-raspberry-display.sh | sudo bash -s -- http://192.168.1.50:8081/
+```
+
+Además de instalar el kiosko (con `install-kiosk.sh`), actualiza el sistema, instala fuentes (Lite casi no trae), activa el driver de video KMS, **fuerza la salida HDMI** (1080p, o 720p en placas con menos de 1.5 GB de RAM; así el kiosko aparece aunque el TV esté apagado al encender el Pi) y desactiva el ahorro de energía del Wi-Fi, que corta el WebSocket. Opciones por variables de entorno: `DISPLAY_MODE` (`1280x720@60`, `auto`...), `KIOSK_HOSTNAME`, `READ_ONLY=true` (sistema de solo lectura para proteger la microSD de apagones), `REBOOT=true`; los detalles están al inicio del script.
+
+**Hardware:** Raspberry Pi 4 (2 GB o más) o Pi 5. Una Pi 3 o una Zero 2 W (512 MB) instalan sin problema, pero Chromium reproduciendo video ahí va muy justo.
+
 ### Qué configura
 
 * Un usuario del sistema sin privilegios (`kiosk` por defecto) para la sesión gráfica.
@@ -382,6 +394,7 @@ Logs si algo no arranca: `journalctl -u xaraoke-kiosk.service -f`. Para revertir
 * `npm test` - Corre las pruebas (`node --test`)
 * `npm run import` - Importa canciones desde `songs.csv` a la base de datos (ruta configurable con `CSV_PATH`)
 * `sudo ./scripts/install-kiosk.sh` - Instala el modo kiosko en un Raspberry Pi/miniPC (ver "Modo Kiosko" más arriba)
+* `sudo ./scripts/setup-raspberry-display.sh <url>` - Convierte un Raspberry Pi OS Lite limpio en pantalla de XaraokeURL (ver "Raspberry Pi desde cero")
 
 ### Formato de `songs.csv`
 

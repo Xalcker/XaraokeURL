@@ -28,6 +28,8 @@ set -euo pipefail
 #   KIOSK_PLAYER    chromium o mpv. Por defecto mpv en placas con menos de 1 GB de RAM y
 #                   chromium en las demás (ver install-kiosk.sh).
 #   KIOSK_HOSTNAME  Nombre del equipo en la red (p. ej. "xaraoke-tv"). Sin cambios si no se da.
+#   BOOT_SPLASH     "false" para ver los mensajes de Linux al arrancar (útil para depurar). Por
+#                   defecto se ocultan: sin pantalla de colores, mensajes ni cursor en el TV.
 #   SKIP_UPGRADE    "true" para no correr apt full-upgrade (más rápido, menos recomendable).
 #   READ_ONLY       "true" para activar el sistema de archivos de solo lectura (overlayfs):
 #                   protege la microSD si desconectan el Pi de golpe, pero cualquier cambio
@@ -44,6 +46,7 @@ main() {
   DISPLAY_MODE="${DISPLAY_MODE:-}"
   KIOSK_PLAYER="${KIOSK_PLAYER:-}"
   KIOSK_HOSTNAME="${KIOSK_HOSTNAME:-}"
+  BOOT_SPLASH="${BOOT_SPLASH:-true}"
   SKIP_UPGRADE="${SKIP_UPGRADE:-false}"
   READ_ONLY="${READ_ONLY:-false}"
   REBOOT="${REBOOT:-false}"
@@ -156,6 +159,45 @@ main() {
     sed -i -E "1 s/[[:space:]]*\$/ video=HDMI-A-1:${DISPLAY_MODE}D/" "$CMDLINE_TXT"
   else
     echo "==> Resolución HDMI: la que elija el TV"
+  fi
+
+  # --- Arranque sin textos de Linux ---------------------------------------------
+  # Sin esto, el TV muestra la pantalla de colores del firmware, los mensajes del
+  # kernel y de systemd y el cursor de la consola hasta que el kiosko toma la
+  # pantalla. Lo poco que queda sale en tty3 (Ctrl+Alt+F3 con un teclado); SSH
+  # sigue igual. Se reaplica de cero cada vez, para no duplicar parámetros.
+  BOOT_QUIET_KEYS="quiet loglevel logo.nologo vt.global_cursor_default systemd.show_status rd.udev.log_level"
+  if [ "$BOOT_SPLASH" = "true" ]; then
+    echo "==> Ocultando los textos de arranque"
+    boot_console=console=tty3
+  else
+    echo "==> Dejando visibles los textos de arranque (BOOT_SPLASH=false)"
+    boot_console=console=tty1
+  fi
+  # Raspberry Pi Imager deja cmdline.txt sin salto de línea al final: read lo lee
+  # igual, pero devuelve error y set -e cortaría el script aquí.
+  read -ra cmdline_words < "$CMDLINE_TXT" || true
+  kept_words=()
+  for word in "${cmdline_words[@]}"; do
+    case " $BOOT_QUIET_KEYS " in *" ${word%%=*} "*) continue ;; esac
+    case "$word" in console=tty1|console=tty3) word="$boot_console" ;; esac
+    kept_words+=("$word")
+  done
+  if [ "$BOOT_SPLASH" = "true" ]; then
+    kept_words+=(quiet loglevel=3 logo.nologo vt.global_cursor_default=0 systemd.show_status=false rd.udev.log_level=3)
+  fi
+  # cmdline.txt debe quedar en una sola línea.
+  printf '%s\n' "${kept_words[*]}" > "$CMDLINE_TXT"
+
+  # disable_splash=1 quita la pantalla de colores del firmware. La marca permite
+  # quitarlo después sin tocar un disable_splash que ya hubiera puesto alguien más.
+  SPLASH_MARK="# Agregado por XaraokeURL: sin la pantalla de colores al encender"
+  [ -f "$CONFIG_TXT.xaraoke.bak" ] || cp "$CONFIG_TXT" "$CONFIG_TXT.xaraoke.bak"
+  if [ "$BOOT_SPLASH" != "true" ]; then
+    sed -i "/^$SPLASH_MARK\$/,+2d" "$CONFIG_TXT"
+  elif ! grep -qE '^[[:space:]]*disable_splash=1' "$CONFIG_TXT"; then
+    [ -z "$(tail -c1 "$CONFIG_TXT")" ] || echo >> "$CONFIG_TXT"
+    printf '%s\n[all]\ndisable_splash=1\n' "$SPLASH_MARK" >> "$CONFIG_TXT"
   fi
 
   # --- Wi-Fi sin ahorro de energía ----------------------------------------------

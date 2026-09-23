@@ -1,0 +1,3 @@
+# Los scripts corren en Linux: con saltos de línea de Windows (CRLF), bash falla con
+# "invalid option name" al copiarlos desde un equipo con core.autocrlf=true.
+*.sh text eol=lf

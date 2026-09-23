@@ -427,6 +427,43 @@ body.ui-idle #fullscreen-btn:not(:focus-visible) {
     }
 }
 
+/* TV de 720p y Silk Browser del Fire TV (que reporta un viewport de unos 960x540): con la letra
+   mínima normal y barras de 160 px, los costados se llevaban un tercio del ancho y el video quedaba
+   chico. Aquí la letra y las barras se achican para darle ese espacio al video. */
+@media (max-height: 760px) {
+    html {
+        font-size: clamp(12px, 1.2vw, 15px);
+    }
+
+    .main-container {
+        gap: 0.6rem;
+    }
+
+    .sidebar-left,
+    .sidebar-right {
+        flex-basis: clamp(120px, 12vw, 440px);
+        gap: 0.6rem;
+    }
+
+    .sidebar-section {
+        padding: 0.7rem;
+    }
+
+    h3 {
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .info-card-title {
+        font-size: 1.15rem;
+    }
+
+    .info-card-subtitle,
+    .info-card-user {
+        font-size: 0.95rem;
+    }
+}
+
 /* Video en pausa: se avisa sobre la imagen congelada (para que no parezca que se trabó). */
 #paused-overlay {
     position: absolute;

@@ -8,7 +8,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { startServer } = require("../test-helpers/testServer");
-const { connect, connectToRoom, assertNoMessage } = require("../test-helpers/wsClient");
+const { connect, connectToRoom, closeCodeFor, assertNoMessage } = require("../test-helpers/wsClient");
 
 const A = "Queen - Bohemian Rhapsody.mp4";
 const B = "Soda Stereo - De Música Ligera.mp4";
@@ -57,10 +57,18 @@ async function fijarNombre(server, nombre) {
   );
 }
 
+// El cliente guarda su cookie: para que la misma persona vuelva a entrar hay que usar la misma
+// sesión. Una sesión nueva con el mismo nombre es otra persona, y el servidor la rechaza (4009).
 async function remotoLlamado(server, roomId, nombre) {
   const cookie = await fijarNombre(server, nombre);
-  return connectToRoom(`${server.wsUrl}/?sala=${roomId}`, { headers: { Cookie: cookie } });
+  const cliente = await connectToRoom(`${server.wsUrl}/?sala=${roomId}`, { headers: { Cookie: cookie } });
+  cliente.cookie = cookie;
+  return cliente;
 }
+
+// La misma persona (misma sesión) se vuelve a conectar, por ejemplo tras recargar la página.
+const reconectar = (server, roomId, cliente) =>
+  connectToRoom(`${server.wsUrl}/?sala=${roomId}`, { headers: { Cookie: cliente.cookie } });
 
 const conectarHost = (server, roomId, hostToken) =>
   connectToRoom(`${server.wsUrl}/?sala=${roomId}&hostToken=${hostToken}`);
@@ -705,7 +713,7 @@ test("estado de reproducción y calificaciones", async (t) => {
 
     // La petición de Ana sigue pendiente: al reconectar se le vuelve a pedir.
     await ana.close();
-    const vuelve = await remotoLlamado(server, roomId, "Ana");
+    const vuelve = await reconectar(server, roomId, ana);
     t.after(() => vuelve.close());
     const repetida = await vuelve.waitFor("ratingRequest");
     assert.equal(repetida.payload.id, cola[0].id, "se reenvía al reconectar");
@@ -740,7 +748,75 @@ test("el tiempo de gracia de quien canta vence de verdad", async (t) => {
   await beto.waitFor("controlAccess", (p) => p.allowed === true, { timeoutMs: 5000 });
 
   // Y si Ana vuelve, deja de contar como ausente y Beto pierde el control otra vez.
-  const vuelve = await remotoLlamado(server, roomId, "Ana");
+  const vuelve = await reconectar(server, roomId, ana);
   t.after(() => vuelve.close());
   await beto.waitFor("controlAccess", (p) => p.allowed === false);
+});
+
+// Sin login, el nombre es lo único que distingue a una persona: dos sesiones no pueden compartirlo
+// dentro de una sala (lib/nameClaims.js), o cada una manejaría las canciones de la otra.
+test("sin login, un nombre no se repite dentro de la sala", async (t) => {
+  const server = await startServer({ songs: CANCIONES });
+  t.after(() => server.stop());
+
+  const pedirNombre = (name, room, cookie) =>
+    fetch(`${server.baseUrl}/api/dev-name`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}) },
+      body: JSON.stringify({ name, room }),
+    });
+
+  await t.test("los nombres genéricos no se aceptan", async () => {
+    for (const name of ["Usuario Local", "local user", "USUARIO", "User"]) {
+      const res = await pedirNombre(name);
+      assert.equal(res.status, 400, name);
+    }
+  });
+
+  await t.test("otra sesión no puede entrar con el nombre de alguien de la sala", async (t) => {
+    const { roomId, ana } = await abrirSala(server, t);
+
+    // Al elegirlo ya se avisa, sin distinguir mayúsculas ni acentos.
+    for (const name of ["Ana", "ána"]) {
+      const res = await pedirNombre(name, roomId);
+      assert.equal(res.status, 409, name);
+    }
+
+    // Y si se salta ese aviso (lo fija sin decir la sala), el WebSocket lo rechaza.
+    const cookie = await fijarNombre(server, "Ana");
+    assert.equal(await closeCodeFor(`${server.wsUrl}/?sala=${roomId}`, { headers: { Cookie: cookie } }), 4009);
+
+    // La que ya estaba no se entera de nada: sigue siendo Ana y encola a su nombre.
+    ana.clear();
+    ana.send({ type: "addSong", payload: { song: A } });
+    const { payload } = await ana.waitFor("queueUpdate", (p) => p.length === 1);
+    assert.deepEqual(nombresEnCola(payload), ["Ana"]);
+  });
+
+  await t.test("la misma persona sí puede volver a entrar con su nombre", async (t) => {
+    const { roomId, ana } = await abrirSala(server, t);
+    const res = await pedirNombre("Ana", roomId, ana.cookie);
+    assert.equal(res.status, 200);
+    const otraPestana = await reconectar(server, roomId, ana);
+    t.after(() => otraPestana.close());
+  });
+
+  await t.test("el nombre se libera cuando su dueño se fue y no tiene nada en la cola", async (t) => {
+    const { roomId, host, ana } = await abrirSala(server, t);
+    ana.send({ type: "addSong", payload: { song: A } });
+    const { payload: cola } = await host.waitFor("queueUpdate", (p) => p.length === 1);
+    await ana.close();
+
+    // Se fue, pero su turno sigue en la cola: nadie puede quedarse con su nombre.
+    assert.equal((await pedirNombre("Ana", roomId)).status, 409);
+
+    // Sin canciones suyas (el host la pasó sin que terminara, así que no queda calificación
+    // pendiente), el nombre queda libre para otra persona.
+    host.clear();
+    host.send({ type: "playNext", payload: { ended: false, id: cola[0].id } });
+    await host.waitFor("queueUpdate", (p) => p.length === 0);
+    assert.equal((await pedirNombre("Ana", roomId)).status, 200);
+    const otraAna = await remotoLlamado(server, roomId, "Ana");
+    t.after(() => otraAna.close());
+  });
 });

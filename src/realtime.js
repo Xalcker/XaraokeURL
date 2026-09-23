@@ -11,6 +11,7 @@ const { URL } = require("url");
 const { moveOwnSong } = require("../lib/queuePolicy");
 const { checkCanEnqueue } = require("../lib/queueLimits");
 const { createMessageLimiter } = require("../lib/wsRateLimit");
+const { claimName } = require("../lib/nameClaims");
 const {
   isAllowed,
   presentNames,
@@ -329,6 +330,13 @@ function createRealtime({ server, config, auth, salas, descargas, catalogo, rati
           ? req.session?.devName || auth.defaultDevName(req)
           : req.session.passport.user.displayName
         : null;
+      ws.sessionId = req.sessionID;
+      // Sin login, el nombre es lo único que distingue a una persona de otra: si ya lo tiene otro
+      // dispositivo de la sala, este tiene que elegir otro (ver lib/nameClaims.js). Con Google, el
+      // nombre viene de la cuenta y varios dispositivos de la misma persona sí pueden compartirlo.
+      if (config.authDisabled && !isHost && ws.userName && !claimName(room, ws.userName, ws.sessionId)) {
+        return rechazar(4009, "Name taken");
+      }
       room.clients.add(ws);
       room.emptySince = null; // ya hay alguien: si la sala estaba en su tiempo de gracia, se salva
       if (ws.userName) room.leftAt.delete(ws.userName); // volvió: ya no cuenta como ausente

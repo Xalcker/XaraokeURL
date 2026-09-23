@@ -19,6 +19,7 @@
   const NOT_AUTHENTICATED = 4001;
   const ORIGIN_NOT_ALLOWED = 4003;
   const NO_ROOM_ID = 4005;
+  const NAME_TAKEN = 4009;
 
   const FIRST_RETRY_MS = 3000;
   const MAX_RETRY_MS = 30000;
@@ -27,6 +28,7 @@
   //   "retry"     -> volver a intentar más tarde (corte de red, servidor reiniciándose).
   //   "roomGone"  -> la sala ya no existe: reintentar no sirve, hay que volver a unirse.
   //   "login"     -> la sesión venció: hay que iniciar sesión otra vez.
+  //   "nameTaken" -> sin login, otra persona de la sala ya tiene ese nombre: hay que elegir otro.
   //   "stop"      -> algo que no se arregla reintentando y que la persona no puede resolver.
   function reconnectPolicy(code) {
     switch (code) {
@@ -34,6 +36,8 @@
         return { action: "roomGone", messageKey: "remote.conn.roomGone" };
       case NOT_AUTHENTICATED:
         return { action: "login", messageKey: "remote.conn.sessionExpired" };
+      case NAME_TAKEN:
+        return { action: "nameTaken", messageKey: "remote.conn.nameTaken" };
       case ORIGIN_NOT_ALLOWED:
       case NO_ROOM_ID:
         return { action: "stop", messageKey: "remote.conn.rejected" };
@@ -54,6 +58,7 @@
     nextRetryDelay,
     ROOM_NOT_FOUND,
     NOT_AUTHENTICATED,
+    NAME_TAKEN,
     FIRST_RETRY_MS,
     MAX_RETRY_MS,
   };

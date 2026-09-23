@@ -136,12 +136,12 @@ Si solo quieres probar la app en tu máquina y no quieres meterte a configurar c
 
 ```bash
 DISABLE_GOOGLE_AUTH=true
-DEV_USER_NAME=Tu Nombre   # opcional, es el nombre que se sugiere por defecto (si no lo fijas: "Usuario Local" o "Local User", según el idioma del navegador)
+DEV_USER_NAME=Tu Nombre   # opcional, nombre para las conexiones que llegan sin nombre elegido; nadie puede escogerlo (si no lo fijas: "Usuario Local" o "Local User", según el idioma del navegador)
 ```
 
 Con esto, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` ni hacen falta: el control remoto (`/remote.html`) queda accesible directamente. Esta variable **se ignora si `NODE_ENV=production`**, así que no hay riesgo de dejarla prendida por error en un deploy real.
 
-**Cada dispositivo elige su propio nombre.** Al unirse a una sala, el control remoto pide "Tu nombre" (con `DEV_USER_NAME` como sugerencia). El nombre se guarda en la sesión del navegador, así que al recargar la página vuelve prellenado, y es el que se muestra en la cola. Así funcionan igual que con Google el "(tú)", el botón "Quitar" (solo quitas tus canciones) y el aviso de "tu turno" (solo le llega a quien sigue). Se limita a 30 caracteres y se le quitan saltos de línea y caracteres invisibles. Ten en cuenta que dos personas que elijan **el mismo nombre** se comportan como una sola.
+**Cada dispositivo elige su propio nombre.** Al unirse a una sala, el control remoto pide "Tu nombre" y no sugiere ninguno: hay que escribirlo. El nombre se guarda en la sesión del navegador, así que al recargar la página vuelve prellenado, y es el que se muestra en la cola. Así funcionan igual que con Google el "(tú)", el botón "Quitar" (solo quitas tus canciones) y el aviso de "tu turno" (solo le llega a quien sigue). Se limita a 30 caracteres y se le quitan saltos de línea y caracteres invisibles. Como el nombre es lo único que distingue a una persona de otra, **no puede repetirse dentro de una sala**: el primer dispositivo que entra con un nombre se lo queda (sin distinguir mayúsculas ni acentos), y quien intente usarlo después tiene que elegir otro. El nombre se libera cuando su dueño ya no está conectado ni tiene canciones en la cola. Tampoco se aceptan los genéricos ("Usuario Local", "Local User", "Usuario", "User" ni el de `DEV_USER_NAME`). Por lo mismo, sin login cada persona usa un solo dispositivo por sala.
 
 ---
 ## 💡 Cómo Usar

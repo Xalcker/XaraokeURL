@@ -24,6 +24,12 @@ test("una sesión vencida manda a iniciar sesión, no a reintentar", () => {
   assert.equal(messageKey, "remote.conn.sessionExpired");
 });
 
+test("un nombre que ya usa otra persona de la sala manda a elegir otro, no a reintentar", () => {
+  const { action, messageKey } = reconnectPolicy(4009);
+  assert.equal(action, "nameTaken");
+  assert.equal(messageKey, "remote.conn.nameTaken");
+});
+
 test("un rechazo del servidor que la persona no puede resolver se detiene", () => {
   for (const code of [4003, 4005]) {
     assert.equal(reconnectPolicy(code).action, "stop", `código ${code}`);

@@ -30,6 +30,8 @@ function createRooms({ config }) {
       // el id de esa canción y el Set de nombres que ya votaron. null si nadie ha votado todavía.
       // Se reinicia cada vez que cambia la canción de arriba (ver broadcastQueue).
       skipVotes: null,
+      // Sin login: qué sesión tiene cada nombre (ver lib/nameClaims.js).
+      nameOwners: new Map(),
       // Desde cuándo no hay nadie conectado (null mientras haya alguien): una sala recién
       // creada empieza vacía. Al pasar el tiempo de gracia así, el barrido la borra.
       emptySince: Date.now(),

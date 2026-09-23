@@ -10,6 +10,8 @@ const QRCode = require("qrcode");
 const { normalizeRoomId } = require("../../lib/roomId");
 const { getServerAddresses, remoteBaseUrl } = require("../../lib/network");
 const { sanitizeDisplayName } = require("../../lib/displayName");
+const { nameKey, isNameTaken } = require("../../lib/nameClaims");
+const { SUPPORTED, translate } = require("../../public/js/i18n");
 const { YOUTUBE_ID_RE, normalizeSearchSuffix, rankByKnownChannels, searchYoutube } = require("../../lib/ytdlp");
 const { sanitizeSearchQuery } = require("../../lib/downloadPolicy");
 const { DownloadError } = require("../downloads");
@@ -27,28 +29,44 @@ const limitador = (max, clave, tr) =>
   });
 
 function mountApi(app, { config, auth, salas, descargas, catalogo, ratings, tr }) {
-  const { ensureAuthenticated, ensureAuthenticatedRemote, requestUserName, defaultDevName } = auth;
+  const { ensureAuthenticated, ensureAuthenticatedRemote, requestUserName } = auth;
 
   // --- quién soy ---
 
   app.get("/api/me", ensureAuthenticated, (req, res) => {
     if (config.authDisabled) {
       // Sin login, cada dispositivo elige su nombre (se guarda en su sesión). Hasta que lo
-      // elija, `name` es null y el de .env solo se sugiere.
-      return res.json({
-        devMode: true,
-        name: req.session.devName || null,
-        suggestedName: defaultDevName(req),
-      });
+      // elija, `name` es null: no se le sugiere ninguno, porque quien no lo lee entraría con el
+      // mismo que los demás.
+      return res.json({ devMode: true, name: req.session.devName || null });
     }
     res.json({ name: req.user.displayName || tr(req, "user.default") });
   });
 
   if (config.authDisabled) {
-    // Solo existe en modo desarrollo: en producción esta ruta ni se registra.
+    // Los nombres genéricos quedan reservados para las conexiones que llegan sin nombre (ver
+    // defaultDevName en src/auth.js): quien entrara con uno de ellos compartiría identidad con todas esas.
+    const reservedNames = new Set(
+      [
+        config.devUserName,
+        ...SUPPORTED.flatMap((lang) => [translate(lang, "dev.defaultName"), translate(lang, "user.default")]),
+      ]
+        .filter(Boolean)
+        .map(nameKey)
+    );
+
+    // `room` es opcional: si viene, se avisa desde ya de que el nombre lo tiene otra persona de
+    // esa sala, en vez de dejar entrar y que el WebSocket lo rechace después. Solo existe en
+    // modo desarrollo: en producción esta ruta ni se registra.
     app.post("/api/dev-name", (req, res) => {
       const name = sanitizeDisplayName(req.body?.name);
       if (!name) return res.status(400).json({ error: tr(req, "api.nameRequired") });
+      if (reservedNames.has(nameKey(name))) {
+        return res.status(400).json({ error: tr(req, "api.nameReserved") });
+      }
+      if (isNameTaken(salas.get(normalizeRoomId(req.body?.room)), name, req.sessionID)) {
+        return res.status(409).json({ error: tr(req, "api.nameTaken") });
+      }
       req.session.devName = name;
       res.json({ name });
     });

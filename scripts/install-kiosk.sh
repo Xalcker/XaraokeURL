@@ -166,13 +166,23 @@ echo "==> Instalando script de audio por HDMI"
 cat > "$AUDIO_SCRIPT" <<'EOS'
 #!/usr/bin/env bash
 # Fuerza el sink de audio "default" del usuario a la salida HDMI, para que
-# Chromium (que siempre usa el default del sistema) suene por ahí.
+# Chromium o mpv (que usan el default del sistema) suenen por ahí. También lo
+# deja al 100 % y sin silencio: WirePlumber arranca una salida nueva al 40 %,
+# que en la escala del audio casi no se oye. El volumen se maneja desde el TV.
 if command -v wpctl >/dev/null 2>&1; then
   id=$(wpctl status 2>/dev/null | awk '/Sinks:/{f=1} /Sources:/{f=0} f' | grep -i hdmi | head -n1 | grep -oE '[0-9]+' | head -n1)
-  [ -n "$id" ] && wpctl set-default "$id"
+  if [ -n "$id" ]; then
+    wpctl set-default "$id"
+    wpctl set-volume "$id" 1.0
+    wpctl set-mute "$id" 0
+  fi
 elif command -v pactl >/dev/null 2>&1; then
   sink=$(pactl list short sinks | awk 'tolower($0) ~ /hdmi/ {print $2; exit}')
-  [ -n "$sink" ] && pactl set-default-sink "$sink"
+  if [ -n "$sink" ]; then
+    pactl set-default-sink "$sink"
+    pactl set-sink-volume "$sink" 100%
+    pactl set-sink-mute "$sink" 0
+  fi
 fi
 exit 0
 EOS

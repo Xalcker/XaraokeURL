@@ -71,6 +71,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Modo kiosko (?autostart=1): una pantalla sin teclado ni mouse no puede pulsar "Comenzar", así que
+  // recupera sola la sala guardada o crea una nueva, y en vez de alert() (un diálogo que nadie puede
+  // cerrar y que congela la página) deja el aviso en consola y reintenta.
+  const autostart = new URLSearchParams(location.search).has("autostart");
+  const AUTOSTART_RETRY_MS = 5000;
+
+  function notify(message) {
+    if (autostart) console.warn(message);
+    else alert(message);
+  }
+
+  function retryAutostart() {
+    if (autostart) setTimeout(autoStartSession, AUTOSTART_RETRY_MS);
+  }
+
   // Con una sala por recuperar, el botón de siempre pasa a "Crear una sala nueva".
   let savedRoomOffered = false;
   const startLabel = () => t(savedRoomOffered ? "host.startNew" : "host.start");
@@ -132,17 +147,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Al abrir la página: si quedó una sala guardada que el servidor todavía conserva, se ofrece
   // recuperarla. Si ya no existe (venció el tiempo de espera o el servidor se reinició), se olvida.
-  (async function offerSavedRoom() {
+  // Devuelve false si no se pudo consultar (sin red).
+  async function offerSavedRoom() {
     const saved = loadSavedRoom();
-    if (!saved) return;
+    if (!saved) return true;
     try {
       const room = await checkSavedRoom(saved);
       if (room) showSavedRoomOffer(saved, room.queueLength);
       else forgetSavedRoom();
+      return true;
     } catch (error) {
       console.warn("No se pudo consultar la sala guardada:", error);
+      return false;
     }
-  })();
+  }
+
+  // En modo kiosko, pulsa sola el botón que corresponda. Si no se pudo consultar la sala guardada, se
+  // reintenta en vez de crear una nueva: así no se pierde la cola por un corte de red al arrancar.
+  async function autoStartSession() {
+    if (!(await offerSavedRoom())) return retryAutostart();
+    (savedRoomOffered ? resumeBtn : startBtn).click();
+  }
+
+  if (autostart) autoStartSession();
+  else offerSavedRoom();
 
   resumeBtn.addEventListener("click", async () => {
     if (resumeBtn.disabled) return;
@@ -157,18 +185,20 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!(await checkSavedRoom(saved))) {
         forgetSavedRoom();
         hideSavedRoomOffer();
-        alert(t("host.resumeFailed"));
+        notify(t("host.resumeFailed"));
         resumeBtn.disabled = false;
         startBtn.disabled = false;
+        retryAutostart();
         return;
       }
       enterRoom(saved.roomId, saved.hostToken);
     } catch (error) {
       console.error("No se pudo recuperar la sala:", error);
-      alert(t("host.resumeError"));
+      notify(t("host.resumeError"));
       resumeBtn.textContent = t("host.resume", { code: saved.roomId });
       resumeBtn.disabled = false;
       startBtn.disabled = false;
+      retryAutostart();
     }
   });
 
@@ -184,9 +214,10 @@ document.addEventListener("DOMContentLoaded", () => {
       enterRoom(data.roomId, data.hostToken);
     } catch (error) {
       console.error("No se pudo crear la sala:", error);
-      alert(t("host.createFailed"));
+      notify(t("host.createFailed"));
       startBtn.disabled = false;
       startBtn.textContent = startLabel();
+      retryAutostart();
     }
   });
 
@@ -209,7 +240,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // no serviría de nada. Se vuelve a la pantalla de inicio para crear otra.
       if (event.code === 4004) {
         forgetSavedRoom();
-        alert(t("host.roomLost"));
+        notify(t("host.roomLost"));
         location.reload();
         return;
       }
@@ -217,7 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // las dos se estarían quitando el control una a la otra.
       if (event.code === 4006) {
         player.pause();
-        alert(t("host.replaced"));
+        notify(t("host.replaced"));
         return;
       }
       setTimeout(connectWebSocket, 3000);

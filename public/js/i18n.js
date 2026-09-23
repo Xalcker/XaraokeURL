@@ -193,6 +193,10 @@
       "host.by": "por {name}",
       "host.duration": "Duración: {time}",
 
+      // ----- Reproductor nativo (player/xaraoke-player.js): la pantalla principal sin navegador
+      "player.connecting": "Conectando con el servidor {url}...",
+      "player.replaced": "Otra pantalla tomó el control de esta sala. Reinicia este equipo para recuperarla.",
+
       // ----- Mensajes de la API y pantallas de acceso (los arma el servidor)
       "api.songNameMissing": "Falta el nombre de la canción.",
       "api.songNotFound": "Canción no encontrada.",
@@ -378,6 +382,9 @@
       "host.noMoreSongs": "No more songs in the queue.",
       "host.by": "by {name}",
       "host.duration": "Duration: {time}",
+
+      "player.connecting": "Connecting to the server {url}...",
+      "player.replaced": "Another screen took over this room. Restart this device to take it back.",
 
       "api.songNameMissing": "The song name is missing.",
       "api.songNotFound": "Song not found.",

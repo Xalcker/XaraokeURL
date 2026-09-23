@@ -175,6 +175,8 @@ test("toda clave que pide el código existe en el diccionario", () => {
     "public/remote.js",
     "public/karaoke.js",
     "public/js/tour.js",
+    "player/xaraoke-player.js",
+    "player/lib/screen.js",
   ];
   let total = 0;
   for (const file of files) {

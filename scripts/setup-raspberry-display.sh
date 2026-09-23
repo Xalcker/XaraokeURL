@@ -8,7 +8,9 @@ set -euo pipefail
 #
 # Hace la parte propia del Raspberry Pi (actualizar, driver de video, forzar la
 # salida HDMI, Wi-Fi sin ahorro de energía, etc.) y luego delega el kiosko en
-# sí (cage + Chromium + systemd) a scripts/install-kiosk.sh.
+# sí a scripts/install-kiosk.sh: Chromium con la pantalla web, o el reproductor
+# nativo con mpv en placas de menos de 1 GB de RAM (una Pi Zero 2 W), donde un
+# navegador no alcanza a reproducir video.
 #
 # Uso, con el repo clonado en el Pi:
 #   sudo ./scripts/setup-raspberry-display.sh http://192.168.1.50:8081/
@@ -23,14 +25,16 @@ set -euo pipefail
 #                   1920x1080@60, o 1280x720@60 en placas con menos de 1.5 GB de RAM.
 #                   "auto" deja que el TV decida (ojo: un TV 4K hace que Chromium
 #                   dibuje en 4K, y el Pi no da para eso).
+#   KIOSK_PLAYER    chromium o mpv. Por defecto mpv en placas con menos de 1 GB de RAM y
+#                   chromium en las demás (ver install-kiosk.sh).
 #   KIOSK_HOSTNAME  Nombre del equipo en la red (p. ej. "xaraoke-tv"). Sin cambios si no se da.
 #   SKIP_UPGRADE    "true" para no correr apt full-upgrade (más rápido, menos recomendable).
 #   READ_ONLY       "true" para activar el sistema de archivos de solo lectura (overlayfs):
 #                   protege la microSD si desconectan el Pi de golpe, pero cualquier cambio
 #                   se pierde al reiniciar. Desactívalo con "sudo raspi-config nonint do_overlayfs 1".
 #   REBOOT          "true" para reiniciar solo al terminar.
-#   XARAOKE_REF     Rama/tag de GitHub de donde bajar install-kiosk.sh si no está junto a
-#                   este script (main).
+#   XARAOKE_REF     Rama/tag de GitHub de donde bajar install-kiosk.sh (y el reproductor
+#                   nativo) si no están junto a este script (main).
 
 # Todo va dentro de main() para que bash lea el script completo antes de ejecutarlo:
 # con "curl | sudo bash", un comando que leyera stdin (apt, raspi-config) se comería
@@ -38,6 +42,7 @@ set -euo pipefail
 main() {
   KIOSK_URL="${1:-${KIOSK_URL:-}}"
   DISPLAY_MODE="${DISPLAY_MODE:-}"
+  KIOSK_PLAYER="${KIOSK_PLAYER:-}"
   KIOSK_HOSTNAME="${KIOSK_HOSTNAME:-}"
   SKIP_UPGRADE="${SKIP_UPGRADE:-false}"
   READ_ONLY="${READ_ONLY:-false}"
@@ -74,9 +79,19 @@ main() {
   ARCH="$(dpkg --print-architecture)"
   echo "==> Equipo: $MODEL, ${RAM_MB} MB de RAM, $ARCH"
 
-  if [ "$RAM_MB" -lt 900 ]; then
-    warn "Esta placa tiene menos de 1 GB de RAM. Chromium reproduciendo video puede ir con tirones o"
-    warn "cerrarse solo. Recomendado: Raspberry Pi 4 (2 GB o más) o Pi 5."
+  # Con menos de 1 GB, Chromium no alcanza a dibujar ni a reproducir video (probado en una Pi Zero 2 W):
+  # ahí va el reproductor nativo.
+  if [ -z "$KIOSK_PLAYER" ]; then
+    if [ "$RAM_MB" -lt 900 ]; then
+      KIOSK_PLAYER=mpv
+    else
+      KIOSK_PLAYER=chromium
+    fi
+  fi
+  echo "==> Pantalla: $KIOSK_PLAYER"
+  if [ "$RAM_MB" -lt 900 ] && [ "$KIOSK_PLAYER" = "chromium" ]; then
+    warn "Esta placa tiene menos de 1 GB de RAM: Chromium no alcanza a reproducir video aquí."
+    warn "Usa KIOSK_PLAYER=mpv, o una Raspberry Pi 4 (2 GB o más) o Pi 5."
   fi
   if [ "$ARCH" != "arm64" ]; then
     warn "Estás en Raspberry Pi OS de 32 bits ($ARCH). Funciona, pero se recomienda la versión de 64 bits."
@@ -173,7 +188,12 @@ main() {
   fi
 
   echo "==> Instalando el kiosko"
-  KIOSK_URL="$KIOSK_URL" INSTALL_NODE_SERVICE=false "$KIOSK_INSTALLER"
+  # Si este script corre desde el repo clonado, el reproductor nativo se copia de ahí.
+  PLAYER_SRC=""
+  if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/../player/xaraoke-player.js" ]; then
+    PLAYER_SRC="$(cd "$SCRIPT_DIR/.." && pwd)"
+  fi
+  KIOSK_URL="$KIOSK_URL" KIOSK_PLAYER="$KIOSK_PLAYER" PLAYER_SRC_DIR="$PLAYER_SRC" XARAOKE_REF="$XARAOKE_REF"     INSTALL_NODE_SERVICE=false "$KIOSK_INSTALLER"
 
   # --- Comprobación del servidor ------------------------------------------------
   if curl -fsS -m 5 -o /dev/null "$KIOSK_URL" 2>/dev/null; then

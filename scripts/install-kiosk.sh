@@ -15,6 +15,8 @@ set -euo pipefail
 # Variables de entorno (todas opcionales):
 #   KIOSK_URL             URL que muestra el navegador (http://localhost:8081/)
 #   KIOSK_USER            Usuario del sistema que corre la sesión kiosko (kiosk)
+#   KIOSK_LANG            Idioma de la interfaz en pantalla (es). XaraokeURL toma el
+#                         idioma del navegador, y Chromium en Raspberry Pi OS sale en inglés.
 #   INSTALL_NODE_SERVICE  "true" para instalar además un servicio systemd que
 #                         corre "node server.js" en este mismo equipo (false)
 #   APP_DIR               Carpeta del proyecto, si INSTALL_NODE_SERVICE=true
@@ -27,6 +29,7 @@ set -euo pipefail
 
 KIOSK_URL="${KIOSK_URL:-http://localhost:8081/}"
 KIOSK_USER="${KIOSK_USER:-kiosk}"
+KIOSK_LANG="${KIOSK_LANG:-es}"
 INSTALL_NODE_SERVICE="${INSTALL_NODE_SERVICE:-false}"
 APP_DIR="${APP_DIR:-/opt/xaraoke}"
 APP_USER="${APP_USER:-$KIOSK_USER}"

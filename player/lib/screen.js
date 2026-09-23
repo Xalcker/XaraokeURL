@@ -61,6 +61,11 @@ function assAlpha(opacity) {
 const style = (size, { bold = false, color = COLORS.white } = {}) =>
   `\\fs${size}\\b${bold ? 1 : 0}\\bord3\\shad0\\3c&H000000&\\1c${assColor(color)}`;
 
+// El recuadro semitransparente detrás de un texto: la misma línea, con el relleno invisible y un borde
+// oscuro, grueso y difuminado. ASS no sabe medir un texto antes de dibujarlo, pero así el recuadro
+// mide justo lo que mide el texto con cualquier fuente, y las líneas contiguas se funden en un panel.
+const BACKDROP = `\\1a&HFF&\\bord22\\blur12\\3c&H000000&\\3a${assAlpha(0.6)}\\shad0`;
+
 const line = (x, y, align, text) => `{\\an${align}\\pos(${Math.round(x)},${Math.round(y)})}${text}`;
 
 // Una figura rellena. `drawing` usa los comandos de dibujo de ASS (m, l, b). Con `outline`, lleva un
@@ -127,13 +132,19 @@ function playingLines({ queue, roomId, paused, t, songDisplay, qrShown, logo }) 
   const [current, next] = queue;
   const lines = [];
   const left = MARGIN;
-  lines.push(line(left, MARGIN, 7, `{${style(22, { color: "#d0d0d0" })}}${assEscape(t("host.nowPlaying"))}`));
-  lines.push(line(left, MARGIN + 26, 7, `{${style(38, { bold: true })}}${assEscape(clip(current.name, 30))}`));
-  lines.push(line(left, MARGIN + 70, 7, `{${style(24)}}${songLine(current, songDisplay)}`));
+  // Quién canta y quién sigue van sobre un recuadro oscuro, para leerse aunque el video traiga
+  // créditos o marcas de agua en esas esquinas. Los recuadros van primero, detrás de todos los textos.
+  const info = [
+    [left, MARGIN, 7, style(22, { color: "#d0d0d0" }), assEscape(t("host.nowPlaying"))],
+    [left, MARGIN + 26, 7, style(38, { bold: true }), assEscape(clip(current.name, 30))],
+    [left, MARGIN + 70, 7, style(24), songLine(current, songDisplay)],
+  ];
   if (next) {
     const upNext = `${assEscape(t("host.upNext"))}: {\\b1}${assEscape(clip(next.name, 24))}{\\b0} · ${songLine(next, songDisplay, 45)}`;
-    lines.push(line(left, HEIGHT - MARGIN, 1, `{${style(22, { color: "#d0d0d0" })}}${upNext}`));
+    info.push([left, HEIGHT - MARGIN, 1, style(22, { color: "#d0d0d0" }), upNext]);
   }
+  for (const [x, y, align, tags, text] of info) lines.push(line(x, y, align, `{${tags}${BACKDROP}}${text}`));
+  for (const [x, y, align, tags, text] of info) lines.push(line(x, y, align, `{${tags}}${text}`));
 
   // El código de sala, sobre el QR (o solo en la esquina, si el QR no está disponible).
   const codeY = qrShown ? HEIGHT - MARGIN - QR_CORNER.size * HEIGHT - 6 : HEIGHT - MARGIN;

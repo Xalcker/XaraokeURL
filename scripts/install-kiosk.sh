@@ -36,6 +36,14 @@ AUDIO_SCRIPT=/usr/local/bin/xaraoke-set-hdmi-audio.sh
 KIOSK_UNIT=/etc/systemd/system/xaraoke-kiosk.service
 SERVER_UNIT=/etc/systemd/system/xaraoke-server.service
 
+# Sin teclado ni mouse nadie puede pulsar "Comenzar": ?autostart=1 hace que la pantalla principal
+# cree (o recupere) la sala sola al abrir.
+case "$KIOSK_URL" in
+  *autostart*) ;;
+  *\?*) KIOSK_URL="$KIOSK_URL&autostart=1" ;;
+  *) KIOSK_URL="$KIOSK_URL?autostart=1" ;;
+esac
+
 if [ "$(id -u)" -ne 0 ]; then
   echo "Este script necesita ejecutarse como root (sudo)." >&2
   exit 1
@@ -184,7 +192,7 @@ UtmpIdentifier=tty1
 Environment=XDG_RUNTIME_DIR=/run/user/$KIOSK_UID
 ExecStartPre=$WAIT_SCRIPT $KIOSK_URL
 ExecStartPre=-$AUDIO_SCRIPT
-ExecStart=/usr/bin/cage -- $CHROMIUM_BIN --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --autoplay-policy=no-user-gesture-required --ozone-platform=wayland $KIOSK_URL
+ExecStart=/usr/bin/cage -- $CHROMIUM_BIN --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --autoplay-policy=no-user-gesture-required --ozone-platform=wayland --lang=$KIOSK_LANG $KIOSK_URL
 Restart=always
 RestartSec=2
 

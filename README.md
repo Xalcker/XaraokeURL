@@ -380,6 +380,8 @@ Además de instalar el kiosko (con `install-kiosk.sh`), actualiza el sistema, in
 
 * Un usuario del sistema sin privilegios (`kiosk` por defecto) para la sesión gráfica.
 * `xaraoke-kiosk.service`: arranca `cage` + Chromium en `tty1` al encender, sin login manual, y lo reinicia solo si se cae (`Restart=always`).
+* A la URL se le agrega `?autostart=1`: sin teclado ni mouse nadie puede pulsar "Comenzar", así que la pantalla principal recupera sola la sala anterior (si el servidor la sigue guardando) o crea una nueva. En ese modo los errores no abren diálogos, que nadie podría cerrar: quedan en la consola y se reintenta cada 5 segundos. Sirve igual en cualquier navegador: abre `http://<servidor>:8081/?autostart=1`.
+* Chromium arranca en español (`KIOSK_LANG=es`; la interfaz toma el idioma del navegador).
 * El audio del sistema (PipeWire/PulseAudio, lo que haya) se fuerza a la salida **HDMI**, para que el sonido salga por el mismo cable que el video.
 * Opcionalmente (`INSTALL_NODE_SERVICE=true`), `xaraoke-server.service` corriendo `node server.js` en el mismo equipo.
 

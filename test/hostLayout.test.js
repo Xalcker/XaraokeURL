@@ -105,3 +105,11 @@ test("karaoke.js usa la pantalla de espera, la pantalla completa y el Wake Lock"
   assert.match(js, /if \(wakeLock\.supported\) wakeLock\.enable\(\);/);
   assert.match(js, /function renderAllSections\(\) \{\s*updateIdleScreen\(\);/);
 });
+
+test("karaoke.js arranca solo con ?autostart y no deja alert() que congele el kiosko", () => {
+  const js = read("karaoke.js");
+  assert.match(js, /new URLSearchParams\(location\.search\)\.has\("autostart"\)/);
+  assert.match(js, /if \(autostart\) autoStartSession\(\);/);
+  // Los avisos pasan por notify(), que en modo kiosko los deja en consola en vez de abrir un diálogo.
+  assert.doesNotMatch(js, /\balert\(t\(/);
+});

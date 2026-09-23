@@ -277,13 +277,14 @@ else
   fi
   PLAYER_TMP="$(mktemp -d)"
   if [ -n "$PLAYER_SRC_DIR" ]; then
-    mkdir -p "$PLAYER_TMP/public/js"
+    mkdir -p "$PLAYER_TMP/public/js" "$PLAYER_TMP/public/img"
     cp -r "$PLAYER_SRC_DIR/player" "$PLAYER_TMP/"
     cp "$PLAYER_SRC_DIR/public/js/i18n.js" "$PLAYER_SRC_DIR/public/js/shared.js" "$PLAYER_TMP/public/js/"
+    cp "$PLAYER_SRC_DIR/public/img/logo.svg" "$PLAYER_TMP/public/img/"
   else
     echo "    Descargando de GitHub ($XARAOKE_REF)"
     curl -fsSL "https://codeload.github.com/Xalcker/XaraokeURL/tar.gz/$XARAOKE_REF" \
-      | tar -xz --strip-components=1 -C "$PLAYER_TMP" --wildcards '*/player/*' '*/public/js/i18n.js' '*/public/js/shared.js'
+      | tar -xz --strip-components=1 -C "$PLAYER_TMP" --wildcards '*/player/*' '*/public/js/i18n.js' '*/public/js/shared.js' '*/public/img/logo.svg'
   fi
   [ -f "$PLAYER_TMP/player/xaraoke-player.js" ] || { echo "No se pudo obtener el reproductor." >&2; exit 1; }
   rm -rf "$PLAYER_DIR"

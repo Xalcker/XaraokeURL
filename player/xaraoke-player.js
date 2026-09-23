@@ -28,9 +28,14 @@ const { createRoomStore, createServerApi } = require("./lib/room");
 const { createSession } = require("./lib/session");
 const { buildScreen, qrPixels, WIDTH, HEIGHT } = require("./lib/screen");
 const { decodePngDataUrl, toBgraSquare } = require("./lib/png");
+const { logoDrawing } = require("./lib/svgPath");
 
 const QR_OVERLAY_ID = 0;
 const TEXT_OVERLAY_ID = 1;
+// El instalador copia el logo junto al reproductor (como i18n.js y shared.js): así se ve desde la
+// pantalla de "Conectando…", antes de poder pedírselo al servidor.
+const LOGO_FILE = path.join(__dirname, "..", "public", "img", "logo.svg");
+const LOGO_RETRY_MS = 60000;
 
 function webSocketImpl() {
   if (typeof globalThis.WebSocket === "function") return globalThis.WebSocket;
@@ -83,6 +88,27 @@ async function main() {
     onTime: (time, duration) => session.logic.onTime(time, duration),
   });
 
+  // --- logo ---
+  let logo = null;
+  try {
+    logo = logoDrawing(fs.readFileSync(LOGO_FILE, "utf8"));
+  } catch (error) {
+    console.warn("No se pudo leer el logo local, se pedirá al servidor:", error.message);
+  }
+  let logoRequestedAt = 0;
+  // Si no estaba en disco, se pide al servidor (como mucho una vez por minuto si falla).
+  function ensureLogo() {
+    if (logo || session.state.status !== "room" || Date.now() - logoRequestedAt < LOGO_RETRY_MS) return;
+    logoRequestedAt = Date.now();
+    fetch(new URL("/img/logo.svg", config.serverUrl))
+      .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((svg) => {
+        logo = logoDrawing(svg);
+        render();
+      })
+      .catch((error) => console.warn("No se pudo obtener el logo del servidor:", error.message));
+  }
+
   // --- pantalla ---
   let screenSize = { w: 0, h: 0 };
   let qrCache = { dataUrl: null, image: null };
@@ -124,6 +150,7 @@ async function main() {
   }
 
   async function renderScreen() {
+    ensureLogo();
     const image = qrImage();
     const { ass, qr } = buildScreen(
       {
@@ -133,7 +160,7 @@ async function main() {
         paused: session.logic.isPaused(),
         qrAvailable: !!image,
       },
-      { t, songDisplay }
+      { t, songDisplay, logo }
     );
     await mpv.commandNamed({
       name: "osd-overlay",
@@ -150,6 +177,7 @@ async function main() {
   // Se dibuja de a una vez: dos dibujos cruzados podrían dejar un QR viejo en pantalla.
   let rendering = Promise.resolve();
   const render = () => {
+    if (!session) return; // mpv puede avisar el tamaño de la pantalla antes de que haya sesión
     rendering = rendering.then(renderScreen).catch((error) => console.error("No se pudo dibujar la pantalla:", error.message));
   };
 

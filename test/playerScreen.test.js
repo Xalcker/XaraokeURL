@@ -3,11 +3,13 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { translate } = require("../public/js/i18n.js");
 const { getSongDisplay } = require("../public/js/shared.js");
-const { buildScreen, qrPixels, assEscape } = require("../player/lib/screen");
+const { buildScreen, qrPixels, assEscape, assColor, assAlpha } = require("../player/lib/screen");
 
 const t = (key, params) => translate("es", key, params);
 const songDisplay = (item) => getSongDisplay(item, t("song.unknownArtist"));
 const opts = { t, songDisplay };
+// "Sala:" y el código, que va en el color de la marca: entre los dos hay una etiqueta de color.
+const ROOM_CODE = /Sala: \{\\1c&HD8D649&\}ABCD/;
 
 const ANA = { id: "1", song: "Queen - Bohemian Rhapsody.mp4", name: "Ana" };
 const BETO = { id: "2", song: "x.mp4", title: "Soda Stereo - Persiana Americana", name: "Beto" };
@@ -39,7 +41,7 @@ test("durante una canción: quién canta, qué canción, quién sigue y el QR ch
   assert.match(ass, /Queen — Bohemian Rhapsody/);
   assert.match(ass, /A Continuación: \{\\b1\}Beto/);
   assert.match(ass, /YouTube — Soda Stereo - Persiana Americana/, "las descargas usan su título");
-  assert.match(ass, /Sala: ABCD/);
+  assert.match(ass, ROOM_CODE, "el código, con \"Sala:\" delante");
   assert.doesNotMatch(ass, /En pausa/);
 });
 
@@ -52,7 +54,7 @@ test("quién canta va arriba a la izquierda; quién sigue, abajo a la izquierda;
   const upNext = at("A Continuación");
   assert.equal(upNext[1], "1", "quién sigue: anclado abajo a la izquierda");
   assert.ok(Number(upNext[2]) < 100 && Number(upNext[3]) > 650, "pegado a la esquina de abajo");
-  const code = at("Sala: ABCD");
+  const code = at("Sala: \\{[^}]*\\}ABCD");
   assert.equal(code[1], "2", "el código va centrado sobre el QR");
   assert.ok(Number(code[2]) > 1100, "del lado derecho");
   assert.ok(Number(code[3]) < 720 - 0.2 * 720, "por encima del QR");
@@ -70,7 +72,7 @@ test("sin QR (el servidor no lo dio) queda el código de sala solo, y no se pide
   assert.match(idle.ass, /ABCD/);
   const playing = buildScreen(room({ qrAvailable: false, queue: [ANA] }), opts);
   assert.equal(playing.qr, null);
-  assert.match(playing.ass, /Sala: ABCD/);
+  assert.match(playing.ass, ROOM_CODE);
 });
 
 test("conectando y pantalla reemplazada: solo un aviso, sin QR", () => {
@@ -82,7 +84,7 @@ test("conectando y pantalla reemplazada: solo un aviso, sin QR", () => {
 });
 
 test("lo que escribe la gente no se cuela como órdenes de ASS", () => {
-  assert.equal(assEscape("{\\fs200}Hola"), "\\{\\​fs200\\}Hola");
+  assert.equal(assEscape("{\\fs200}Hola"), "\\{\\\u200bfs200\\}Hola");
   assert.equal(assEscape("uno\ndos"), "uno dos", "un salto de línea no parte el texto");
   const { ass } = buildScreen(room({ queue: [{ ...ANA, name: "{\\an5\\fs300}Troll" }] }), opts);
   assert.doesNotMatch(ass, /\{\\an5\\fs300\}/);
@@ -94,6 +96,59 @@ test("los textos largos se recortan para no pasar por debajo del QR", () => {
   assert.doesNotMatch(ass, /N{31}/, "el nombre no pasa de 30 caracteres");
   assert.match(ass, /N{29}…/);
   assert.doesNotMatch(ass, /T{20}/, "el título se corta");
+});
+
+// Un logo de mentira: un cuadrado de 100×200 (para comprobar que se respeta la proporción).
+const LOGO = { drawing: "m 0 0 l 100 0 l 100 200 l 0 200", width: 100, height: 200 };
+// Busca la figura del logo en el ASS y devuelve su posición, escala y opacidad.
+const logoIn = (ass) => {
+  const m = new RegExp(`\\{\\\\an7\\\\pos\\((\\d+),(\\d+)\\)\\\\fscx([\\d.]+)\\\\fscy[\\d.]+[^}]*\\\\1c&HD8D649&\\\\1a&H([0-9A-F]{2})&\\\\p1\\}${LOGO.drawing}`).exec(ass);
+  return m && { x: Number(m[1]), y: Number(m[2]), scale: Number(m[3]), alpha: parseInt(m[4], 16) };
+};
+
+test("durante una canción, el logo va arriba a la derecha y semitransparente", () => {
+  const { ass } = buildScreen(room({ queue: [ANA] }), { ...opts, logo: LOGO });
+  const logo = logoIn(ass);
+  assert.ok(logo, "se dibuja el logo en el turquesa de la marca");
+  assert.equal(logo.y, 28, "arriba");
+  const width = (LOGO.width * logo.scale) / 100;
+  assert.ok(Math.abs(logo.x + width - (1280 - 28)) <= 1, "pegado al margen derecho");
+  assert.ok(logo.alpha > 0x40 && logo.alpha < 0xc0, "ni opaco ni invisible");
+  assert.doesNotMatch(ass, /\\blur/, "sobre el video no se dibuja el fondo");
+});
+
+test("sin canciones: fondo con los colores de la marca, logo arriba y el código en turquesa", () => {
+  const { ass } = buildScreen(room(), { ...opts, logo: LOGO });
+  const [first] = ass.split("\n");
+  assert.match(first, /\\1c&H241117&/, "lo primero es el fondo #171124, para que quede detrás de todo");
+  assert.match(first, /m 0 0 l 1280 0 l 1280 720 l 0 720/, "y cubre toda la pantalla");
+  assert.match(ass, /\\1c&H701F4E&/, "con el resplandor morado del degradado de la web");
+  const logo = logoIn(ass);
+  assert.equal(logo.alpha, 0, "aquí el logo va opaco");
+  assert.ok(logo.y < 100, "arriba del título");
+  assert.match(ass, /\\1c&HD8D649&\\fsp\d+\}ABCD/, "el código de sala en turquesa y espaciado");
+});
+
+test("conectando: el logo grande y el aviso, sobre el fondo de la marca", () => {
+  const { ass } = buildScreen({ status: "connecting", serverUrl: "http://x/" }, { ...opts, logo: LOGO });
+  assert.ok(logoIn(ass).scale > logoIn(buildScreen(room(), { ...opts, logo: LOGO }).ass).scale, "más grande que en espera");
+  assert.match(ass, /\\1c&H241117&/);
+});
+
+test("sin logo (no se pudo leer) todo lo demás se dibuja igual", () => {
+  for (const state of [room(), room({ queue: [ANA] }), { status: "connecting", serverUrl: "http://x/" }]) {
+    const { ass } = buildScreen(state, opts);
+    assert.doesNotMatch(ass, /\\p1\}m 0 0 l 100 0/);
+    assert.ok(ass.length > 0);
+  }
+});
+
+test("assColor y assAlpha escriben colores y opacidades como los pide ASS", () => {
+  assert.equal(assColor("#49d6d8"), "&HD8D649&", "al revés: azul, verde, rojo");
+  assert.equal(assColor("171124"), "&H241117&");
+  assert.equal(assAlpha(1), "&H00&");
+  assert.equal(assAlpha(0), "&HFF&");
+  assert.equal(assAlpha(0.6), "&H66&");
 });
 
 test("qrPixels pasa las fracciones a píxeles de la pantalla real", () => {

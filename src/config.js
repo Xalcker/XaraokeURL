@@ -63,7 +63,7 @@ function loadConfig({
     sessionSecret: env.SESSION_SECRET,
     allowedDomain: env.ALLOWED_DOMAIN || "xalcker.xyz",
     authDisabled,
-    // Nombre sugerido en modo desarrollo. Si no se fija, depende del idioma de quien pide.
+    // Sin login: nombre de las conexiones que llegan sin uno elegido. Si no se fija, depende del idioma de quien pide.
     devUserName: env.DEV_USER_NAME,
     googleClientId: env.GOOGLE_CLIENT_ID,
     googleClientSecret: env.GOOGLE_CLIENT_SECRET,

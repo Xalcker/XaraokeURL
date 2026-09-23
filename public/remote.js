@@ -194,10 +194,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const userData = await userRes.json();
             if (userData.devMode) {
                 // Modo desarrollo (sin login de Google): cada dispositivo elige
-                // su nombre. Se sugiere el guardado en su sesión, o el de .env.
+                // su nombre. Solo se precarga el que ya guardó su sesión: uno
+                // genérico lo aceptaría sin leerlo quien entra con prisa.
                 devMode = true;
                 devNameField.classList.remove('hidden');
-                devNameInput.value = userData.name || userData.suggestedName || "";
+                devNameInput.value = userData.name || "";
                 myName = userData.name || "";
             } else {
                 myName = userData.name;
@@ -217,7 +218,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const roomCode = (new URLSearchParams(window.location.search).get("sala") || "").trim().toUpperCase();
         if (!/^[A-Z]{4}$/.test(roomCode)) return false;
         roomCodeInput.value = roomCode;
-        if (devMode) {
+        if (devMode && new URLSearchParams(window.location.search).get("nombre") === "ocupado") {
+            // Volvió aquí porque el servidor rechazó su nombre (ver ws.onclose).
+            roomError.textContent = t("api.nameTaken");
+            devNameInput.select();
+            devNameInput.focus();
+        } else if (devMode) {
             (devNameInput.value ? joinRoomBtn : devNameInput).focus();
         } else {
             roomForm.requestSubmit();
@@ -245,6 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const url = new URL(window.location.href);
         if (!url.searchParams.has("sala")) return;
         url.searchParams.delete("sala");
+        url.searchParams.delete("nombre");
         history.replaceState(null, "", url);
     }
 
@@ -271,11 +278,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 const nameRes = await fetch('/api/dev-name', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: devNameInput.value }),
+                    // Con la sala, el servidor avisa desde ya si alguien de ahí tiene ese nombre.
+                    body: JSON.stringify({ name: devNameInput.value, room: roomCode }),
                 });
                 const nameData = await nameRes.json();
                 if (!nameRes.ok) {
                     roomError.textContent = nameData.error || t("remote.join.nameSaveFailed");
+                    devNameInput.select();
+                    devNameInput.focus();
                     return;
                 }
                 myName = nameData.name;
@@ -415,6 +425,10 @@ document.addEventListener("DOMContentLoaded", () => {
             givenUp = true;
             updateControls();
             if (action === "login") setTimeout(() => { window.location.href = "/login"; }, 2000);
+            // De vuelta a la pantalla de unirse, con la sala puesta, para elegir otro nombre.
+            if (action === "nameTaken") {
+                setTimeout(() => { window.location.href = `/remote.html?sala=${roomId}&nombre=ocupado`; }, 2000);
+            }
         };
         ws.onerror = (error) => console.error("Error de WebSocket:", error);
 

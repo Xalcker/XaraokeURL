@@ -11,14 +11,14 @@ const MARGIN = 28;
 
 // Tamaño y posición del QR, en fracciones del alto (tamaño) y de la pantalla (posición).
 const QR_IDLE = { size: 0.46, centerX: 0.5, top: 0.2 };
-const QR_CORNER = { size: 0.2, right: MARGIN / WIDTH, top: MARGIN / HEIGHT };
+const QR_CORNER = { size: 0.2, right: MARGIN / WIDTH, bottom: MARGIN / HEIGHT };
 
 // Lo que escriben las personas (nombres, títulos de YouTube) no puede colarse como órdenes de ASS:
 // una llave abre un bloque de estilo y la barra invertida, secuencias como \N. Es el mismo escape que
 // usa mpv en sus propios scripts.
 function assEscape(text) {
   return String(text ?? "")
-    .replace(/\\/g, "\\​")
+    .replace(/\\/g, "\\\u200b")
     .replace(/\{/g, "\\{")
     .replace(/\}/g, "\\}")
     .replace(/\s+/g, " ")
@@ -43,8 +43,8 @@ function songLine(item, songDisplay, max = 60) {
   return assEscape(clip(`${artist} — ${songTitle}`, max));
 }
 
-// Quién canta, quién sigue y el código de sala bajo el QR de la esquina. Todo arriba: la letra de los
-// karaokes suele ir en el centro y abajo.
+// Quién canta arriba a la izquierda; quién sigue abajo a la izquierda; el QR abajo a la derecha, con
+// el código de sala encima. La letra de los karaokes suele ir al centro, lejos de las esquinas.
 function playingLines({ queue, roomId, paused, t, songDisplay, qrShown }) {
   const [current, next] = queue;
   const lines = [];
@@ -54,14 +54,14 @@ function playingLines({ queue, roomId, paused, t, songDisplay, qrShown }) {
   lines.push(line(left, MARGIN + 70, 7, `{${style(24)}}${songLine(current, songDisplay)}`));
   if (next) {
     const upNext = `${assEscape(t("host.upNext"))}: {\\b1}${assEscape(clip(next.name, 24))}{\\b0} · ${songLine(next, songDisplay, 45)}`;
-    lines.push(line(left, MARGIN + 108, 7, `{${style(22, { color: "D0D0D0" })}}${upNext}`));
+    lines.push(line(left, HEIGHT - MARGIN, 1, `{${style(22, { color: "D0D0D0" })}}${upNext}`));
   }
 
-  // El código de sala, bajo el QR (o solo, si el QR no está disponible).
-  const qrBottom = qrShown ? MARGIN + QR_CORNER.size * HEIGHT + 6 : MARGIN;
+  // El código de sala, sobre el QR (o solo en la esquina, si el QR no está disponible).
+  const codeY = qrShown ? HEIGHT - MARGIN - QR_CORNER.size * HEIGHT - 6 : HEIGHT - MARGIN;
   const codeX = WIDTH - MARGIN - (qrShown ? (QR_CORNER.size * HEIGHT) / 2 : 0);
-  const codeAlign = qrShown ? 8 : 9;
-  lines.push(line(Math.round(codeX), Math.round(qrBottom), codeAlign, `{${style(26, { bold: true })}}${assEscape(`${t("host.room")} ${roomId}`)}`));
+  const codeAlign = qrShown ? 2 : 3;
+  lines.push(line(Math.round(codeX), Math.round(codeY), codeAlign, `{${style(26, { bold: true })}}${assEscape(`${t("host.room")} ${roomId}`)}`));
 
   if (paused) {
     lines.push(line(WIDTH / 2, HEIGHT / 2, 5, `{${style(64, { bold: true })}}${assEscape(t("host.paused"))}`));
@@ -87,7 +87,7 @@ function messageLines(text) {
 }
 
 // state: { status: "connecting" | "replaced" | "room", serverUrl, roomId, remoteUrl, queue, paused, qrAvailable }
-// Devuelve { ass, qr }, con qr = null (sin QR) o { size, centerX, top } / { size, right, top }.
+// Devuelve { ass, qr }, con qr = null (sin QR) o { size, centerX, top } / { size, right, bottom }.
 function buildScreen(state, { t, songDisplay }) {
   if (state.status === "connecting") {
     return { ass: messageLines(t("player.connecting", { url: state.serverUrl })).join("\n"), qr: null };
@@ -109,7 +109,9 @@ function buildScreen(state, { t, songDisplay }) {
 // Pasa la posición del QR a píxeles de la pantalla real.
 function qrPixels(qr, screenWidth, screenHeight) {
   const size = Math.max(16, Math.round(qr.size * screenHeight));
-  const top = Math.round(qr.top * screenHeight);
+  const top = qr.bottom !== undefined
+    ? Math.round(screenHeight - qr.bottom * screenHeight - size)
+    : Math.round(qr.top * screenHeight);
   const left = qr.centerX !== undefined
     ? Math.round(qr.centerX * screenWidth - size / 2)
     : Math.round(screenWidth - qr.right * screenWidth - size);

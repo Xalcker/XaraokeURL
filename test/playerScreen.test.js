@@ -33,7 +33,7 @@ test("sin canciones: QR grande al centro, código de sala y cómo entrar", () =>
 
 test("durante una canción: quién canta, qué canción, quién sigue y el QR chico en la esquina", () => {
   const { ass, qr } = buildScreen(room({ queue: [ANA, BETO] }), opts);
-  assert.ok(qr.size < 0.3 && qr.right !== undefined, "QR chico, alineado a la derecha");
+  assert.ok(qr.size < 0.3 && qr.right !== undefined && qr.bottom !== undefined, "QR chico, abajo a la derecha");
   assert.match(ass, /Ahora Suena/);
   assert.match(ass, /Ana/);
   assert.match(ass, /Queen — Bohemian Rhapsody/);
@@ -41,6 +41,21 @@ test("durante una canción: quién canta, qué canción, quién sigue y el QR ch
   assert.match(ass, /YouTube — Soda Stereo - Persiana Americana/, "las descargas usan su título");
   assert.match(ass, /Sala: ABCD/);
   assert.doesNotMatch(ass, /En pausa/);
+});
+
+test("quién canta va arriba a la izquierda; quién sigue, abajo a la izquierda; el código, sobre el QR", () => {
+  const { ass } = buildScreen(room({ queue: [ANA, BETO] }), opts);
+  const at = (text) => new RegExp(`\\{\\\\an(\\d)\\\\pos\\((\\d+),(\\d+)\\)\\}[^\\n]*${text}`).exec(ass);
+  const singer = at("Ana");
+  assert.equal(singer[1], "7", "quién canta: arriba a la izquierda");
+  assert.ok(Number(singer[3]) < 100);
+  const upNext = at("A Continuación");
+  assert.equal(upNext[1], "1", "quién sigue: anclado abajo a la izquierda");
+  assert.ok(Number(upNext[2]) < 100 && Number(upNext[3]) > 650, "pegado a la esquina de abajo");
+  const code = at("Sala: ABCD");
+  assert.equal(code[1], "2", "el código va centrado sobre el QR");
+  assert.ok(Number(code[2]) > 1100, "del lado derecho");
+  assert.ok(Number(code[3]) < 720 - 0.2 * 720, "por encima del QR");
 });
 
 test("la última canción no muestra quién sigue; en pausa se avisa al centro", () => {
@@ -88,5 +103,6 @@ test("qrPixels pasa las fracciones a píxeles de la pantalla real", () => {
   const corner = buildScreen(room({ queue: [ANA] }), opts).qr;
   const small = qrPixels(corner, 1920, 1080);
   assert.ok(small.left + small.size <= 1920 && small.left + small.size > 1920 - 60, "pegado a la derecha");
+  assert.ok(small.top + small.size <= 1080 && small.top + small.size > 1080 - 60, "pegado abajo");
   assert.equal(small.size, Math.round(corner.size * 1080));
 });

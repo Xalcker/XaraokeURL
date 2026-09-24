@@ -280,10 +280,22 @@ EOF
     # De todos los kernels instalados, no solo el que corre ahora: tras el full-upgrade de arriba,
     # el kernel que arrancará es el nuevo y "uname -r" todavía apunta al viejo, así que el
     # initramfs con el logo se generaba para un kernel que ya no se usa.
-    if [ "$initramfs_stale" = "true" ]; then
+    # No basta con fiarse de "initramfs_stale": si se repite el script tras una corrida que se cortó, o
+    # apt regeneró el initramfs por su cuenta (al instalar plymouth) antes de fijar el tema, la bandera
+    # queda en falso y el initramfs se queda sin el logo (pasó en una Pi Zero 2 W: gris con puntos).
+    # Por eso se mira también el contenido real de cada initramfs.
+    theme_in_initramfs() {
+      local f
+      for f in /boot/initrd.img-*; do
+        [ -e "$f" ] || continue
+        lsinitramfs "$f" 2>/dev/null | grep -q 'themes/xaraoke/xaraoke.script' || return 1
+      done
+    }
+    if [ "$initramfs_stale" = "true" ] || ! theme_in_initramfs; then
       echo "==> Regenerando el initramfs con el logo (en una Pi Zero 2 W tarda unos minutos)"
       update-initramfs -u -k all
     fi
+    theme_in_initramfs || warn "El initramfs no quedó con el tema del logo: el arranque mostrará el de emergencia (gris con puntos)."
   fi
 
   # --- Wi-Fi sin ahorro de energía ----------------------------------------------

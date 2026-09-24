@@ -35,6 +35,10 @@ set -euo pipefail
 #   READ_ONLY       "true" para activar el sistema de archivos de solo lectura (overlayfs):
 #                   protege la microSD si desconectan el Pi de golpe, pero cualquier cambio
 #                   se pierde al reiniciar. Desactívalo con "sudo raspi-config nonint do_overlayfs 1".
+#   INSTALL_NODE_SERVICE  "true" para que el servidor corra en este mismo Pi (servicio systemd que
+#                   ejecuta "node server.js" desde APP_DIR). La app tiene que estar ya instalada
+#                   ahí (Node, "npm ci" y el .env); este script no la instala.
+#   APP_DIR         Carpeta de la app si INSTALL_NODE_SERVICE=true (/opt/xaraoke).
 #   REBOOT          "true" para reiniciar solo al terminar.
 #   XARAOKE_REF     Rama/tag de GitHub de donde bajar install-kiosk.sh (y el reproductor
 #                   nativo) si no están junto a este script (main).
@@ -52,6 +56,8 @@ main() {
   READ_ONLY="${READ_ONLY:-false}"
   REBOOT="${REBOOT:-false}"
   XARAOKE_REF="${XARAOKE_REF:-main}"
+  INSTALL_NODE_SERVICE="${INSTALL_NODE_SERVICE:-false}"
+  APP_DIR="${APP_DIR:-/opt/xaraoke}"
 
   KIOSK_INSTALLER=/usr/local/sbin/xaraoke-install-kiosk.sh
   NM_WIFI_CONF=/etc/NetworkManager/conf.d/xaraoke-wifi-powersave.conf
@@ -118,8 +124,10 @@ main() {
   esac
   case "$KIOSK_URL" in
     *://localhost*|*://127.*)
-      warn "La URL apunta a este mismo equipo. Este script instala solo la pantalla; si también quieres"
-      warn "correr el servidor aquí, usa scripts/install-kiosk.sh con INSTALL_NODE_SERVICE=true." ;;
+      if [ "$INSTALL_NODE_SERVICE" != "true" ]; then
+        warn "La URL apunta a este mismo equipo. Este script instala solo la pantalla; si también quieres"
+        warn "correr el servidor aquí, vuelve a correrlo con INSTALL_NODE_SERVICE=true (ver arriba)."
+      fi ;;
   esac
 
   if [ -z "$DISPLAY_MODE" ]; then
@@ -312,7 +320,8 @@ EOF
   if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/../player/xaraoke-player.js" ]; then
     PLAYER_SRC="$(cd "$SCRIPT_DIR/.." && pwd)"
   fi
-  KIOSK_URL="$KIOSK_URL" KIOSK_PLAYER="$KIOSK_PLAYER" PLAYER_SRC_DIR="$PLAYER_SRC" XARAOKE_REF="$XARAOKE_REF"     INSTALL_NODE_SERVICE=false "$KIOSK_INSTALLER"
+  KIOSK_URL="$KIOSK_URL" KIOSK_PLAYER="$KIOSK_PLAYER" PLAYER_SRC_DIR="$PLAYER_SRC" XARAOKE_REF="$XARAOKE_REF" \
+    INSTALL_NODE_SERVICE="$INSTALL_NODE_SERVICE" APP_DIR="$APP_DIR" "$KIOSK_INSTALLER"
 
   # --- Comprobación del servidor ------------------------------------------------
   if curl -fsS -m 5 -o /dev/null "$KIOSK_URL" 2>/dev/null; then

@@ -127,7 +127,7 @@ Si en cambio el servidor corre en otra máquina de la red, quita `INSTALL_NODE_S
 ## 7. Qué comprobar
 
 * **En el TV:** el logo (si hiciste el paso 5), un negro corto, un blanco y la sala. La dirección bajo el QR debe ser la de tu red y no `localhost`. Sin puntero.
-* **Audio por HDMI:** encola una canción y confirma que suena por el TV. Es lo más específico de cada equipo: si no suena, mira [Problemas conocidos](kiosko-problemas.md#no-suena-por-hdmi).
+* **Audio por HDMI:** agrega una canción a la lista y confirma que suena por el TV. Es lo más específico de cada equipo: si no suena, mira [Problemas conocidos](kiosko-problemas.md#no-suena-por-hdmi).
 * **Servicios:**
 
 ```bash

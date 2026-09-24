@@ -1,7 +1,7 @@
 {
   "name": "XaraokeURL Remoto",
   "short_name": "Xaraoke Remoto",
-  "description": "Control remoto para agregar canciones a la cola de XaraokeURL.",
+  "description": "Control remoto para agregar canciones a la lista de XaraokeURL.",
   "lang": "es",
   "start_url": "/remote.html",
   "scope": "/",

@@ -269,10 +269,12 @@ EOF
       initramfs_stale=true
     fi
     # El tema va dentro del initramfs, para que el logo salga desde el principio.
-    # Solo el del kernel que está corriendo: en un Pi hay varios (uno por modelo).
+    # De todos los kernels instalados, no solo el que corre ahora: tras el full-upgrade de arriba,
+    # el kernel que arrancará es el nuevo y "uname -r" todavía apunta al viejo, así que el
+    # initramfs con el logo se generaba para un kernel que ya no se usa.
     if [ "$initramfs_stale" = "true" ]; then
       echo "==> Regenerando el initramfs con el logo (en una Pi Zero 2 W tarda unos minutos)"
-      update-initramfs -u -k "$(uname -r)"
+      update-initramfs -u -k all
     fi
   fi
 

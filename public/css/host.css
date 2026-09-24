@@ -142,14 +142,18 @@ a:focus-visible {
     gap: 1rem;
 }
 
-/* "Ahora suena" y "A continuación" no llenan la barra: el logo aprovecha el
-   espacio que sobra abajo en vez de dejarlo vacío. */
+/* El logo arriba y el QR abajo, cada uno pegado a su extremo de la barra en vez de apilados
+   con el resto: son "cómo conectarse", no información que deba crecer con el contenido. */
+.sidebar-right {
+    justify-content: space-between;
+}
+
+/* Adorno de esquina, no pieza central: chico y discreto sobre el resto de la barra derecha. */
 .sidebar-logo {
-    margin-top: auto;
     align-self: center;
-    width: min(50%, 130px);
+    width: min(35%, 80px);
     height: auto;
-    opacity: 0.5;
+    opacity: 0.45;
 }
 
 .player-column {
@@ -495,4 +499,51 @@ body.ui-idle #fullscreen-btn:not(:focus-visible) {
     margin-bottom: 0.5rem;
     font-size: 1.2rem;
     font-weight: bold;
+}
+
+/* Vista minimalista (?ui=minimal, ver public/js/uiMode.js): sin barras laterales, el video ocupa toda
+   la pantalla y "ahora suena" / "a continuación" / logo / QR quedan como overlays flotando en cada
+   esquina, como el reproductor nativo (ver player/lib/screen.js). Los mismos elementos y la misma
+   lógica de karaoke.js, solo reposicionados por CSS. */
+.ui-minimal .main-container {
+    gap: 0;
+    width: 100%;
+    height: 100vh;
+}
+
+.ui-minimal .player-column,
+.ui-minimal video {
+    border-radius: 0;
+}
+
+/* La lista de próximas 5 no cabe en un overlay de esquina: el modo minimalista solo
+   muestra qué suena y qué sigue, igual que el reproductor nativo. */
+.ui-minimal #queue-container {
+    display: none;
+}
+
+.ui-minimal .sidebar-left,
+.ui-minimal .sidebar-right {
+    position: fixed;
+    top: 1.5rem;
+    /* Deja libre el hueco del botón de pantalla completa (bottom: 1rem, 44px de alto, ver
+       #fullscreen-btn), que si no queda debajo del panel de "a continuación". */
+    bottom: calc(1rem + 44px + 0.75rem);
+    flex: none;
+    width: clamp(160px, 16vw, 360px);
+    pointer-events: none;
+    z-index: 5;
+}
+
+.ui-minimal .sidebar-left {
+    left: 1.5rem;
+    justify-content: space-between;
+}
+
+.ui-minimal .sidebar-right {
+    right: 1.5rem;
+}
+
+.ui-minimal .sidebar-section {
+    padding: 0.75rem 1rem;
 }

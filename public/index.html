@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/icons.css">
     <link rel="stylesheet" href="css/host.css">
+    <script src="js/uiMode.js"></script>
     <script src="js/mobileRedirect.js"></script>
 </head>
 <body>
@@ -43,9 +44,12 @@
                     <div class="info-card-title" data-i18n="host.nobodyWaiting">Nadie en espera</div>
                 </div>
             </div>
-            <img class="sidebar-logo" src="img/logo.svg" alt="" width="96" height="96">
+            <div id="queue-container" class="sidebar-section">
+                <h3><span data-icon="list"></span><span data-i18n="host.upcoming">Próximas 5 Canciones</span></h3>
+                <div id="songQueue"></div>
+            </div>
         </div>
-        
+
         <div class="player-column">
             <!-- <video id="karaokePlayer" controls controlslist="nodownload" autoplay></video> -->
              <video id="karaokePlayer"></video>
@@ -61,12 +65,9 @@
                 <p id="idle-hint"></p>
             </div>
         </div>
-        
+
         <div class="sidebar-right">
-            <div id="queue-container" class="sidebar-section">
-                <h3><span data-icon="list"></span><span data-i18n="host.upcoming">Próximas 5 Canciones</span></h3>
-                <div id="songQueue"></div>
-            </div>
+            <img class="sidebar-logo" src="img/logo.svg" alt="" width="96" height="96">
             <div id="qr-container" class="sidebar-section">
                 <h3><span data-icon="phone"></span><span data-i18n="host.remote">Control Remoto</span></h3>
                 <p class="room-label" data-i18n="host.room">Sala:</p> 

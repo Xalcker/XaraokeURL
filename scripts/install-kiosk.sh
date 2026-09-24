@@ -343,7 +343,7 @@ else
     cp "$PLAYER_SRC_DIR/public/img/logo.svg" "$PLAYER_TMP/public/img/"
   else
     echo "    Descargando de GitHub ($XARAOKE_REF)"
-    curl -fsSL "https://codeload.github.com/Xalcker/XaraokeURL/tar.gz/$XARAOKE_REF" \
+    curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "https://codeload.github.com/Xalcker/XaraokeURL/tar.gz/$XARAOKE_REF" \
       | tar -xz --strip-components=1 -C "$PLAYER_TMP" --wildcards '*/player/*' '*/public/js/i18n.js' '*/public/js/shared.js' '*/public/img/logo.svg'
   fi
   [ -f "$PLAYER_TMP/player/xaraoke-player.js" ] || { echo "No se pudo obtener el reproductor." >&2; exit 1; }

@@ -233,7 +233,7 @@ main() {
     if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/../public/img/icon-512.png" ]; then
       cp "$SCRIPT_DIR/../public/img/icon-512.png" "$tmp"
     else
-      curl -fsSL "https://raw.githubusercontent.com/Xalcker/XaraokeURL/$XARAOKE_REF/public/img/icon-512.png" -o "$tmp"
+      curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "https://raw.githubusercontent.com/Xalcker/XaraokeURL/$XARAOKE_REF/public/img/icon-512.png" -o "$tmp"
     fi
     install_theme_file "$tmp" "$PLYMOUTH_THEME_DIR/logo.png"
 
@@ -309,7 +309,7 @@ EOF
   else
     echo "==> Descargando install-kiosk.sh ($XARAOKE_REF)"
     tmp="$(mktemp)"
-    curl -fsSL "https://raw.githubusercontent.com/Xalcker/XaraokeURL/$XARAOKE_REF/scripts/install-kiosk.sh" -o "$tmp"
+    curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "https://raw.githubusercontent.com/Xalcker/XaraokeURL/$XARAOKE_REF/scripts/install-kiosk.sh" -o "$tmp"
     install -m 755 "$tmp" "$KIOSK_INSTALLER"
     rm -f "$tmp"
   fi

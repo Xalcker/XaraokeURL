@@ -96,6 +96,10 @@ uninstall() {
   rm -f "$KIOSK_UNIT" "$PREPARE_UNIT" "$SERVER_UNIT" "$WAIT_SCRIPT" "$AUDIO_SCRIPT" "$PLYMOUTH_DROPIN"
   # Solo si el tema "default" del kiosko es el nuestro.
   if grep -qs "xaraoke-blank" "$(blank_cursor_dir)/index.theme"; then rm -rf "$(blank_cursor_dir)"; fi
+  if [ -f /usr/share/glib-2.0/schemas/90_xaraoke.gschema.override ]; then
+    rm -f /usr/share/glib-2.0/schemas/90_xaraoke.gschema.override
+    glib-compile-schemas /usr/share/glib-2.0/schemas/ 2>/dev/null || true
+  fi
   rm -rf "$PLAYER_DIR"
   systemctl daemon-reload
   systemctl enable --now getty@tty1.service 2>/dev/null || true
@@ -120,7 +124,8 @@ if [ "$KIOSK_PLAYER" = "chromium" ]; then
   fi
   # seatd le da a cage el acceso a la pantalla: en Raspberry Pi OS (Debian 13) logind no le asigna
   # seat a esta sesión y cage se cae a los 10 s con "Timeout waiting session to become active".
-  PKGS="cage seatd curl $CHROMIUM_PKG"
+  # libglib2.0-bin trae glib-compile-schemas, para fijar el cursor (ver más abajo).
+  PKGS="cage seatd curl libglib2.0-bin $CHROMIUM_PKG"
 else
   # El reproductor nativo no usa paquetes de npm: con Node y mpv del sistema alcanza.
   PKGS="curl mpv nodejs fonts-dejavu-core"
@@ -312,6 +317,13 @@ if [ "$KIOSK_PLAYER" = "chromium" ]; then
     printf '[Settings]\ngtk-cursor-theme-name=default\ngtk-cursor-theme-size=24\n' > "$KIOSK_HOME/.config/gtk-$gtk_ver/settings.ini"
   done
   chown -R "$KIOSK_USER:$KIOSK_USER" "$KIOSK_HOME/.config"
+  # Si el equipo trae los esquemas de GNOME (los arrastran paquetes como ffmpeg), GTK toma el tema del
+  # cursor de ahí (Adwaita por defecto) antes que de settings.ini: hay que fijarlo también ahí.
+  if [ -f /usr/share/glib-2.0/schemas/org.gnome.desktop.interface.gschema.xml ]; then
+    printf "[org.gnome.desktop.interface]\ncursor-theme='default'\ncursor-size=24\n" \
+      > /usr/share/glib-2.0/schemas/90_xaraoke.gschema.override
+    glib-compile-schemas /usr/share/glib-2.0/schemas/
+  fi
 
   KIOSK_ENV="Environment=LIBSEAT_BACKEND=seatd"
   KIOSK_AFTER="$KIOSK_AFTER seatd.service"

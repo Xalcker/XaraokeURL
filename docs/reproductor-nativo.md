@@ -1,0 +1,11 @@
+# Reproductor nativo (Raspberry Pi Zero 2 W y placas chicas)
+
+En una Pi Zero 2 W (512 MB) Chromium no llega a dibujar la página, y un navegador más liviano (WPE WebKit con `cog`) la dibuja pero decodifica el video por software y va a tirones. Por eso existe [`player/xaraoke-player.js`](../player/xaraoke-player.js): la pantalla principal **sin navegador**. `mpv` reproduce el video con el decodificador H.264 por hardware del Pi y dibuja encima quién canta (arriba a la izquierda), quién sigue (abajo a la izquierda), el QR con el código de sala (abajo a la derecha) y el logo, semitransparente (arriba a la derecha). Quién canta y quién sigue van sobre un recuadro oscuro semitransparente, para leerse aunque el video traiga créditos o marcas de agua en esas esquinas. Sin canciones, muestra el logo y el QR grande sobre el fondo con los colores de la marca. El logo sale del mismo `public/img/logo.svg`: su trazo se convierte en un dibujo vectorial de ASS (`player/lib/svgPath.js`), así que se ve nítido a cualquier tamaño. Hace de host con las mismas APIs y mensajes que la pantalla web, así que el servidor y los remotos no notan la diferencia.
+
+* Se elige con `KIOSK_PLAYER=mpv` en `install-kiosk.sh`; `setup-raspberry-display.sh` lo elige solo con menos de 1 GB de RAM.
+* No necesita `npm`: solo `nodejs` y `mpv` del sistema. Usa el WebSocket que trae Node (Node 22+, o Node 20.10+ con `--experimental-websocket`, que el instalador agrega si hace falta).
+* Recuerda la sala en disco: tras un reinicio recupera la misma (si el servidor la sigue guardando) o crea otra.
+* En una Zero 2 W, un video de 720p se reproduce con ~70 % de un núcleo y pierde alrededor del 10 % de los cuadros: se nota poco, pero no es tan fluido como en una Pi 4.
+* Se puede probar a mano, sin instalar el servicio: `XARAOKE_MPV_ARGS="--vo=gpu --gpu-context=drm --hwdec=v4l2m2m-copy" node --experimental-websocket player/xaraoke-player.js http://<servidor>:8081/` (con el kiosko detenido).
+
+Frente a la pantalla web se ve más sencillo: sin barras laterales ni la lista de próximas canciones, sin tutorial ni pantalla completa (ya es pantalla completa). Si cambia cómo se comporta la pantalla principal en `public/karaoke.js` (pausas, saltos, reanudar tras un error), hay que reflejarlo también en `player/lib/hostLogic.js`.

@@ -69,12 +69,7 @@
                     <div id="current-song-time"></div>
                     <div id="paused-tag" class="hidden" data-i18n="remote.pausedTag">En pausa</div>
                     <div id="controls-locked" class="hidden">
-                        <span data-i18n="remote.controlsLocked">Solo quien canta puede pausar o saltar</span>
-                        <button type="button" id="voteSkipBtn">
-                            <span data-icon="next"></span>
-                            <span data-i18n="remote.voteSkip">Votar para saltar</span>
-                            <span id="voteSkipCount" class="vote-skip-count">0/3</span>
-                        </button>
+                        <span data-i18n="remote.controlsLocked">Solo quien canta puede pausar. Con el botón de saltar votas para saltarla</span>
                     </div>
                 </div>
                 <div id="controls">
@@ -83,6 +78,7 @@
                         <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg>
                     </button>
                     <button id="skipBtn" class="control-btn" type="button" aria-label="Saltar canción" title="Saltar canción" data-i18n-aria-label="remote.skip" data-i18n-title="remote.skip">
+                        <svg id="vote-ring" viewBox="0 0 60 60" aria-hidden="true" focusable="false"></svg>
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5v14l10-7z"/><path d="M17 5h2.5v14H17z"/></svg>
                     </button>
                 </div>

@@ -78,21 +78,33 @@ test("los botones de reproducción solo se habilitan si el servidor dice que se 
 
 // ---------- remoto: votar para saltar la canción de otra persona
 
-test("cuando los controles están bloqueados, se puede votar para saltar y se ve cuántos votos van", () => {
-  const hintBlock = /<div\b[^>]*id="controls-locked"[^>]*>[\s\S]*?<\/div>/.exec(remoteHtml)[0];
-  assert.match(hintBlock, /<button\b[^>]*id="voteSkipBtn"[^>]*>/, "falta el botón de votar para saltar");
-  assert.match(hintBlock, /data-i18n="remote\.voteSkip"/);
-  assert.match(hintBlock, /id="voteSkipCount"/, "falta la marca visual con el conteo de votos");
+test("con la canción de otra persona, el mismo botón de saltar vota, con un anillo que muestra los votos", () => {
+  assert.doesNotMatch(remoteHtml, /id="voteSkipBtn"/, "ya no hay un botón aparte para votar");
+  const skip = /<button\b[^>]*id="skipBtn"[^>]*>[\s\S]*?<\/button>/.exec(remoteHtml)[0];
+  assert.match(skip, /<svg\b[^>]*id="vote-ring"[^>]*aria-hidden="true"/, "falta el anillo de votos dentro del botón");
 
   const update = bodyFrom(remoteJs, "function updateControls()");
-  assert.match(update, /voteSkipBtn\.disabled = votedToSkip;/);
-  assert.match(update, /voteSkipCount\.textContent = `\$\{skipVoteCount\}\/\$\{skipVoteThreshold\}`;/);
+  // Nunca vota por la canción propia (el servidor lo rechazaría).
+  assert.match(update, /skipVoteMode = active && !controlAllowed && currentQueue\[0\]\.name !== myName;/);
+  assert.match(update, /skipBtn\.disabled = !skipVoteMode && \(!usable \|\| skipPendingId !== null\);/);
+  assert.match(update, /skipBtn\.classList\.toggle\("voted", skipVoteMode && votedToSkip\)/);
+  // El nombre accesible dice cuántos votos van.
+  assert.match(update, /"remote\.voteSkipDone" : "remote\.voteSkip", \{ count: skipVoteCount, threshold: skipVoteThreshold \}/);
+  assert.match(update, /drawVoteRing\(currentQueue\[0\]\.id, skipVoteCount, skipVoteThreshold\)/);
+
+  const ring = bodyFrom(remoteJs, "function drawVoteRing(songId, count, threshold)");
+  assert.match(ring, /for \(let i = 0; i < total; i\+\+\)/, "un segmento por voto necesario");
+  assert.match(ring, /i < count \? "lit"/, "se encienden los segmentos con voto");
 });
 
-test("votar para saltar manda voteSkip con el id de la canción que se ve, y no si ya se votó", () => {
-  const handler = bodyFrom(remoteJs, 'voteSkipBtn.addEventListener("click"');
-  assert.match(handler, /if \(!head \|\| voteSkipBtn\.disabled\) return;/);
-  assert.match(handler, /sendMessage\("voteSkip", \{ id: head\.id \}\)/);
+test("en modo voto, saltar manda voteSkip con el id de la canción que se ve, sin confirmar, y no si ya se votó", () => {
+  const handler = bodyFrom(remoteJs, 'skipBtn.addEventListener("click"');
+  const vote = handler.indexOf("if (skipVoteMode) return voteToSkip(head);");
+  assert.ok(vote >= 0, "el botón de saltar no vota en modo voto");
+  assert.ok(vote < handler.indexOf("showConfirm("), "el voto no debe pasar por la confirmación de saltar");
+  const voteFn = bodyFrom(remoteJs, "function voteToSkip(head)");
+  assert.match(voteFn, /if \(votedToSkip\) return;/);
+  assert.match(voteFn, /sendMessage\("voteSkip", \{ id: head\.id \}\)/);
 });
 
 test("el conteo de votos lo informa el servidor, no un valor fijo en el cliente", () => {
@@ -129,7 +141,7 @@ test("la confirmación abierta se cierra sola si la canción de arriba cambia, y
   const queue = bodyFrom(remoteJs, "function renderQueue(queue)");
   assert.match(queue, /confirmSkipId && queue\[0\]\?\.id !== confirmSkipId\) confirmModalCancel\.click\(\)/);
   assert.match(queue, /skipPendingId && queue\[0\]\?\.id !== skipPendingId\) clearSkipPending\(\)/);
-  assert.match(bodyFrom(remoteJs, "function updateControls()"), /skipBtn\.disabled = !usable \|\| skipPendingId !== null/);
+  assert.match(bodyFrom(remoteJs, "function updateControls()"), /skipBtn\.disabled = !skipVoteMode && \(!usable \|\| skipPendingId !== null\)/);
 });
 
 test("quitar una canción de tu cola pide confirmación ANTES de enviar la orden y se cierra si la canción ya no espera", () => {

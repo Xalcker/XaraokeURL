@@ -1,7 +1,7 @@
 {
   "name": "XaraokeURL",
   "short_name": "Xaraoke",
-  "description": "Karaoke colaborativo: agrega canciones a la cola desde tu celular.",
+  "description": "Karaoke colaborativo: agrega canciones a la lista desde tu celular.",
   "lang": "es",
   "start_url": "/",
   "scope": "/",

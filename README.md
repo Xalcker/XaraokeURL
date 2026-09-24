@@ -1,12 +1,12 @@
 # XaraokeURL 🎤🎶
 
-Un reproductor de karaoke interactivo basado en la web, construido con HTML5, Node.js y WebSockets. Los usuarios exploran una biblioteca de canciones y añaden canciones a una cola compartida en tiempo real desde sus teléfonos, escaneando un código QR: no hace falta instalar ninguna app.
+Un reproductor de karaoke interactivo basado en la web, construido con HTML5, Node.js y WebSockets. Los usuarios exploran una biblioteca de canciones y añaden canciones a una lista compartida en tiempo real desde sus teléfonos, escaneando un código QR: no hace falta instalar ninguna app.
 
 ## ✨ Lo esencial
 
 * **Pantalla principal (host)** en un TV o navegador: reproduce el video, muestra quién canta y quién sigue, y un QR para que los demás se unan.
-* **Control remoto en el teléfono:** busca, encola, reordena tus canciones y controla la reproducción cuando te toca cantar. Se instala como app (PWA) y no necesita cuenta de Google en modo local.
-* **Salas virtuales** de 4 letras, cada una con su cola, sincronizadas al instante por WebSockets.
+* **Control remoto en el teléfono:** busca, agrega a la lista, reordena tus canciones y controla la reproducción cuando te toca cantar. Se instala como app (PWA) y no necesita cuenta de Google en modo local.
+* **Salas virtuales** de 4 letras, cada una con su lista, sincronizadas al instante por WebSockets.
 * **Biblioteca local** (URLs en SQLite) y **búsqueda y descarga desde YouTube** con `yt-dlp`.
 * **Modo kiosko:** un Raspberry Pi o un miniPC que enciende y abre la sala a pantalla completa por HDMI, sin teclado ni mouse.
 * **Español e inglés**, cada persona en el idioma de su navegador.
@@ -38,7 +38,7 @@ Abre `http://localhost:8081`, pulsa **Comenzar** y escanea el QR con el teléfon
 | Quiero... | Lee |
 |---|---|
 | Instalar el servidor, configurar el `.env`, cargar canciones | [Instalación](docs/instalacion.md) |
-| Saber cómo se usa (salas, cola, Modo TV, calificar) | [Uso](docs/uso.md) |
+| Saber cómo se usa (salas, lista, Modo TV, calificar) | [Uso](docs/uso.md) |
 | Buscar y descargar canciones desde YouTube | [YouTube](docs/youtube.md) |
 | Ver todas las características | [Características](docs/caracteristicas.md) |
 | Dejar una pantalla fija en un Raspberry Pi o miniPC | [Modo Kiosko](docs/kiosko.md) |

@@ -44,8 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const miniPlayer = document.getElementById("mini-player");
     const pausedTag = document.getElementById("paused-tag");
     const controlsLocked = document.getElementById("controls-locked");
-    const voteSkipBtn = document.getElementById("voteSkipBtn");
-    const voteSkipCount = document.getElementById("voteSkipCount");
+    const voteRing = document.getElementById("vote-ring");
     const ratingCard = document.getElementById("rating-card");
     const ratingTitle = document.getElementById("rating-title");
     const ratingUp = document.getElementById("rating-up");
@@ -128,6 +127,8 @@ document.addEventListener("DOMContentLoaded", () => {
     let skipVoteCount = 0;
     let skipVoteThreshold = 3;
     let votedToSkip = false;
+    let skipVoteMode = false;     // el botón de saltar vota, porque la canción que suena es de otra persona
+    let voteRingDrawn = null;     // canción, conteo y umbral con los que se dibujó el anillo (para no redibujarlo igual)
     let confirmSkipId = null;     // canción por la que se está pidiendo confirmación para saltar
     let confirmRemoveId = null;   // canción tuya por la que se está pidiendo confirmación para quitarla de la cola
     let skipPendingId = null;     // canción cuyo salto ya se pidió y aún no se ve reflejado en la cola
@@ -623,17 +624,59 @@ document.addEventListener("DOMContentLoaded", () => {
         const usable = active && controlAllowed;
         const paused = active && playbackPaused;
         playPauseBtn.disabled = !usable;
-        skipBtn.disabled = !usable || skipPendingId !== null;
+        // Con la canción de otra persona, el mismo botón de saltar sirve para votar (el servidor no
+        // acepta votos por la canción propia).
+        skipVoteMode = active && !controlAllowed && currentQueue[0].name !== myName;
+        skipBtn.disabled = !skipVoteMode && (!usable || skipPendingId !== null);
+        skipBtn.classList.toggle("vote-mode", skipVoteMode);
+        skipBtn.classList.toggle("voted", skipVoteMode && votedToSkip);
+        skipBtn.setAttribute("aria-disabled", String(skipVoteMode && votedToSkip));
+        const skipLabel = skipVoteMode
+            ? t(votedToSkip ? "remote.voteSkipDone" : "remote.voteSkip", { count: skipVoteCount, threshold: skipVoteThreshold })
+            : t("remote.skip");
+        skipBtn.setAttribute("aria-label", skipLabel);
+        skipBtn.title = skipLabel;
+        if (skipVoteMode) drawVoteRing(currentQueue[0].id, skipVoteCount, skipVoteThreshold);
         controlsLocked.classList.toggle("hidden", !active || controlAllowed);
-        voteSkipBtn.disabled = votedToSkip;
-        voteSkipBtn.classList.toggle("voted", votedToSkip);
-        voteSkipCount.textContent = `${skipVoteCount}/${skipVoteThreshold}`;
         playPauseBtn.dataset.state = paused ? "paused" : "playing";
         const label = t(paused ? "remote.play" : "remote.pause");
         playPauseBtn.setAttribute("aria-label", label);
         playPauseBtn.title = label;
         miniPlayer.classList.toggle("is-paused", paused);
         pausedTag.classList.toggle("hidden", !paused);
+    }
+
+    // Anillo de votos alrededor del botón de saltar: un segmento por voto necesario, empezando arriba
+    // y en el sentido del reloj; los que ya tienen voto se encienden. El que se acaba de encender
+    // destella una vez.
+    function drawVoteRing(songId, count, threshold) {
+        const drawn = voteRingDrawn;
+        if (drawn && drawn.songId === songId && drawn.count === count && drawn.threshold === threshold) return;
+        // Solo destella lo que se encendió desde el último dibujo de esta misma canción.
+        const previous = drawn && drawn.songId === songId ? drawn.count : count;
+        voteRingDrawn = { songId, count, threshold };
+        const total = Math.max(1, threshold);
+        const center = 30;
+        const radius = 28;
+        const gap = total > 1 ? 14 : 0; // grados libres entre segmentos
+        const span = 360 / total;
+        const point = (deg) => {
+            const rad = ((deg - 90) * Math.PI) / 180;
+            return `${(center + radius * Math.cos(rad)).toFixed(2)} ${(center + radius * Math.sin(rad)).toFixed(2)}`;
+        };
+        let paths = "";
+        for (let i = 0; i < total; i++) {
+            const start = i * span + gap / 2;
+            const end = (i + 1) * span - gap / 2;
+            const arc = (to, large) => `A ${radius} ${radius} 0 ${large} 1 ${point(to)}`;
+            // Un solo segmento es el círculo completo, que un único arco no puede dibujar: van dos mitades.
+            const d = total === 1
+                ? `M ${point(0)} ${arc(180, 0)} ${arc(360, 0)}`
+                : `M ${point(start)} ${arc(end, end - start > 180 ? 1 : 0)}`;
+            const classes = [i < count ? "lit" : "", i < count && i >= previous ? "just-lit" : ""].join(" ").trim();
+            paths += `<path class="${classes}" d="${d}"/>`;
+        }
+        voteRing.innerHTML = paths;
     }
 
     function clearSkipPending() {
@@ -1286,6 +1329,7 @@ document.addEventListener("DOMContentLoaded", () => {
     skipBtn.addEventListener("click", async () => {
         const head = currentQueue[0];
         if (!head || skipBtn.disabled) return;
+        if (skipVoteMode) return voteToSkip(head);
         const { artist, songTitle } = songDisplay(head);
         const song = t("remote.nowPlaying", { artist, title: songTitle });
         const mine = myName !== "" && head.name === myName;
@@ -1310,11 +1354,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Votar para saltar la canción de otra persona que sigue "presente" pero no responde: no pide
     // confirmación (el voto en sí ya es la confirmación) y el servidor decide cuándo son suficientes.
-    voteSkipBtn.addEventListener("click", () => {
-        const head = currentQueue[0];
-        if (!head || voteSkipBtn.disabled) return;
+    function voteToSkip(head) {
+        if (votedToSkip) return;
         if (!sendMessage("voteSkip", { id: head.id })) showToast("toast.offline");
-    });
+    }
 
     helpBtn.addEventListener("click", () => tour.start());
 

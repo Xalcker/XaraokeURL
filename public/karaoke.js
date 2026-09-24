@@ -19,6 +19,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const remoteUrlEl = document.getElementById("remote-url");
   const fullscreenBtn = document.getElementById("fullscreen-btn");
   const pausedOverlay = document.getElementById("paused-overlay");
+  const countdownOverlay = document.getElementById("countdown-overlay");
+  const countdownNumber = document.getElementById("countdown-number");
+  const countdownSinger = document.getElementById("countdown-singer");
+  const countdownSong = document.getElementById("countdown-song");
 
   let currentQueue = [], ws, lastTimeUpdate = 0;
   let roomId = null;
@@ -28,6 +32,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // Dónde iba la canción cuando un error de red la tiró (por ejemplo, mientras el
   // servidor descargaba otra de YouTube): para retomarla ahí en vez de reiniciarla.
   let resumeAt = null;
+  // Cuenta regresiva antes de cada canción, como en el cine: la duración la manda el servidor al
+  // conectar (SONG_COUNTDOWN_SECONDS; 0 = sin cuenta). Mientras corre, el video ya está cargado y
+  // detenido en el principio, y las órdenes de pausa de los remotos la detienen a ella.
+  let countdownSeconds = 0;
+  let countdownReported = null; // lo último que se dijo a los remotos durante la cuenta (¿en pausa?)
+  const countdown = createCountdown({
+    onTick: showCountdown,
+    onDone: finishCountdown,
+  });
 
   const songDisplay = (item) => getSongDisplay(item, t("song.unknownArtist"));
 
@@ -261,6 +274,10 @@ document.addEventListener("DOMContentLoaded", () => {
       } catch {
         return; // el servidor no debería mandar esto, pero no vale la pena romper por ello
       }
+      if (message.type === "hostConfig") {
+        const seconds = Number(message.payload?.countdownSeconds);
+        countdownSeconds = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+      }
       if (message.type === "queueUpdate") {
         currentQueue = message.payload;
         renderAllSections();
@@ -371,6 +388,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ¿Hay una canción cargada y detenida por una pausa (no por haber terminado)?
   function isPaused() {
+    if (countdown.active) return countdown.paused;
     return !!player.getAttribute("src") && player.paused && !player.ended;
   }
 
@@ -384,13 +402,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const loaded = !!player.getAttribute("src");
     switch (payload.action) {
       case "play":
-        if (loaded && player.paused) player.play().catch((e) => console.error("No se pudo reanudar:", e));
+        if (countdown.active) countdown.resume();
+        else if (loaded && player.paused) player.play().catch((e) => console.error("No se pudo reanudar:", e));
         break;
       case "pause":
-        if (loaded && !player.paused) player.pause();
+        if (countdown.active) countdown.pause();
+        else if (loaded && !player.paused) player.pause();
         break;
       case "playPause": // orden de alternar de versiones anteriores del remoto
-        if (loaded) {
+        if (countdown.active) {
+          if (countdown.paused) countdown.resume();
+          else countdown.pause();
+        } else if (loaded) {
           if (player.paused) player.play().catch((e) => console.error("No se pudo reanudar:", e));
           else player.pause();
         }
@@ -400,6 +423,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // persona o llegó una confirmación repetida), no se salta la siguiente por error.
         if (payload.id && currentQueue[0]?.id !== payload.id) break;
         currentSongId = null;
+        stopCountdown();
         player.pause();
         player.src = "";
         pausedOverlay.classList.add("hidden");
@@ -415,28 +439,75 @@ document.addEventListener("DOMContentLoaded", () => {
     const head = currentQueue[0];
     if (!head) {
       currentSongId = null;
+      stopCountdown();
       return;
     }
     if (head.id === currentSongId) return;
     currentSongId = head.id;
+    stopCountdown(); // era la cuenta de otra canción (la saltaron o la quitaron mientras corría)
     // Si el que se cae es este mismo (mismo archivo) se retoma donde iba; si es otra
     // canción, el resumeAt que haya quedado guardado no le corresponde.
     if (resumeAt?.song !== head.song) resumeAt = null;
-    playSong(head.song);
+    playSong(head);
   }
 
-  async function playSong(songFilename) {
+  async function playSong(item) {
     try {
-      const res = await fetch(`/api/song-url?song=${encodeURIComponent(songFilename)}`);
+      const res = await fetch(`/api/song-url?song=${encodeURIComponent(item.song)}`);
       const data = await res.json();
+      // Mientras se pedía la URL pudo cambiar la cola (la saltaron, terminó): ya no toca cargarla.
+      if (currentSongId !== item.id) return;
       player.src = data.url;
-      if (resumeAt?.song === songFilename) player.currentTime = resumeAt.time;
+      const resuming = resumeAt?.song === item.song;
+      if (resuming) player.currentTime = resumeAt.time;
       resumeAt = null;
+      // Al retomar tras un error la canción ya había empezado: no se vuelve a contar.
+      if (countdownSeconds > 0 && !resuming) {
+        showCountdownSong(item);
+        countdownReported = null;
+        countdown.start(countdownSeconds);
+        return;
+      }
       await player.play();
     } catch (e) {
       console.error("Error al reproducir la canción:", e);
       currentSongId = null; // no se cargó: el próximo cambio de la cola lo vuelve a intentar
     }
+  }
+
+  // Quién canta y qué, bajo la cuenta regresiva.
+  function showCountdownSong(item) {
+    const { artist, songTitle } = songDisplay(item);
+    countdownSinger.textContent = item.name;
+    countdownSong.textContent = `${artist} — ${songTitle}`;
+  }
+
+  // Cada segundo: el número nuevo, y la aguja del círculo vuelve a dar una vuelta (se reinicia la
+  // animación quitando la clase y volviéndola a poner tras forzar el cálculo del estilo).
+  function showCountdown(remaining, paused) {
+    countdownOverlay.classList.remove("hidden");
+    countdownOverlay.classList.toggle("is-paused", paused);
+    countdownNumber.textContent = String(remaining);
+    if (!paused) {
+      countdownOverlay.classList.remove("tick");
+      void countdownOverlay.offsetWidth;
+      countdownOverlay.classList.add("tick");
+    }
+    // A los remotos (solo cuando cambia): la cuenta vale como "sonando", salvo que alguien la detenga.
+    if (countdownReported !== paused) {
+      countdownReported = paused;
+      send({ type: "playbackState", payload: { paused } });
+    }
+  }
+
+  function finishCountdown() {
+    countdownOverlay.classList.add("hidden");
+    player.play().catch((e) => console.error("No se pudo empezar la canción:", e));
+  }
+
+  function stopCountdown() {
+    countdown.cancel();
+    countdownOverlay.classList.add("hidden");
   }
 
   // Pantalla completa de toda la página (no solo del video), para que sigan a la vista la cola y el QR.

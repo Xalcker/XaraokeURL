@@ -32,6 +32,7 @@ module.exports = [
         escapeHtml: "readonly",
         parseSongFilename: "readonly",
         getSongDisplay: "readonly",
+        createCountdown: "readonly",
         // Definida por public/js/icons.js.
         iconSvg: "readonly",
         // Definida por public/js/wakeLock.js.

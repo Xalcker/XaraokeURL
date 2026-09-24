@@ -179,12 +179,13 @@ function createMpvPlayer(mpv, { onPauseChange, onEnded, onError, onTime, log = c
     get paused() {
       return paused;
     },
-    async load(url, startSeconds = 0) {
+    // Con `paused`, el video se abre detenido en su primer cuadro (para la cuenta regresiva).
+    async load(url, startSeconds = 0, { paused: startPaused = false } = {}) {
       loaded = true;
       time = 0;
       duration = 0;
       await mpv.command("set_property", "start", startSeconds > 0 ? String(startSeconds) : "none");
-      await mpv.command("set_property", "pause", false);
+      await mpv.command("set_property", "pause", startPaused);
       await mpv.command("loadfile", url, "replace");
     },
     pause: () => mpv.command("set_property", "pause", true).catch((e) => log.error(e.message)),

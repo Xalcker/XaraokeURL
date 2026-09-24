@@ -10,7 +10,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { parseDownloadTtl } = require("../lib/downloadPolicy");
-const { parseRoomGrace, parseSingerGrace } = require("../lib/roomPolicy");
+const { parseRoomGrace, parseSingerGrace, parseSongCountdown } = require("../lib/roomPolicy");
 const { parseSearchResultLimit } = require("../lib/ytdlp");
 const { parseQueueLimit, parsePerPersonLimit } = require("../lib/queueLimits");
 const { checkSessionSecret } = require("../lib/config");
@@ -52,10 +52,11 @@ function loadConfig({
   const ttl = parseDownloadTtl(env.DOWNLOAD_TTL_HOURS);
   const roomGrace = parseRoomGrace(env.ROOM_GRACE_MINUTES);
   const singerGrace = parseSingerGrace(env.SINGER_GRACE_SECONDS);
+  const songCountdown = parseSongCountdown(env.SONG_COUNTDOWN_SECONDS);
   const queueLimit = parseQueueLimit(env.MAX_QUEUE_LENGTH);
   const perPerson = parsePerPersonLimit(env.MAX_SONGS_PER_PERSON);
   const searchResults = parseSearchResultLimit(env.SEARCH_RESULTS);
-  [ttl, roomGrace, singerGrace, queueLimit, perPerson, searchResults].forEach(avisar);
+  [ttl, roomGrace, singerGrace, songCountdown, queueLimit, perPerson, searchResults].forEach(avisar);
 
   const config = {
     isProduction,
@@ -81,6 +82,7 @@ function loadConfig({
     downloadTtlMs: ttl.ttlMs,
     roomGraceMs: roomGrace.graceMs,
     singerGraceMs: singerGrace.graceMs,
+    songCountdownSeconds: songCountdown.seconds,
     maxQueueLength: queueLimit.limit,
     maxSongsPerPerson: perPerson.limit,
     searchResultLimit: searchResults.limit,

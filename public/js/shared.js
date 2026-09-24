@@ -46,5 +46,75 @@
     return parseSongFilename(item.song, unknownArtist);
   }
 
-  return { escapeHtml, parseSongFilename, getSongDisplay };
+  // Cuenta regresiva de la pantalla principal antes de cada canción (SONG_COUNTDOWN_SECONDS), la misma
+  // en el navegador (karaoke.js) y en el reproductor nativo (player/lib/hostLogic.js). Baja de uno en
+  // uno cada segundo: onTick(restantes, enPausa) cada vez que hay que redibujarla, y onDone() al
+  // llegar a cero. Se puede pausar y reanudar (el segundo en curso vuelve a empezar al reanudar).
+  // `timers` se inyecta para las pruebas.
+  function createCountdown({ onTick, onDone, timers = { setTimeout, clearTimeout } }) {
+    let remaining = 0;
+    let active = false;
+    let paused = false;
+    let timer = null;
+
+    function clear() {
+      if (timer !== null) timers.clearTimeout(timer);
+      timer = null;
+    }
+
+    function schedule() {
+      clear();
+      timer = timers.setTimeout(tick, 1000);
+    }
+
+    function tick() {
+      timer = null;
+      remaining -= 1;
+      if (remaining <= 0) {
+        active = false;
+        onDone();
+        return;
+      }
+      onTick(remaining, false);
+      schedule();
+    }
+
+    return {
+      get active() {
+        return active;
+      },
+      get paused() {
+        return paused;
+      },
+      get remaining() {
+        return remaining;
+      },
+      start(seconds) {
+        remaining = Math.max(1, Math.round(seconds));
+        active = true;
+        paused = false;
+        onTick(remaining, false);
+        schedule();
+      },
+      pause() {
+        if (!active || paused) return;
+        paused = true;
+        clear();
+        onTick(remaining, true);
+      },
+      resume() {
+        if (!active || !paused) return;
+        paused = false;
+        onTick(remaining, false);
+        schedule();
+      },
+      cancel() {
+        clear();
+        active = false;
+        paused = false;
+      },
+    };
+  }
+
+  return { escapeHtml, parseSongFilename, getSongDisplay, createCountdown };
 });

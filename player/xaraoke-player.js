@@ -158,6 +158,7 @@ async function main() {
         serverUrl: config.serverUrl,
         queue: session.logic.queue,
         paused: session.logic.isPaused(),
+        countdown: session.logic.countdown,
         qrAvailable: !!image,
       },
       { t, songDisplay, logo }

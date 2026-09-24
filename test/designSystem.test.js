@@ -42,7 +42,10 @@ test("el turquesa del acento se define solo en tokens.css", () => {
 test("toda variable CSS que se usa está definida en tokens.css", () => {
   const defined = new Set([...read(path.join(PUBLIC, "css", "tokens.css")).matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
   for (const file of styledFiles.filter((f) => f.endsWith(".css") || f.endsWith("server.js"))) {
+    // Las registradas con @property en el mismo archivo son de una animación, no del sistema de diseño.
+    const registered = new Set([...read(file).matchAll(/@property\s+(--[\w-]+)/g)].map((m) => m[1]));
     for (const m of read(file).matchAll(/var\((--[\w-]+)/g)) {
+      if (registered.has(m[1])) continue;
       assert.ok(defined.has(m[1]), `${path.relative(ROOT, file)} usa ${m[1]}, que no está definida en tokens.css`);
     }
   }

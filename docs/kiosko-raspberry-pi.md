@@ -20,7 +20,7 @@ Hay tres casos:
 
 Necesitas un Pi con 2 GB de RAM o más: con menos de 1 GB el script elige el reproductor nativo en lugar de Chromium.
 
-**1. Averigua su IP** (la usarás en el `.env`):
+**1. Anota su IP** (para reconocerlo en la red y reservarlo en el router; el `.env` no la necesita):
 
 ```bash
 hostname -I
@@ -45,7 +45,7 @@ sudo chown -R kiosk:kiosk /opt/xaraoke
 cd /opt/xaraoke && sudo -u kiosk npm ci --omit=dev
 ```
 
-**4. Crea el `.env`.** Cambia `192.168.0.72` por la IP del paso 1. Para una prueba rápida, sin Google OAuth:
+**4. Crea el `.env`.** Para una prueba rápida, sin Google OAuth:
 
 ```bash
 sudo -u kiosk tee /opt/xaraoke/.env >/dev/null <<EOF
@@ -53,11 +53,10 @@ PORT=8081
 NODE_ENV=development
 SESSION_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
 DISABLE_GOOGLE_AUTH=true
-LAN_IP=192.168.0.72
 EOF
 ```
 
-`LAN_IP` es opcional: sirve si el servidor elige mal la red para el QR. Con `DISABLE_GOOGLE_AUTH` no necesitas credenciales de Google, pero solo funciona con `NODE_ENV=development` ([más detalles](instalacion.md)). Para producción y Google OAuth, mira [Despliegue en producción](produccion.md).
+No hace falta fijar la IP para el QR: el servidor la detecta solo (la del adaptador que da salida a la red; ver [Instalación](instalacion.md)). Con `DISABLE_GOOGLE_AUTH` no necesitas credenciales de Google, pero solo funciona con `NODE_ENV=development` ([más detalles](instalacion.md)). Para producción y Google OAuth, mira [Despliegue en producción](produccion.md).
 
 **5. Instala la pantalla y el servicio del servidor.** La URL es `localhost` porque el servidor está en este mismo Pi; `INSTALL_NODE_SERVICE=true` crea el servicio que lo arranca:
 
@@ -91,8 +90,8 @@ Escanea el QR con el teléfono y confirma que abre el control remoto. Si además
 
 Funciona igual y suele ir más estable. Vigila:
 
-* La IP cambia. Actualiza `LAN_IP` en `/opt/xaraoke/.env` (o quítalo) y reinicia el servidor con `sudo systemctl restart xaraoke-server.service`. Las pantallas que apunten a este Pi con su IP vieja también hay que cambiarlas.
-* Si dejas Wi-Fi y cable a la vez, el Pi tendrá dos IP y el QR podría llevar la equivocada. Fija `LAN_IP`, o deja solo el cable.
+* La IP cambia, pero el QR la sigue solo: el servidor usa la del adaptador con la ruta por defecto (el cable, si está conectado) y la vuelve a leer cada vez que la pantalla pide el QR (al crear o recuperar la sala, o al recargarse). No hay que tocar el `.env` ni reiniciar el servidor, pero un QR que ya está en pantalla no cambia hasta entonces. Las pantallas que apunten a este Pi con su IP vieja (una Pi Zero, por ejemplo) sí hay que cambiarlas: reserva la IP del cable en el router para no tener que hacerlo.
+* Con Wi-Fi y cable a la vez, el QR lleva la IP del adaptador con la ruta por defecto. Si no es la que quieres, fija `LAN_IP` en el `.env`.
 * Reserva la IP del cable en el router.
 
 ## B. Pi 4 o 5: solo pantalla

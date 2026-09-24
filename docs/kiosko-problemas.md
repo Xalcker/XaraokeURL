@@ -114,9 +114,9 @@ sudo systemctl restart xaraoke-kiosk.service
 ## El QR lleva la IP equivocada, o `localhost`
 
 * Si la pantalla se abre como `localhost`, el servidor arma el QR con la primera IP de la red local, y esa es la que ves escrita bajo el código. Es la configuración recomendada para la pantalla principal.
-* Si el equipo tiene varias redes (Wi-Fi y cable, VPN, contenedores) y elige mal, fija la correcta en `/opt/xaraoke/.env` con `LAN_IP=192.168.0.72` y reinicia el servidor: `sudo systemctl restart xaraoke-server.service`.
+* El servidor pone primero la IP del adaptador que da salida a la red (la ruta por defecto en Linux). Si el equipo tiene varias redes (VPN, contenedores, o Wi-Fi y cable) y aun así elige mal, fija la correcta en `/opt/xaraoke/.env` con `LAN_IP=192.168.0.72` y reinicia el servidor: `sudo systemctl restart xaraoke-server.service`.
 * Con el servidor en otra máquina y la pantalla apuntando a su IP, el QR lleva esa IP tal cual.
-* Al pasar de Wi-Fi a cable cambia la IP: actualiza `LAN_IP` y cualquier pantalla que apunte al equipo por su IP vieja.
+* Al pasar de Wi-Fi a cable cambia la IP, y el QR la sigue solo, sin reiniciar el servidor (la pantalla lo actualiza al recargarse o al crear otra sala). Lo que hay que actualizar a mano es cualquier pantalla que apunte al equipo por su IP vieja, o un `LAN_IP` que hayas fijado.
 
 ## No suena por HDMI
 

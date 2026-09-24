@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { getLanAddresses, formatAccessLines } = require("../lib/network");
+const { getLanAddresses, parseDefaultRouteInterface, formatAccessLines } = require("../lib/network");
 
 const v4 = (address, internal = false, family = "IPv4") => ({ address, family, internal });
 
@@ -147,4 +147,69 @@ test("formatAccessLines marca la dirección que usará el QR, recomienda localho
 
   const one = formatAccessLines(8081, [{ name: "Wi-Fi", address: "192.168.0.72" }]);
   assert.ok(!one.some((l) => l.includes("LAN_IP=")), "con una sola no hace falta");
+});
+
+// Lo que muestra /proc/net/route en un equipo con cable (metric 100) y Wi-Fi (metric 600) a la vez.
+const ROUTE_TABLE = [
+  "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT",
+  "wlan0\t00000000\t0100A8C0\t0003\t0\t0\t600\t00000000\t0\t0\t0",
+  "eth0\t00000000\t0100A8C0\t0003\t0\t0\t100\t00000000\t0\t0\t0",
+  "eth0\t0000A8C0\t00000000\t0001\t0\t0\t100\t00FFFFFF\t0\t0\t0",
+  "",
+].join("\n");
+
+test("parseDefaultRouteInterface devuelve el adaptador de la ruta por defecto con menor métrica", () => {
+  assert.equal(parseDefaultRouteInterface(ROUTE_TABLE), "eth0");
+});
+
+test("parseDefaultRouteInterface ignora rutas que no son por defecto, sin puerta de enlace o caídas", () => {
+  const header = "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask";
+  // Solo la red local (sin puerta de enlace): no es una ruta por defecto.
+  assert.equal(parseDefaultRouteInterface(`${header}\neth0\t0000A8C0\t00000000\t0001\t0\t0\t100\t00FFFFFF`), null);
+  // Ruta por defecto pero sin el bit "activa" (0x1).
+  assert.equal(parseDefaultRouteInterface(`${header}\neth0\t00000000\t0100A8C0\t0002\t0\t0\t100\t00000000`), null);
+});
+
+test("parseDefaultRouteInterface tolera texto vacío o que no se entiende", () => {
+  assert.equal(parseDefaultRouteInterface(""), null);
+  assert.equal(parseDefaultRouteInterface(undefined), null);
+  assert.equal(parseDefaultRouteInterface("no es una tabla de rutas"), null);
+});
+
+test("getLanAddresses pone primero al adaptador de la ruta por defecto, aunque el orden del sistema sea otro", () => {
+  const interfaces = { wlan0: [v4("192.168.0.99")], eth0: [v4("192.168.0.72")] };
+  assert.deepEqual(
+    getLanAddresses(interfaces, "eth0").map((r) => r.name),
+    ["eth0", "wlan0"]
+  );
+  assert.deepEqual(
+    getLanAddresses(interfaces, "wlan0").map((r) => r.name),
+    ["wlan0", "eth0"]
+  );
+});
+
+test("getLanAddresses sin ruta por defecto conserva el orden de siempre", () => {
+  const interfaces = { wlan0: [v4("192.168.0.99")], eth0: [v4("192.168.0.72")] };
+  assert.deepEqual(
+    getLanAddresses(interfaces).map((r) => r.name),
+    ["wlan0", "eth0"]
+  );
+});
+
+test("la ruta por defecto no hace subir a una red virtual por encima de una real si no es la de salida", () => {
+  const interfaces = { docker0: [v4("172.17.0.1")], eth0: [v4("192.168.0.72")] };
+  assert.deepEqual(
+    getLanAddresses(interfaces, "eth0").map((r) => r.name),
+    ["eth0", "docker0"]
+  );
+});
+
+test("getServerAddresses: LAN_IP manda sobre la ruta por defecto", () => {
+  const interfaces = { wlan0: [v4("192.168.0.99")], eth0: [v4("192.168.0.72")] };
+  assert.deepEqual(getServerAddresses("10.1.2.3", interfaces, "eth0"), [{ name: "LAN_IP", address: "10.1.2.3" }]);
+});
+
+test("getServerAddresses usa el adaptador de la ruta por defecto cuando se indica", () => {
+  const interfaces = { wlan0: [v4("192.168.0.99")], eth0: [v4("192.168.0.72")] };
+  assert.deepEqual(getServerAddresses(undefined, interfaces, "eth0")[0], { name: "eth0", address: "192.168.0.72" });
 });

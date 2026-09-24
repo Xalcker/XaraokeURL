@@ -57,8 +57,11 @@ WAIT_SCRIPT=/usr/local/bin/xaraoke-wait-for-server.sh
 AUDIO_SCRIPT=/usr/local/bin/xaraoke-set-hdmi-audio.sh
 KIOSK_UNIT=/etc/systemd/system/xaraoke-kiosk.service
 SERVER_UNIT=/etc/systemd/system/xaraoke-server.service
+PREPARE_UNIT=/etc/systemd/system/xaraoke-kiosk-prepare.service
 PLAYER_DIR=/opt/xaraoke-player
 PLYMOUTH_DROPIN=/etc/systemd/system/plymouth-quit.service.d/xaraoke.conf
+# Tema de cursor "default" del usuario del kiosko (~/.icons/default), ver más abajo.
+blank_cursor_dir() { echo "$(getent passwd "$KIOSK_USER" | cut -d: -f6)/.icons/default"; }
 
 case "$KIOSK_PLAYER" in
   chromium|mpv) ;;
@@ -90,7 +93,13 @@ fi
 uninstall() {
   systemctl disable --now xaraoke-kiosk.service 2>/dev/null || true
   systemctl disable --now xaraoke-server.service 2>/dev/null || true
-  rm -f "$KIOSK_UNIT" "$SERVER_UNIT" "$WAIT_SCRIPT" "$AUDIO_SCRIPT" "$PLYMOUTH_DROPIN"
+  rm -f "$KIOSK_UNIT" "$PREPARE_UNIT" "$SERVER_UNIT" "$WAIT_SCRIPT" "$AUDIO_SCRIPT" "$PLYMOUTH_DROPIN"
+  # Solo si el tema "default" del kiosko es el nuestro.
+  if grep -qs "xaraoke-blank" "$(blank_cursor_dir)/index.theme"; then rm -rf "$(blank_cursor_dir)"; fi
+  if [ -f /usr/share/glib-2.0/schemas/90_xaraoke.gschema.override ]; then
+    rm -f /usr/share/glib-2.0/schemas/90_xaraoke.gschema.override
+    glib-compile-schemas /usr/share/glib-2.0/schemas/ 2>/dev/null || true
+  fi
   rm -rf "$PLAYER_DIR"
   systemctl daemon-reload
   systemctl enable --now getty@tty1.service 2>/dev/null || true
@@ -113,7 +122,10 @@ if [ "$KIOSK_PLAYER" = "chromium" ]; then
     CHROMIUM_PKG=chromium-browser
     CHROMIUM_BIN=/usr/bin/chromium-browser
   fi
-  PKGS="cage curl $CHROMIUM_PKG"
+  # seatd le da a cage el acceso a la pantalla: en Raspberry Pi OS (Debian 13) logind no le asigna
+  # seat a esta sesión y cage se cae a los 10 s con "Timeout waiting session to become active".
+  # libglib2.0-bin trae glib-compile-schemas, para fijar el cursor (ver más abajo).
+  PKGS="cage seatd curl libglib2.0-bin $CHROMIUM_PKG"
 else
   # El reproductor nativo no usa paquetes de npm: con Node y mpv del sistema alcanza.
   PKGS="curl mpv nodejs fonts-dejavu-core"
@@ -187,7 +199,9 @@ monitor.alsa.rules = [
 EOS
       ;;
   esac
-  chown "$KIOSK_USER:$KIOSK_USER" "$WP_CONF"
+  # "install -d" solo le da dueño al último directorio: los intermedios (~/.config, ~/.config/wireplumber)
+  # quedan como root y Chromium no puede crear su perfil ahí (se cae al arrancar).
+  chown -R "$KIOSK_USER:$KIOSK_USER" "$KIOSK_HOME/.config"
 fi
 
 echo "==> Apagando el login de texto en tty1 (el kiosko toma esa terminal)"
@@ -251,6 +265,7 @@ if [ "$INSTALL_NODE_SERVICE" = "true" ]; then
 Description=XaraokeURL server
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -260,7 +275,6 @@ EnvironmentFile=-$APP_DIR/.env
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=2
-StartLimitIntervalSec=0
 
 [Install]
 WantedBy=multi-user.target
@@ -274,7 +288,46 @@ KIOSK_ENV=""
 # nativo no: arranca de inmediato con "Conectando…" en pantalla y reintenta solo.
 WAIT_PRE=""
 if [ "$KIOSK_PLAYER" = "chromium" ]; then
-  WAIT_PRE="ExecStartPre=$WAIT_SCRIPT $KIOSK_URL"
+  WAIT_PRE="ExecStart=$WAIT_SCRIPT $KIOSK_URL"
+  # cage dibuja su cursor por defecto aunque no haya ratón (en un kiosko sin periféricos queda un
+  # puntero fijo en el centro). Un tema de cursor transparente de 24x24 lo hace invisible (de 1x1
+  # lo aceptaba cage, pero Chromium lo descartaba y dibujaba el suyo).
+  # Tiene que llamarse "default" y vivir en el home del usuario: XCURSOR_THEME/XCURSOR_PATH no le
+  # hacen efecto a cage (probado en un Pi 4 con Raspberry Pi OS basado en Debian 13).
+  # Es un archivo Xcursor mínimo: cabecera, una entrada y una imagen con todos los píxeles en cero.
+  BLANK_CURSOR_DIR="$(blank_cursor_dir)"
+  le32() { printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $(($1 & 255)) $((($1 >> 8) & 255)) $((($1 >> 16) & 255)) $((($1 >> 24) & 255)))"; }
+  mkdir -p "$BLANK_CURSOR_DIR/cursors"
+  {
+    printf 'Xcur'
+    le32 16; le32 65536; le32 1
+    le32 4294770690; le32 24; le32 28
+    le32 36; le32 4294770690; le32 24; le32 1; le32 24; le32 24; le32 0; le32 0; le32 0
+    head -c $((24 * 24 * 4)) /dev/zero
+  } > "$BLANK_CURSOR_DIR/cursors/left_ptr"
+  for name in default arrow top_left_arrow pointer hand2 text xterm watch wait; do
+    ln -sf left_ptr "$BLANK_CURSOR_DIR/cursors/$name"
+  done
+  printf '[Icon Theme]\nName=Default\nComment=xaraoke-blank: cursor transparente para el kiosko\n' > "$BLANK_CURSOR_DIR/index.theme"
+  chown -R "$KIOSK_USER:$KIOSK_USER" "$KIOSK_HOME/.icons"
+  # Chromium no lee ese tema directo: elige su cursor con la configuración de GTK, y sin ella usa
+  # Adwaita (la flecha negra con borde blanco). Se le indica también el tema "default".
+  for gtk_ver in 3.0 4.0; do
+    install -d -o "$KIOSK_USER" -g "$KIOSK_USER" "$KIOSK_HOME/.config" "$KIOSK_HOME/.config/gtk-$gtk_ver"
+    printf '[Settings]\ngtk-cursor-theme-name=default\ngtk-cursor-theme-size=24\n' > "$KIOSK_HOME/.config/gtk-$gtk_ver/settings.ini"
+  done
+  chown -R "$KIOSK_USER:$KIOSK_USER" "$KIOSK_HOME/.config"
+  # Si el equipo trae los esquemas de GNOME (los arrastran paquetes como ffmpeg), GTK toma el tema del
+  # cursor de ahí (Adwaita por defecto) antes que de settings.ini: hay que fijarlo también ahí.
+  if [ -f /usr/share/glib-2.0/schemas/org.gnome.desktop.interface.gschema.xml ]; then
+    printf "[org.gnome.desktop.interface]\ncursor-theme='default'\ncursor-size=24\n" \
+      > /usr/share/glib-2.0/schemas/90_xaraoke.gschema.override
+    glib-compile-schemas /usr/share/glib-2.0/schemas/
+  fi
+
+  KIOSK_ENV="Environment=LIBSEAT_BACKEND=seatd"
+  KIOSK_AFTER="$KIOSK_AFTER seatd.service"
+  KIOSK_WANTS="$KIOSK_WANTS seatd.service"
   KIOSK_EXEC="/usr/bin/cage -- $CHROMIUM_BIN --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --autoplay-policy=no-user-gesture-required --ozone-platform=wayland --lang=$KIOSK_LANG $KIOSK_URL"
 else
   echo "==> Instalando el reproductor nativo en $PLAYER_DIR"
@@ -290,7 +343,7 @@ else
     cp "$PLAYER_SRC_DIR/public/img/logo.svg" "$PLAYER_TMP/public/img/"
   else
     echo "    Descargando de GitHub ($XARAOKE_REF)"
-    curl -fsSL "https://codeload.github.com/Xalcker/XaraokeURL/tar.gz/$XARAOKE_REF" \
+    curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "https://codeload.github.com/Xalcker/XaraokeURL/tar.gz/$XARAOKE_REF" \
       | tar -xz --strip-components=1 -C "$PLAYER_TMP" --wildcards '*/player/*' '*/public/js/i18n.js' '*/public/js/shared.js' '*/public/img/logo.svg'
   fi
   [ -f "$PLAYER_TMP/player/xaraoke-player.js" ] || { echo "No se pudo obtener el reproductor." >&2; exit 1; }
@@ -338,12 +391,30 @@ else
   rm -f "$PLYMOUTH_DROPIN"
 fi
 
+# La espera al servidor y el ajuste del audio van en un servicio aparte, sin PAMName ni TTYPath:
+# como ExecStartPre del kiosko, cada uno abría su propia sesión de login sobre tty1 y le cortaba
+# esa terminal a Plymouth (el logo desaparecía y aparecía texto antes de que cage tomara la pantalla).
+echo "==> Instalando servicio de preparación del kiosko"
+cat > "$PREPARE_UNIT" <<EOF
+[Unit]
+Description=XaraokeURL kiosk preparation (wait for server, HDMI audio)
+After=$KIOSK_AFTER
+Wants=$KIOSK_WANTS
+
+[Service]
+Type=oneshot
+User=$KIOSK_USER
+Environment=XDG_RUNTIME_DIR=/run/user/$KIOSK_UID
+$WAIT_PRE
+ExecStart=-$AUDIO_SCRIPT
+EOF
+
 echo "==> Instalando servicio del kiosko ($KIOSK_PLAYER)"
 cat > "$KIOSK_UNIT" <<EOF
 [Unit]
 Description=XaraokeURL kiosk display
-After=$KIOSK_AFTER
-Wants=$KIOSK_WANTS
+After=$KIOSK_AFTER xaraoke-kiosk-prepare.service
+Wants=$KIOSK_WANTS xaraoke-kiosk-prepare.service
 Conflicts=getty@tty1.service
 StartLimitIntervalSec=0
 
@@ -360,8 +431,6 @@ StandardError=journal
 UtmpIdentifier=tty1
 Environment=XDG_RUNTIME_DIR=/run/user/$KIOSK_UID
 $KIOSK_ENV
-$WAIT_PRE
-ExecStartPre=-$AUDIO_SCRIPT
 $PLYMOUTH_PRE
 ExecStart=$KIOSK_EXEC
 Restart=always
@@ -379,6 +448,9 @@ if [ "$INSTALL_NODE_SERVICE" = "true" ]; then
   systemctl enable --now xaraoke-server.service
 fi
 systemctl enable xaraoke-kiosk.service
+if [ "$KIOSK_PLAYER" = "chromium" ]; then
+  systemctl enable --now seatd.service
+fi
 
 cat <<EOF
 

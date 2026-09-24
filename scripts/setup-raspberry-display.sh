@@ -35,6 +35,10 @@ set -euo pipefail
 #   READ_ONLY       "true" para activar el sistema de archivos de solo lectura (overlayfs):
 #                   protege la microSD si desconectan el Pi de golpe, pero cualquier cambio
 #                   se pierde al reiniciar. Desactívalo con "sudo raspi-config nonint do_overlayfs 1".
+#   INSTALL_NODE_SERVICE  "true" para que el servidor corra en este mismo Pi (servicio systemd que
+#                   ejecuta "node server.js" desde APP_DIR). La app tiene que estar ya instalada
+#                   ahí (Node, "npm ci" y el .env); este script no la instala.
+#   APP_DIR         Carpeta de la app si INSTALL_NODE_SERVICE=true (/opt/xaraoke).
 #   REBOOT          "true" para reiniciar solo al terminar.
 #   XARAOKE_REF     Rama/tag de GitHub de donde bajar install-kiosk.sh (y el reproductor
 #                   nativo) si no están junto a este script (main).
@@ -52,6 +56,8 @@ main() {
   READ_ONLY="${READ_ONLY:-false}"
   REBOOT="${REBOOT:-false}"
   XARAOKE_REF="${XARAOKE_REF:-main}"
+  INSTALL_NODE_SERVICE="${INSTALL_NODE_SERVICE:-false}"
+  APP_DIR="${APP_DIR:-/opt/xaraoke}"
 
   KIOSK_INSTALLER=/usr/local/sbin/xaraoke-install-kiosk.sh
   NM_WIFI_CONF=/etc/NetworkManager/conf.d/xaraoke-wifi-powersave.conf
@@ -118,8 +124,10 @@ main() {
   esac
   case "$KIOSK_URL" in
     *://localhost*|*://127.*)
-      warn "La URL apunta a este mismo equipo. Este script instala solo la pantalla; si también quieres"
-      warn "correr el servidor aquí, usa scripts/install-kiosk.sh con INSTALL_NODE_SERVICE=true." ;;
+      if [ "$INSTALL_NODE_SERVICE" != "true" ]; then
+        warn "La URL apunta a este mismo equipo. Este script instala solo la pantalla; si también quieres"
+        warn "correr el servidor aquí, vuelve a correrlo con INSTALL_NODE_SERVICE=true (ver arriba)."
+      fi ;;
   esac
 
   if [ -z "$DISPLAY_MODE" ]; then
@@ -225,7 +233,7 @@ main() {
     if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/../public/img/icon-512.png" ]; then
       cp "$SCRIPT_DIR/../public/img/icon-512.png" "$tmp"
     else
-      curl -fsSL "https://raw.githubusercontent.com/Xalcker/XaraokeURL/$XARAOKE_REF/public/img/icon-512.png" -o "$tmp"
+      curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "https://raw.githubusercontent.com/Xalcker/XaraokeURL/$XARAOKE_REF/public/img/icon-512.png" -o "$tmp"
     fi
     install_theme_file "$tmp" "$PLYMOUTH_THEME_DIR/logo.png"
 
@@ -269,11 +277,25 @@ EOF
       initramfs_stale=true
     fi
     # El tema va dentro del initramfs, para que el logo salga desde el principio.
-    # Solo el del kernel que está corriendo: en un Pi hay varios (uno por modelo).
-    if [ "$initramfs_stale" = "true" ]; then
+    # De todos los kernels instalados, no solo el que corre ahora: tras el full-upgrade de arriba,
+    # el kernel que arrancará es el nuevo y "uname -r" todavía apunta al viejo, así que el
+    # initramfs con el logo se generaba para un kernel que ya no se usa.
+    # No basta con fiarse de "initramfs_stale": si se repite el script tras una corrida que se cortó, o
+    # apt regeneró el initramfs por su cuenta (al instalar plymouth) antes de fijar el tema, la bandera
+    # queda en falso y el initramfs se queda sin el logo (pasó en una Pi Zero 2 W: gris con puntos).
+    # Por eso se mira también el contenido real de cada initramfs.
+    theme_in_initramfs() {
+      local f
+      for f in /boot/initrd.img-*; do
+        [ -e "$f" ] || continue
+        lsinitramfs "$f" 2>/dev/null | grep -q 'themes/xaraoke/xaraoke.script' || return 1
+      done
+    }
+    if [ "$initramfs_stale" = "true" ] || ! theme_in_initramfs; then
       echo "==> Regenerando el initramfs con el logo (en una Pi Zero 2 W tarda unos minutos)"
-      update-initramfs -u -k "$(uname -r)"
+      update-initramfs -u -k all
     fi
+    theme_in_initramfs || warn "El initramfs no quedó con el tema del logo: el arranque mostrará el de emergencia (gris con puntos)."
   fi
 
   # --- Wi-Fi sin ahorro de energía ----------------------------------------------
@@ -299,7 +321,7 @@ EOF
   else
     echo "==> Descargando install-kiosk.sh ($XARAOKE_REF)"
     tmp="$(mktemp)"
-    curl -fsSL "https://raw.githubusercontent.com/Xalcker/XaraokeURL/$XARAOKE_REF/scripts/install-kiosk.sh" -o "$tmp"
+    curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "https://raw.githubusercontent.com/Xalcker/XaraokeURL/$XARAOKE_REF/scripts/install-kiosk.sh" -o "$tmp"
     install -m 755 "$tmp" "$KIOSK_INSTALLER"
     rm -f "$tmp"
   fi
@@ -310,7 +332,8 @@ EOF
   if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/../player/xaraoke-player.js" ]; then
     PLAYER_SRC="$(cd "$SCRIPT_DIR/.." && pwd)"
   fi
-  KIOSK_URL="$KIOSK_URL" KIOSK_PLAYER="$KIOSK_PLAYER" PLAYER_SRC_DIR="$PLAYER_SRC" XARAOKE_REF="$XARAOKE_REF"     INSTALL_NODE_SERVICE=false "$KIOSK_INSTALLER"
+  KIOSK_URL="$KIOSK_URL" KIOSK_PLAYER="$KIOSK_PLAYER" PLAYER_SRC_DIR="$PLAYER_SRC" XARAOKE_REF="$XARAOKE_REF" \
+    INSTALL_NODE_SERVICE="$INSTALL_NODE_SERVICE" APP_DIR="$APP_DIR" "$KIOSK_INSTALLER"
 
   # --- Comprobación del servidor ------------------------------------------------
   if curl -fsS -m 5 -o /dev/null "$KIOSK_URL" 2>/dev/null; then

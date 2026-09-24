@@ -42,7 +42,7 @@ cd /opt/xaraoke && sudo -u kiosk npm ci --omit=dev
 
 ## 4. Crear el `.env`
 
-Cambia `192.168.0.72` por la IP del miniPC (`hostname -I`). Para una prueba rápida, sin Google OAuth ([más detalles](instalacion.md)):
+Para una prueba rápida, sin Google OAuth ([más detalles](instalacion.md)). No hace falta fijar la IP para el QR: el servidor la detecta solo (la del adaptador que da salida a la red):
 
 ```bash
 sudo -u kiosk tee /opt/xaraoke/.env >/dev/null <<EOF
@@ -50,7 +50,6 @@ PORT=8081
 NODE_ENV=development
 SESSION_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
 DISABLE_GOOGLE_AUTH=true
-LAN_IP=192.168.0.72
 EOF
 ```
 

@@ -163,6 +163,41 @@ function playingLines({ queue, roomId, paused, t, songDisplay, qrShown, logo }) 
   return lines;
 }
 
+// Un anillo: la elipse sin relleno, con solo el borde.
+const ring = (cx, cy, r, width, opacity) =>
+  `{\\an7\\pos(0,0)\\bord${width}\\3c${assColor(COLORS.white)}\\3a${assAlpha(opacity)}\\1a&HFF&\\shad0\\p1}${ellipse(cx, cy, r, r)}{\\p0}`;
+
+// Cuenta regresiva antes de cada canción (SONG_COUNTDOWN_SECONDS), como la "cola de película" del
+// cine: fondo gris con viñeta, la cruz de mira, dos anillos y el número grande; debajo, quién canta y
+// qué. Tapa el video, que ya está cargado y en pausa en su primer cuadro. Es la misma de la pantalla
+// web (#countdown-overlay en host.css), sin la aguja que barre: aquí se dibuja una vez por segundo.
+function countdownLines({ queue, countdown, t, songDisplay }) {
+  const current = queue[0];
+  const cx = WIDTH / 2;
+  const cy = HEIGHT / 2 - 60;
+  const r = 190;
+  const rect = (x, y, w, h) => `m ${x} ${y} l ${x + w} ${y} l ${x + w} ${y + h} l ${x} ${y + h}`;
+  const lines = [
+    shape(rect(0, 0, WIDTH, HEIGHT), { color: "#1a1a1a" }),
+    shape(ellipse(cx, cy, 620, 440), { color: "#5a5a5a", opacity: 0.85, blur: 90 }),
+    shape(rect(0, cy - 1, WIDTH, 2), { color: COLORS.white, opacity: 0.35 }),
+    shape(rect(cx - 1, 0, 2, HEIGHT), { color: COLORS.white, opacity: 0.35 }),
+    shape(ellipse(cx, cy, r, r), { color: "#000000", opacity: 0.25 }),
+    ring(cx, cy, r, 6, 0.85),
+    ring(cx, cy, r - 24, 4, 0.6),
+    line(cx, cy, 5, `{${style(260, { bold: true })}}${countdown.remaining}`),
+  ];
+  const info = [
+    [cy + r + 30, style(20, { color: "#d0d0d0" }), assEscape(t("host.countdown.label"))],
+    [cy + r + 54, style(46, { bold: true, color: COLORS.accent }), assEscape(clip(current.name, 30))],
+    [cy + r + 108, style(26), songLine(current, songDisplay, 70)],
+  ];
+  if (countdown.paused) info.push([cy + r + 144, style(24, { bold: true }), assEscape(t("host.paused"))]);
+  for (const [y, tags, text] of info) lines.push(line(cx, y, 8, `{${tags}${BACKDROP}}${text}`));
+  for (const [y, tags, text] of info) lines.push(line(cx, y, 8, `{${tags}}${text}`));
+  return lines;
+}
+
 // Sin canciones: el logo, el QR grande con el código de sala debajo y cómo entrar sin QR, sobre el
 // fondo de la marca, como la pantalla de espera del navegador.
 function idleLines({ roomId, remoteUrl, t, qrShown, logo }) {
@@ -196,7 +231,8 @@ function messageLines(text, logo) {
   return lines;
 }
 
-// state: { status: "connecting" | "replaced" | "room", serverUrl, roomId, remoteUrl, queue, paused, qrAvailable }
+// state: { status: "connecting" | "replaced" | "room", serverUrl, roomId, remoteUrl, queue, paused, qrAvailable,
+//          countdown } (countdown: { remaining, paused } mientras corre la cuenta regresiva, o null)
 // logo: el dibujo de svgPath.logoDrawing ({ drawing, width, height }), o null si no se pudo leer.
 // Devuelve { ass, qr }, con qr = null (sin QR) o { size, centerX, top } / { size, right, bottom }.
 function buildScreen(state, { t, songDisplay, logo = null }) {
@@ -210,6 +246,9 @@ function buildScreen(state, { t, songDisplay, logo = null }) {
   const qrShown = !!state.qrAvailable;
   if (queue.length === 0) {
     return { ass: idleLines({ ...state, t, qrShown, logo }).join("\n"), qr: qrShown ? QR_IDLE : null };
+  }
+  if (state.countdown) {
+    return { ass: countdownLines({ ...state, queue, t, songDisplay }).join("\n"), qr: null };
   }
   return {
     ass: playingLines({ ...state, queue, t, songDisplay, qrShown, logo }).join("\n"),

@@ -20,7 +20,7 @@ XaraokeURL/
 │   │   ├── icons.js              # Íconos SVG (iconSvg / data-icon); la interfaz no usa emojis
 │   │   ├── i18n.js               # Textos en español e inglés y detección del idioma (navegador y servidor)
 │   │   ├── tour.js               # Tutorial guiado del control remoto (pasos y colocación de la tarjeta)
-│   │   ├── shared.js             # Utilidades compartidas (escapeHtml, parseSongFilename)
+│   │   ├── shared.js             # Utilidades compartidas (escapeHtml, parseSongFilename, cuenta regresiva)
 │   │   ├── registerRemoteSW.js   # Registra el service worker del control remoto (fuera de línea por CSP)
 │   │   ├── jsQR.js               # Librería de terceros vendorizada: lee códigos QR desde la cámara
 │   │   └── jsQR.LICENSE          # Licencia (Apache-2.0) de jsQR
@@ -40,7 +40,7 @@ XaraokeURL/
 │   ├── queuePolicy.js            # Reordenar las canciones propias sin mover las de los demás (testeable)
 │   ├── ratingsStore.js           # Calificaciones del karaoke en ratings.db
 │   ├── roomId.js                 # Generación de códigos de sala (testeable)
-│   ├── roomPolicy.js             # Tiempos de gracia: salas vacías (ROOM_GRACE_MINUTES) y quien canta (SINGER_GRACE_SECONDS) (testeable)
+│   ├── roomPolicy.js             # Tiempos de gracia (ROOM_GRACE_MINUTES, SINGER_GRACE_SECONDS) y cuenta regresiva (SONG_COUNTDOWN_SECONDS) (testeable)
 │   ├── wsPolicy.js               # Qué mensajes del WebSocket acepta el servidor y de quién (testeable)
 │   ├── sessionStore.js           # Endurece las sesiones en archivo ante bloqueos transitorios en Windows (EPERM)
 │   └── ytdlp.js                  # Wrapper seguro sobre el binario yt-dlp

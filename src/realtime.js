@@ -343,6 +343,11 @@ function createRealtime({ server, config, auth, salas, descargas, catalogo, rati
       console.log(
         `Client connected to room ${roomId}. Total clients: ${room.clients.size}`
       );
+      // Al host, antes que la cola: con ella ya decide si arranca la canción de arriba, y tiene que
+      // saber de cuántos segundos es la cuenta regresiva previa (ver SONG_COUNTDOWN_SECONDS).
+      if (isHost) {
+        ws.send(JSON.stringify({ type: "hostConfig", payload: { countdownSeconds: config.songCountdownSeconds } }));
+      }
       ws.send(JSON.stringify({ type: "queueUpdate", payload: room.songQueue }));
       // A todos, no solo a esta conexión: que vuelva quien canta cambia lo que pueden hacer los demás.
       sendControlAccess(room);

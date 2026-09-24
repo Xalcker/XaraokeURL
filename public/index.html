@@ -57,6 +57,19 @@
                 <span data-icon="pause"></span>
                 <span data-i18n="host.paused">En pausa</span>
             </div>
+            <div id="countdown-overlay" class="hidden" aria-live="polite">
+                <div class="leader" aria-hidden="true">
+                    <div class="leader-sweep"></div>
+                    <div class="leader-ring"></div>
+                    <div id="countdown-number" class="leader-number"></div>
+                </div>
+                <div class="countdown-info">
+                    <div class="countdown-label" data-i18n="host.countdown.label">Ahora canta</div>
+                    <div id="countdown-singer"></div>
+                    <div id="countdown-song"></div>
+                    <div class="countdown-paused" data-i18n="host.paused">En pausa</div>
+                </div>
+            </div>
             <div id="idle-screen">
                 <img class="brand-logo" src="img/logo.svg" alt="" width="96" height="96">
                 <p id="idle-title" data-i18n="host.idle.title">Escanea el código para elegir tu canción</p>

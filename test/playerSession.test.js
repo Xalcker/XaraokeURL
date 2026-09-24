@@ -26,9 +26,10 @@ function fakePlayer() {
     loaded: false,
     paused: false,
     loads: [],
-    async load(url, start) {
+    async load(url, start, { paused = false } = {}) {
       this.loaded = true;
-      this.paused = false;
+      this.paused = paused;
+      this.loadedPaused = paused;
       this.loads.push({ url, start });
     },
     pause() {
@@ -71,7 +72,8 @@ function newSession(server, t, { stateDir = fs.mkdtempSync(path.join(os.tmpdir()
 }
 
 test("el reproductor nativo contra el servidor", async (t) => {
-  const server = await startServer({ songs: CANCIONES });
+  // Sin cuenta regresiva: aquí se prueba el resto (la cuenta tiene su propia prueba, abajo).
+  const server = await startServer({ songs: CANCIONES, env: { SONG_COUNTDOWN_SECONDS: "0" } });
   t.after(() => server.stop());
 
   await t.test("crea la sala, obtiene el QR y reproduce lo que agrega un remoto", async (t) => {
@@ -140,6 +142,28 @@ test("el reproductor nativo contra el servidor", async (t) => {
     assert.equal(first.session.connected, false);
     assert.equal(second.session.connected, true);
   });
+});
+
+test("con SONG_COUNTDOWN_SECONDS, el reproductor cuenta antes de empezar la canción", async (t) => {
+  const server = await startServer({ songs: CANCIONES, env: { SONG_COUNTDOWN_SECONDS: "1" } });
+  t.after(() => server.stop());
+  const { session, player } = newSession(server, t);
+  await session.start();
+  await until(() => session.connected, "conectarse como host");
+
+  const remoto = await connectToRoom(`${server.wsUrl}/?sala=${session.state.roomId}`);
+  t.after(() => remoto.close());
+  remoto.clear();
+  remoto.send({ type: "addSong", payload: { song: A } });
+  await until(() => player.loads.length === 1, "cargar la canción");
+  assert.equal(player.loadedPaused, true, "se abre detenida en el principio");
+  await until(() => session.logic.countdown, "empezar la cuenta");
+  assert.deepEqual(session.logic.countdown, { remaining: 1, paused: false });
+  // Para los remotos la cuenta ya es "sonando" (pueden pausarla).
+  await remoto.waitFor("playbackState", (p) => p.paused === false);
+
+  await until(() => session.logic.countdown === null, "terminar la cuenta");
+  assert.equal(player.paused, false, "al llegar a cero, la canción arranca");
 });
 
 test("sin servidor: muestra 'conectando' y sigue reintentando sin romperse", async (t) => {

@@ -493,6 +493,175 @@ body.ui-idle #fullscreen-btn:not(:focus-visible) {
     fill: currentColor;
 }
 
+/* Cuenta regresiva antes de cada canción (SONG_COUNTDOWN_SECONDS), a la manera de la "cola de
+   película" del cine: un círculo con una aguja que barre cada segundo, una cruz de mira y el número
+   grande, en grises de película vieja. Debajo, quién canta y qué. */
+@property --leader-sweep {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+
+#countdown-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4vmin;
+    overflow: hidden;
+    border-radius: 10px;
+    background: radial-gradient(ellipse at center, #5a5a5a 0%, #2e2e2e 60%, #111 100%);
+    color: #f2f2f2;
+    pointer-events: none; /* no estorba al doble clic de pantalla completa */
+    animation: leader-flicker 0.18s steps(2) infinite;
+}
+
+.leader {
+    position: relative;
+    z-index: 1;
+    width: min(46vmin, 60%);
+    aspect-ratio: 1;
+    margin-top: -4vmin;
+}
+
+/* La cruz de mira: cruza el centro del círculo y sigue de lado a lado de la pantalla (el recuadro
+   la recorta con su overflow: hidden). */
+.leader::before,
+.leader::after {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.leader::before {
+    left: -100vw;
+    right: -100vw;
+    top: calc(50% - 1px);
+    height: 2px;
+}
+
+.leader::after {
+    top: -100vh;
+    bottom: -100vh;
+    left: calc(50% - 1px);
+    width: 2px;
+}
+
+/* La aguja: una porción que crece de 0 a 360 grados en cada segundo. */
+.leader-sweep {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(rgba(255, 255, 255, 0.28) var(--leader-sweep), rgba(0, 0, 0, 0.25) 0);
+}
+
+#countdown-overlay.tick .leader-sweep {
+    animation: leader-sweep 1s linear;
+}
+
+/* Dos anillos concéntricos, como los de la cola de película. */
+.leader-ring {
+    position: absolute;
+    inset: 0;
+    border: 0.8vmin solid rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+}
+
+.leader-ring::after {
+    content: "";
+    position: absolute;
+    inset: 3vmin;
+    border: 0.5vmin solid rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+}
+
+.leader-number {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30vmin;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 2vmin rgba(0, 0, 0, 0.6);
+}
+
+.countdown-info {
+    position: relative;
+    z-index: 1;
+    max-width: 90%;
+    padding: 1.2vmin 3vmin;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.55);
+    text-align: center;
+}
+
+.countdown-label {
+    color: #d0d0d0;
+    font-size: 2.4vmin;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+#countdown-singer {
+    color: var(--accent);
+    font-size: 6vmin;
+    font-weight: 800;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+
+#countdown-song {
+    font-size: 3vmin;
+    overflow-wrap: anywhere;
+}
+
+.countdown-paused {
+    display: none;
+    margin-top: 0.8vmin;
+    font-size: 2.6vmin;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+}
+
+/* Detenida desde un remoto: la aguja y el parpadeo se quedan quietos y se avisa. */
+#countdown-overlay.is-paused {
+    animation: none;
+}
+
+#countdown-overlay.is-paused .leader-sweep {
+    animation: none;
+}
+
+#countdown-overlay.is-paused .countdown-paused {
+    display: block;
+}
+
+@keyframes leader-sweep {
+    from { --leader-sweep: 0deg; }
+    to { --leader-sweep: 360deg; }
+}
+
+@keyframes leader-flicker {
+    from { filter: brightness(1); }
+    to { filter: brightness(0.94); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #countdown-overlay,
+    #countdown-overlay.tick .leader-sweep {
+        animation: none;
+    }
+}
+
 /* Sustituye a un style= inline que había en index.html, para poder activar CSP (ver #37). */
 .room-label {
     text-align: center;

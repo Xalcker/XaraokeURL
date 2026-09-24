@@ -117,6 +117,34 @@ test("en pausa la cuenta no avanza, y al reanudar sigue donde iba", () => {
   assert.equal(countdown.remaining, 3);
 });
 
+test("con los temporizadores de verdad, la cuenta corre aunque setTimeout exija su `this` (como en el navegador)", async (t) => {
+  // El setTimeout del navegador lanza "Illegal invocation" si se llama como método de otro objeto; el
+  // de Node no, así que aquí se imita al del navegador.
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  const strict = (real) =>
+    function (...args) {
+      if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");
+      return real(...args);
+    };
+  globalThis.setTimeout = strict(realSetTimeout);
+  globalThis.clearTimeout = strict(realClearTimeout);
+  t.after(() => {
+    globalThis.setTimeout = realSetTimeout;
+    globalThis.clearTimeout = realClearTimeout;
+  });
+
+  const ticks = [];
+  const done = new Promise((resolve) => {
+    const countdown = createCountdown({ onTick: (n) => ticks.push(n), onDone: resolve });
+    countdown.start(1);
+    countdown.pause();
+    countdown.resume();
+  });
+  await done;
+  assert.deepEqual(ticks, [1, 1, 1]);
+});
+
 test("cancelar la cuenta no la termina (no arranca la canción)", () => {
   const timers = fakeTimers();
   let done = 0;

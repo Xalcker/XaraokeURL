@@ -50,8 +50,14 @@
   // en el navegador (karaoke.js) y en el reproductor nativo (player/lib/hostLogic.js). Baja de uno en
   // uno cada segundo: onTick(restantes, enPausa) cada vez que hay que redibujarla, y onDone() al
   // llegar a cero. Se puede pausar y reanudar (el segundo en curso vuelve a empezar al reanudar).
-  // `timers` se inyecta para las pruebas.
-  function createCountdown({ onTick, onDone, timers = { setTimeout, clearTimeout } }) {
+  // `timers` se inyecta para las pruebas. Los de verdad se llaman sueltos, no como métodos de otro
+  // objeto: el setTimeout del navegador lanza "Illegal invocation" si `this` no es window.
+  const globalTimers = {
+    setTimeout: (fn, ms) => setTimeout(fn, ms),
+    clearTimeout: (id) => clearTimeout(id),
+  };
+
+  function createCountdown({ onTick, onDone, timers = globalTimers }) {
     let remaining = 0;
     let active = false;
     let paused = false;

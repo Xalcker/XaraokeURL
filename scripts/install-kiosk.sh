@@ -260,6 +260,7 @@ if [ "$INSTALL_NODE_SERVICE" = "true" ]; then
 Description=XaraokeURL server
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -269,7 +270,6 @@ EnvironmentFile=-$APP_DIR/.env
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=2
-StartLimitIntervalSec=0
 
 [Install]
 WantedBy=multi-user.target

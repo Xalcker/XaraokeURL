@@ -172,6 +172,16 @@ test("el host reanuda o pausa con órdenes explícitas y salta solo si sigue sie
   assert.match(handler, /if \(payload\.id && currentQueue\[0\]\?\.id !== payload\.id\) break;/);
 });
 
+// src = "" hace que el navegador dispare "error" unos milisegundos después. Si la cola nueva ya había
+// llegado, el manejador borraba currentSongId y playSong descartaba la siguiente: pantalla en negro.
+test("al saltar, el video se vacía sin provocar un error que cancele la siguiente canción", () => {
+  const handler = bodyFrom(hostJs, "function handleControlAction(payload)");
+  assert.doesNotMatch(handler, /player\.src = ""/);
+  assert.match(handler, /player\.removeAttribute\("src"\);\s*player\.load\(\);/);
+  const onError = bodyFrom(hostJs, 'player.addEventListener("error"');
+  assert.match(onError, /^\{\s*(\/\/[^\n]*\s*)*if \(!player\.getAttribute\("src"\)\) return;/, "sin archivo cargado, el error se ignora");
+});
+
 test("añadir una canción no reinicia la que está en pausa: solo se carga la de arriba si es otra", () => {
   const check = bodyFrom(hostJs, "function checkAndPlayNext()");
   assert.match(check, /if \(head\.id === currentSongId\) return;/);

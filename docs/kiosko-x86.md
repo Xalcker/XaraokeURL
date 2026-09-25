@@ -1,24 +1,34 @@
 # 🖥️ Kiosko en un miniPC x86
 
-> **Sin probar todavía en hardware real.** Esta guía se armó a partir de lo que sí funciona en un Raspberry Pi. Los pasos de GRUB y del logo de arranque son a mano porque ningún script del repo los hace en x86. Si la pruebas, cualquier ajuste que necesites es bienvenido.
+> **Probada en un miniPC con Debian 13** (instalado desde un USB de 128 GB). Funciona de principio a fin; quedan dos detalles del arranque sin resolver (ver [Lo que queda por revisar](#lo-que-queda-por-revisar)). Con Ubuntu Server no funcionó como se esperaba, y no está probado a fondo. Si la pruebas, cualquier ajuste que necesites es bienvenido.
 
-En un miniPC (Intel/AMD) se usa [`scripts/install-kiosk.sh`](../scripts/install-kiosk.sh) directamente: `setup-raspberry-display.sh` se niega a correr fuera de un Raspberry Pi. Ese instalador deja el kiosko funcionando (`cage` + Chromium, `seatd`, audio HDMI, cursor transparente y, si quieres, el servidor). Lo que **no** hace es tocar el arranque: el menú de GRUB, los mensajes de Linux y el logo hay que dejarlos a mano (paso 5).
+En un miniPC (Intel/AMD) se usa [`scripts/setup-x86-display.sh`](../scripts/setup-x86-display.sh), el equivalente de `setup-raspberry-display.sh`: deja el logo de arranque, el GRUB silencioso y el kiosko funcionando (`cage` + Chromium, `seatd`, audio HDMI, cursor transparente y, si quieres, el servidor). El kiosko en sí lo instala [`scripts/install-kiosk.sh`](../scripts/install-kiosk.sh), que el script llama por ti.
 
 Contexto general del kiosko, variables y operación: [Modo Kiosko](kiosko.md).
 
 ## Antes de empezar
 
 * **Distro recomendada: Debian 13 (Trixie) sin escritorio.** Trae Node 20.19 (el proyecto pide 20.17 o más) y un `chromium` normal, que es lo que `cage` necesita.
-* **Ubuntu:** ojo con dos cosas. En Ubuntu 24.04 el `nodejs` de los repos es el 18, demasiado viejo; hay que instalar Node desde otra fuente (por ejemplo NodeSource). Y `chromium` en Ubuntu es un paquete **snap**, que con `cage` suele dar problemas de permisos. No lo he probado ahí; si vas con Ubuntu, espera tener que resolver esos dos puntos.
+* **Ubuntu:** ojo con tres cosas. En Ubuntu 24.04 el `nodejs` de los repos es el 18, demasiado viejo; hay que instalar Node desde otra fuente (por ejemplo NodeSource). `chromium` en Ubuntu es un paquete **snap**, que con `cage` suele dar problemas de permisos. Y en Ubuntu Server 26.04 el paquete `plymouth` no trae el comando `plymouth-set-default-theme`; el script lo tiene en cuenta, pero si sigues la guía a mano, el tema se fija en `/etc/plymouth/plymouthd.conf` (`[Daemon]` y `Theme=xaraoke`).
 * **Firmware de la GPU:** en equipos AMD (y algunos Intel recientes) instala el firmware de video, o el driver no arranca: `firmware-amd-graphics` o `firmware-misc-nonfree` (requiere habilitar `non-free-firmware` en los repos de Debian).
 * **Un teclado y un monitor a mano** para la primera instalación y para poder entrar a GRUB si algo sale mal.
 
 ## 1. Instalar el sistema
 
 1. Descarga el ISO *netinst* de Debian 13 y grábalo en un USB.
-2. En el instalador, en *"Software selection"* deja marcados solo **SSH server** y **standard system utilities**. **Sin entorno de escritorio.**
-3. Crea tu usuario (por ejemplo `xalcker`). El usuario `kiosk` lo crea el instalador del kiosko.
-4. Al terminar, entra por SSH: `ssh tu_usuario@<ip-del-miniPC>`. Reserva su IP en el router.
+2. En el instalador, cuando pida la **contraseña de root, déjala vacía**. Así el instalador agrega tu usuario al grupo `sudo`; si pones contraseña de root, tu usuario **no** podrá usar `sudo`.
+3. En *"Software selection"* deja marcados solo **SSH server** y **standard system utilities**. **Sin entorno de escritorio.**
+4. Crea tu usuario (por ejemplo `xalcker`). El usuario `kiosk` lo crea el instalador del kiosko.
+5. Al terminar, entra por SSH: `ssh tu_usuario@<ip-del-miniPC>`. Reserva su IP en el router.
+
+**Si tu usuario quedó sin `sudo`** (pusiste contraseña de root), arréglalo una vez y vuelve a iniciar sesión:
+
+```bash
+su -
+apt-get install -y sudo
+usermod -aG sudo tu_usuario
+exit
+```
 
 ## 2. Instalar Node, git, ffmpeg y yt-dlp
 
@@ -53,80 +63,36 @@ DISABLE_GOOGLE_AUTH=true
 EOF
 ```
 
-## 5. Arranque limpio: logo, sin textos y sin menú de GRUB
+## 5. Instalar el kiosko, el logo de arranque y el servidor
 
-Este paso es opcional: sin él, el kiosko funciona igual, pero durante el arranque se ven los mensajes de Linux y el menú de GRUB. **Hazlo antes de instalar el kiosko (paso 6)**, porque el instalador solo enlaza el logo con la sala si encuentra Plymouth ya instalado.
-
-**5.1. Instala Plymouth y crea el tema `xaraoke`.** El logo sale de la app que acabas de clonar:
+Un solo comando. La URL es `localhost` porque el servidor está en este equipo, e `INSTALL_NODE_SERVICE=true` crea el servicio que lo arranca:
 
 ```bash
-sudo apt-get install -y --no-install-recommends plymouth
-sudo mkdir -p /usr/share/plymouth/themes/xaraoke
-sudo cp /opt/xaraoke/public/img/icon-512.png /usr/share/plymouth/themes/xaraoke/logo.png
-
-sudo tee /usr/share/plymouth/themes/xaraoke/xaraoke.plymouth >/dev/null <<'EOF'
-[Plymouth Theme]
-Name=XaraokeURL
-Description=El logo de XaraokeURL mientras arranca la pantalla
-ModuleName=script
-
-[script]
-ImageDir=/usr/share/plymouth/themes/xaraoke
-ScriptFile=/usr/share/plymouth/themes/xaraoke/xaraoke.script
-EOF
-
-sudo tee /usr/share/plymouth/themes/xaraoke/xaraoke.script >/dev/null <<'EOF'
-Window.SetBackgroundTopColor(0.0902, 0.0667, 0.1412);
-Window.SetBackgroundBottomColor(0.0902, 0.0667, 0.1412);
-
-scale = Window.GetHeight() * 150 / (720 * 270);
-logo.image = Image("logo.png");
-logo.image = logo.image.Scale(Math.Int(512 * scale), Math.Int(512 * scale));
-logo.sprite = Sprite(logo.image);
-logo.sprite.SetX(Window.GetX() + Window.GetWidth() / 2 - 271 * scale);
-logo.sprite.SetY(Window.GetY() + Window.GetHeight() * 170 / 720 - 113 * scale);
-EOF
-
-sudo plymouth-set-default-theme xaraoke
+curl -fsSL https://raw.githubusercontent.com/Xalcker/XaraokeURL/main/scripts/setup-x86-display.sh \
+  | sudo INSTALL_NODE_SERVICE=true bash -s -- http://localhost:8081/
 ```
 
-**5.2. Ajusta GRUB.** Edita `/etc/default/grub` (`sudo nano /etc/default/grub`) y deja estas líneas:
+Tarda varios minutos: actualiza el sistema, instala Chromium, `cage` y el resto, y regenera el initramfs. Al final puede avisar que el servidor "no responde ahora": es normal, acaba de arrancar. El script se puede repetir sin duplicar nada.
 
-```
-GRUB_TIMEOUT=0
-GRUB_TIMEOUT_STYLE=hidden
-GRUB_RECORDFAIL_TIMEOUT=0
-GRUB_GFXPAYLOAD_LINUX=keep
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash plymouth.ignore-serial-consoles loglevel=3 logo.nologo vt.global_cursor_default=0 systemd.show_status=false rd.udev.log_level=3 console=tty3"
-```
+Qué hace, además de llamar a `install-kiosk.sh`:
 
-Los parámetros son los mismos que usa el script de Raspberry Pi. Con el menú oculto no verás GRUB al encender: si algún día necesitas entrar (para arrancar un kernel anterior, por ejemplo), mantén pulsado `Shift` (BIOS) o `Esc` (UEFI) al arrancar.
+* Actualiza el sistema e instala fuentes (sin ellas los emojis salen como cuadritos).
+* Instala el logo de arranque (Plymouth, tema `xaraoke`) y lo mete en el initramfs de **todos** los kernels instalados; si alguno queda sin el tema, el arranque mostraría uno de emergencia (gris con puntos) y el script avisa.
+* Oculta el menú de GRUB y los mensajes de Linux con un archivo aparte, `/etc/default/grub.d/99-xaraoke.cfg`, sin tocar `/etc/default/grub`. Con el menú oculto no verás GRUB al encender: para entrar, mantén pulsado `Shift` (BIOS) o `Esc` (UEFI) al arrancar.
 
-**5.3. Aplica y comprueba.** El tema tiene que quedar **dentro del initramfs** de cada kernel, o el arranque mostrará un tema de emergencia (gris con puntos):
+Variables opcionales: `KIOSK_HOSTNAME` (nombre del equipo), `BOOT_SPLASH=false` (ver GRUB y los textos de arranque, y deshacer lo anterior), `SKIP_UPGRADE=true`, `REBOOT=true`. Están descritas al inicio del script.
+
+Si en cambio el servidor corre en otra máquina de la red, quita `INSTALL_NODE_SERVICE=true` y pon su URL (por ejemplo `http://192.168.1.50:8081/`); entonces tampoco hacen falta los pasos 3 y 4.
+
+## 6. Reiniciar
 
 ```bash
-sudo update-initramfs -u -k all
-sudo update-grub
-for f in /boot/initrd.img-*; do echo "$f:"; lsinitramfs "$f" | grep -E "xaraoke.script|script.so"; done
-```
-
-Cada `initrd.img-*` debe listar `script.so` y `themes/xaraoke/xaraoke.script`. Si alguno sale vacío, repite `sudo update-initramfs -u -k all`.
-
-## 6. Instalar el kiosko y el servidor
-
-Desde la carpeta de la app. La URL es `localhost` porque el servidor está en este equipo:
-
-```bash
-cd /opt/xaraoke
-sudo KIOSK_URL="http://localhost:8081/" INSTALL_NODE_SERVICE=true APP_DIR=/opt/xaraoke ./scripts/install-kiosk.sh
 sudo reboot
 ```
 
-Si en cambio el servidor corre en otra máquina de la red, quita `INSTALL_NODE_SERVICE` y `APP_DIR`, y pon su URL en `KIOSK_URL`; entonces tampoco hacen falta los pasos 3 y 4.
-
 ## 7. Qué comprobar
 
-* **En el TV:** el logo (si hiciste el paso 5), un negro corto, un blanco y la sala. La dirección bajo el QR debe ser la de tu red y no `localhost`. Sin puntero.
+* **En el TV:** el logo, un negro corto, un blanco y la sala. La dirección bajo el QR debe ser la de tu red y no `localhost`. Sin puntero.
 * **Audio por HDMI:** agrega una canción a la lista y confirma que suena por el TV. Es lo más específico de cada equipo: si no suena, mira [Problemas conocidos](kiosko-problemas.md#no-suena-por-hdmi).
 * **Servicios:**
 
@@ -137,13 +103,22 @@ journalctl -u xaraoke-kiosk.service -u xaraoke-kiosk-prepare.service -b --no-pag
 
 * Escanea el QR con el teléfono, abre el control remoto y busca una canción en YouTube.
 
+## Lo que queda por revisar
+
+Al probar en un miniPC con Debian 13 (kernel 6.12) el arranque tuvo dos detalles que no se han resuelto:
+
+* **Una pantalla azul** antes de que empiece el arranque. Sin causa confirmada. Si trae texto de "Enroll MOK" o similar, es Secure Boot: comprueba con `mokutil --sb-state` y, si dice `enabled`, desactívalo en la BIOS y mira si desaparece. Si es un fondo azul liso, probablemente sea el fondo por defecto de GRUB o del firmware.
+* **Dos líneas de texto** ("Loading Linux…" y "Loading initial ramdisk…") que alcanzan a verse después de la pantalla azul. Las imprime GRUB, no el kernel, así que `quiet` no las oculta. Con `GRUB_TIMEOUT_STYLE=hidden` deberían desaparecer, pero no está confirmado que lo hagan en todos los equipos; si las sigues viendo, avísalo.
+
+Antes se veía también el QR con `localhost` al arrancar: el kiosko se abría antes de que el Wi-Fi conectara y el servidor no encontraba ninguna IP. `install-kiosk.sh` ahora espera hasta 30 s a que exista una ruta de red antes de abrir la pantalla (solo cuando el servidor es `localhost`). Si tu equipo ya estaba instalado, vuelve a correr el comando del paso 5. Si aun así sale `localhost`, la red tarda más de 30 s en subir: por cable arranca antes.
+
 ## Diferencias con el Raspberry Pi
 
 | | Raspberry Pi | miniPC x86 |
 |---|---|---|
-| Script de preparación | `setup-raspberry-display.sh` | No hay; los pasos 2 a 5 son a mano |
+| Script de preparación | `setup-raspberry-display.sh` | `setup-x86-display.sh` (los pasos 2 a 4 son a mano en ambos) |
 | Resolución HDMI | Se fuerza (`video=HDMI-A-1:...D`) | El driver (`i915`/`amdgpu`) suele elegir bien; solo fuérzala si el TV no da imagen |
-| Arranque | `cmdline.txt` / `config.txt` | `/etc/default/grub` |
+| Arranque | `cmdline.txt` / `config.txt` | `/etc/default/grub.d/99-xaraoke.cfg` |
 | Wi-Fi sin ahorro de energía | Lo ajusta el script | No aplica por cable; si usas Wi-Fi, revísalo tú |
 | Cursor, `seatd`, servicio de preparación | Igual | Igual |
 

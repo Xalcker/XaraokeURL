@@ -218,6 +218,21 @@ cat > "$WAIT_SCRIPT" <<'EOS'
 # no contesta, cada curl tarda lo que tarde la conexión en rendirse, la espera pasa de
 # los 90 s que systemd da para arrancar, y el kiosko falla y se reintenta sin fin.
 url="$1"
+# Con el servidor en este mismo equipo la respuesta llega aunque no haya red, y la pantalla se abriría
+# antes de que el Wi-Fi conecte: el QR saldría con "localhost", porque el servidor no encontraría ninguna
+# IP. Antes se espera (hasta 30 s) a que exista una ruta por defecto.
+case "$url" in
+  *://localhost*|*://127.*)
+    if command -v ip >/dev/null 2>&1; then
+      until [ -n "$(ip route show default 2>/dev/null)" ]; do
+        if [ "$SECONDS" -ge 30 ]; then
+          echo "xaraoke-wait-for-server: sin ruta de red tras 30s, continúo igual" >&2
+          break
+        fi
+        sleep 1
+      done
+    fi ;;
+esac
 until curl -fsS -m 3 -o /dev/null "$url" 2>/dev/null; do
   if [ "$SECONDS" -ge 60 ]; then
     echo "xaraoke-wait-for-server: sin respuesta de $url tras 60s, continúo igual" >&2
@@ -375,7 +390,7 @@ Environment=XARAOKE_LANG=$KIOSK_LANG
 Environment=\"XARAOKE_MPV_ARGS=$MPV_ARGS\""
 fi
 
-# Si hay logo de arranque (Plymouth, lo instala setup-raspberry-display.sh), se queda en pantalla
+# Si hay logo de arranque (Plymouth, lo instalan setup-raspberry-display.sh y setup-x86-display.sh), se queda en pantalla
 # mientras se espera al servidor y se quita justo antes de arrancar: "--retain-splash" deja la
 # imagen hasta que cage o mpv dibujan, sin un negro en medio. plymouth-quit.service lo quitaría
 # antes y dejaría ver la consola, así que espera a que el kiosko arranque.

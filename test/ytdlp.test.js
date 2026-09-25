@@ -9,7 +9,56 @@ const {
   parseVideoInfoOutput,
   parseSearchResultLimit,
   rankByKnownChannels,
+  searchYoutubeWithFallback,
 } = require("../lib/ytdlp");
+
+// Una búsqueda falsa que devuelve lo que diga `bySuffix` y anota con qué sufijos la llamaron.
+function fakeSearch(bySuffix) {
+  const calls = [];
+  const search = async (query, { limit, suffix }) => {
+    calls.push({ query, limit, suffix });
+    return bySuffix[suffix] ?? [];
+  };
+  return { search, calls };
+}
+
+test("la búsqueda en YouTube usa karaoke y no prueba más si ya hay resultados", async () => {
+  const { search, calls } = fakeSearch({ karaoke: [{ id: "a" }] });
+  const found = await searchYoutubeWithFallback("hey jude", { limit: 8, search });
+  assert.deepEqual(found, { results: [{ id: "a" }], suffix: "karaoke" });
+  assert.deepEqual(calls, [{ query: "hey jude", limit: 8, suffix: "karaoke" }]);
+});
+
+test("sin versiones karaoke prueba instrumental, y después la búsqueda tal cual", async () => {
+  const instrumental = fakeSearch({ instrumental: [{ id: "b" }] });
+  assert.deepEqual(await searchYoutubeWithFallback("rara", { search: instrumental.search }), {
+    results: [{ id: "b" }],
+    suffix: "instrumental",
+  });
+  const plain = fakeSearch({ none: [{ id: "c" }] });
+  assert.deepEqual(await searchYoutubeWithFallback("rarísima", { search: plain.search }), {
+    results: [{ id: "c" }],
+    suffix: "none",
+  });
+  assert.deepEqual(plain.calls.map((c) => c.suffix), ["karaoke", "instrumental", "none"]);
+});
+
+test("si ningún sufijo trae nada, devuelve la lista vacía", async () => {
+  const { search, calls } = fakeSearch({});
+  const found = await searchYoutubeWithFallback("nada", { search });
+  assert.deepEqual(found.results, []);
+  assert.equal(calls.length, 3);
+});
+
+test("si la búsqueda falla, el error llega al que llama (no se prueba el siguiente sufijo)", async () => {
+  let calls = 0;
+  const search = async () => {
+    calls += 1;
+    throw new Error("yt-dlp se cayó");
+  };
+  await assert.rejects(searchYoutubeWithFallback("x", { search }), /yt-dlp se cayó/);
+  assert.equal(calls, 1);
+});
 
 test("buildSearchQuery agrega el sufijo karaoke por defecto", () => {
   assert.equal(buildSearchQuery("bohemian rhapsody", "karaoke"), "bohemian rhapsody karaoke");

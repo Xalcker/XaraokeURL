@@ -268,11 +268,11 @@ EOF
     install_theme_file "$tmp" "$PLYMOUTH_THEME_DIR/xaraoke.script"
     rm -f "$tmp"
 
-    # fontconfig-config trae /etc/fonts/fonts.conf: el hook de initramfs de Plymouth lo copia en
-    # cuanto ve las fuentes DejaVu, y en Raspberry Pi OS Lite no viene, así que update-initramfs
-    # fallaba con "cannot stat '/etc/fonts/fonts.conf'" (pasó en una Pi Zero 2 W recién instalada).
-    if ! dpkg -s plymouth >/dev/null 2>&1 || ! dpkg -s fontconfig-config >/dev/null 2>&1; then
-      apt-get install -y --no-install-recommends plymouth fontconfig-config
+    # El hook de initramfs de Plymouth copia /etc/fonts/fonts.conf y llama a fc-match y fc-cache,
+    # todo del paquete fontconfig. Raspberry Pi OS Lite no lo trae (en la Pi con servidor llega
+    # con ffmpeg), así que en una Pi Zero 2 W recién instalada update-initramfs fallaba.
+    if ! dpkg -s plymouth >/dev/null 2>&1 || ! dpkg -s fontconfig >/dev/null 2>&1; then
+      apt-get install -y --no-install-recommends plymouth fontconfig
       initramfs_stale=true
     fi
     if [ "$(plymouth-set-default-theme)" != "xaraoke" ]; then

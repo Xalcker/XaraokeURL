@@ -194,8 +194,10 @@ EOF
     install_theme_file "$tmp" "$PLYMOUTH_THEME_DIR/xaraoke.script"
     rm -f "$tmp"
 
-    if ! dpkg -s plymouth >/dev/null 2>&1; then
-      apt-get install -y --no-install-recommends plymouth
+    # El hook de initramfs de Plymouth usa fontconfig (fonts.conf, fc-match, fc-cache), y una
+    # instalación mínima de Debian no lo trae: sin él, update-initramfs falla.
+    if ! dpkg -s plymouth >/dev/null 2>&1 || ! dpkg -s fontconfig >/dev/null 2>&1; then
+      apt-get install -y --no-install-recommends plymouth fontconfig
       initramfs_stale=true
     fi
     if [ "$(current_plymouth_theme)" != "xaraoke" ]; then
@@ -239,7 +241,8 @@ EOF
   if [ "$BOOT_SPLASH" = "true" ]; then
     if [ "$initramfs_stale" = "true" ] || ! theme_in_initramfs; then
       echo "==> Regenerando el initramfs con el logo"
-      update-initramfs -u -k all
+      # Si falla, update-initramfs deja el initramfs anterior: se avisa abajo y la instalación sigue.
+      update-initramfs -u -k all || true
     fi
     theme_in_initramfs || warn "El initramfs no quedó con el tema del logo: el arranque mostrará el de emergencia (gris con puntos)."
   fi

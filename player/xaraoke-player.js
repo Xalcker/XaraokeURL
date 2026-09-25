@@ -14,7 +14,7 @@
 //   XARAOKE_SERVER     URL del servidor
 //   XARAOKE_LANG       idioma de los textos en pantalla (es)
 //   XARAOKE_MPV_ARGS   opciones extra para mpv, separadas por espacios; p. ej. en un Raspberry Pi:
-//                      "--vo=gpu --gpu-context=drm --hwdec=v4l2m2m-copy"
+//                      "--vo=gpu --gpu-context=drm --drm-draw-surface-size=1280x720 --hwdec=v4l2m2m-copy"
 //   XARAOKE_MPV_BIN    ejecutable de mpv (mpv)
 //   XARAOKE_STATE_DIR  dónde guardar la sala para recuperarla tras un reinicio
 //                      ($XDG_STATE_HOME/xaraoke-player o ~/.local/state/xaraoke-player)

@@ -11,7 +11,6 @@ const {
   translate,
   applyTranslations,
 } = require("../public/js/i18n");
-const { normalizeSearchSuffix } = require("../lib/ytdlp");
 
 const ROOT = path.join(__dirname, "..");
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
@@ -141,17 +140,6 @@ test("los plurales tienen variante 'other' en todos los idiomas", () => {
   for (const lang of SUPPORTED) {
     for (const key of Object.keys(MESSAGES[lang]).filter((k) => k.endsWith(".one"))) {
       assert.ok(MESSAGES[lang][key.replace(/\.one$/, ".other")], `${lang}/${key}: falta la variante .other`);
-    }
-  }
-});
-
-test("las opciones del selector de YouTube existen en el servidor y tienen etiqueta", () => {
-  for (const lang of SUPPORTED) {
-    const options = MESSAGES[lang]["yt.suffixOptions"].split(",");
-    assert.ok(options.includes("none") && options.includes("karaoke"), `${lang}: faltan opciones básicas`);
-    for (const option of options) {
-      assert.equal(normalizeSearchSuffix(option), option, `${lang}: "${option}" no es un sufijo que acepte el servidor`);
-      assert.ok(MESSAGES[lang][`yt.suffix.${option}`], `${lang}: falta la etiqueta yt.suffix.${option}`);
     }
   }
 });

@@ -977,24 +977,11 @@ body.has-rating-card {
     margin: 0 0 0.75rem;
 }
 
-#songBrowser label {
-    display: block;
-    margin-top: 0.5rem;
+/* Aviso de que no hubo versiones karaoke y los resultados son de otra búsqueda. */
+#songBrowser p.yt-fallback {
     color: var(--text-muted);
     font-size: 0.9rem;
-}
-
-#ytSuffixSelect {
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
-    padding: 10px;
-    margin: 0.5rem 0 1rem;
-    border-radius: 8px;
-    border: 1px solid #444;
-    background-color: #282828;
-    color: #fff;
-    font-size: 1rem;
+    text-align: center;
 }
 
 #songBrowser p.yt-error {

@@ -425,7 +425,11 @@ document.addEventListener("DOMContentLoaded", () => {
         currentSongId = null;
         stopCountdown();
         player.pause();
-        player.src = "";
+        // Se vacía quitando el atributo, no con src = "": eso dispara un "error" unos milisegundos
+        // después que, si la cola nueva ya llegó, cancelaba la carga de la siguiente canción y la
+        // pantalla se quedaba en negro.
+        player.removeAttribute("src");
+        player.load();
         pausedOverlay.classList.add("hidden");
         send({ type: "playNext" });
         break;
@@ -557,6 +561,8 @@ document.addEventListener("DOMContentLoaded", () => {
     reportPlayback(true);
   });
   player.addEventListener("error", () => {
+    // Sin archivo cargado (se acaba de vaciar al saltar) no hay nada que reintentar.
+    if (!player.getAttribute("src")) return;
     // No siempre es que el archivo esté roto: un corte de red momentáneo (por ejemplo,
     // mientras el servidor descarga otra canción de YouTube) también dispara este evento.
     // Si la que se cayó es la que está sonando, se guarda por dónde iba para retomarla

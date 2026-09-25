@@ -12,7 +12,7 @@ const { getServerAddresses, remoteBaseUrl } = require("../../lib/network");
 const { sanitizeDisplayName } = require("../../lib/displayName");
 const { nameKey, isNameTaken } = require("../../lib/nameClaims");
 const { SUPPORTED, translate } = require("../../public/js/i18n");
-const { YOUTUBE_ID_RE, normalizeSearchSuffix, rankByKnownChannels, searchYoutube } = require("../../lib/ytdlp");
+const { YOUTUBE_ID_RE, normalizeSearchSuffix, rankByKnownChannels, searchYoutubeWithFallback } = require("../../lib/ytdlp");
 const { sanitizeSearchQuery } = require("../../lib/downloadPolicy");
 const { DownloadError } = require("../downloads");
 
@@ -113,16 +113,16 @@ function mountApi(app, { config, auth, salas, descargas, catalogo, ratings, tr }
     limitador(20, "api.tooManySearches", tr),
     async (req, res) => {
       const query = (req.query.q || "").toString().trim();
-      const suffix = (req.query.suffix || "karaoke").toString();
       if (!query) return res.status(400).json({ error: tr(req, "api.queryMissing") });
       if (query.length > MAX_SEARCH_QUERY_LENGTH) {
         return res.status(400).json({ error: tr(req, "api.queryTooLong") });
       }
       try {
-        const encontrados = await searchYoutube(query, { limit: config.searchFetchLimit, suffix });
+        // Sin selector en el remoto: se busca "karaoke" y, solo si no hay nada, otras versiones.
+        const { results: encontrados, suffix } = await searchYoutubeWithFallback(query, { limit: config.searchFetchLimit });
         const canales = descargas.all().map((entry) => entry.channel);
         const results = rankByKnownChannels(encontrados, canales).slice(0, config.searchResultLimit);
-        res.json({ results });
+        res.json({ results, suffix });
       } catch (err) {
         console.error("Error buscando en YouTube:", err.message);
         res.status(502).json({ error: tr(req, "api.searchFailed") });

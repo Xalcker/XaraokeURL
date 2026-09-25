@@ -104,7 +104,6 @@ document.addEventListener("DOMContentLoaded", () => {
     let upNextSongId = null;
     let currentQueue = [];
     let turnBannerTimeoutId = null;
-    let selectedYtSuffix = "karaoke";
     let lastYtQuery = "";
     let lastYtSuffix = "karaoke";
     let lastYtResults = [];
@@ -570,15 +569,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const query = songSearch.value.trim();
         if (query) {
             if (showingLocalSearch()) renderSearchResults(query);
-        } else if (songBrowser.querySelector(".alphabet-container, #ytSuffixSelect")) {
+        } else if (songBrowser.querySelector(".alphabet-container, #library-empty")) {
             renderAlphabet();
         }
     }
 
     // ¿Está en pantalla la búsqueda local (con coincidencias o con el aviso de
-    // "buscar en YouTube")? Se reconoce por el selector de sufijo, que siempre la acompaña.
+    // "buscar en YouTube")? Se reconoce por el botón de buscar en YouTube, que siempre la acompaña.
     function showingLocalSearch() {
-        return !!songBrowser.querySelector("#ytSuffixSelect");
+        return !!songBrowser.querySelector("#ytSearchBtn");
     }
 
     async function loadSongs() {
@@ -943,6 +942,7 @@ document.addEventListener("DOMContentLoaded", () => {
         songBrowser.innerHTML = "";
         if (flatSongList.length === 0) {
             const emptyHint = document.createElement("p");
+            emptyHint.id = "library-empty";
             emptyHint.textContent = t("library.empty");
             songBrowser.appendChild(emptyHint);
             if (downloadList.length > 0) {
@@ -950,7 +950,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 downloadsHint.textContent = t("library.downloads", { n: downloadList.length });
                 songBrowser.appendChild(downloadsHint);
             }
-            appendYoutubeSuffixSelect();
             return;
         }
         const container = document.createElement("div");
@@ -1082,28 +1081,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Selector de sufijo (Karaoke / Instrumental / Pista / Sin sufijo). La
-    // opción elegida se recuerda en `selectedYtSuffix`, porque el panel se
-    // vuelve a dibujar con cada tecla y si no se reiniciaría a "Karaoke".
-    function appendYoutubeSuffixSelect() {
-        const suffixLabel = document.createElement("label");
-        suffixLabel.setAttribute("for", "ytSuffixSelect");
-        suffixLabel.textContent = t("yt.suffixLabel");
-        songBrowser.appendChild(suffixLabel);
-
-        const suffixSelect = document.createElement("select");
-        suffixSelect.id = "ytSuffixSelect";
-        t("yt.suffixOptions").split(",").forEach((value) => {
-            const opt = document.createElement("option");
-            opt.value = value;
-            opt.textContent = t(`yt.suffix.${value}`);
-            suffixSelect.appendChild(opt);
-        });
-        suffixSelect.value = selectedYtSuffix;
-        suffixSelect.onchange = () => { selectedYtSuffix = suffixSelect.value; };
-        songBrowser.appendChild(suffixSelect);
-    }
-
     function renderYoutubeSearchPrompt(query) {
         songBrowser.innerHTML = "";
 
@@ -1116,27 +1093,27 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function appendYoutubeSearchControls(query) {
-        appendYoutubeSuffixSelect();
-
         const searchBtn = document.createElement("button");
+        searchBtn.id = "ytSearchBtn";
         searchBtn.type = "button";
         searchBtn.className = "back-btn";
         setLabel(searchBtn, "search", t("yt.searchButton"));
-        searchBtn.onclick = () => searchYoutubeUI(query, selectedYtSuffix);
+        searchBtn.onclick = () => searchYoutubeUI(query);
         songBrowser.appendChild(searchBtn);
     }
 
-    async function searchYoutubeUI(query, suffix) {
+    // El servidor busca "karaoke" y, si no hay nada, prueba otras versiones: responde con cuál encontró.
+    async function searchYoutubeUI(query) {
         songBrowser.innerHTML = "";
         const loadingMsg = document.createElement("p");
         loadingMsg.textContent = t("yt.searching");
         songBrowser.appendChild(loadingMsg);
 
         try {
-            const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}&suffix=${encodeURIComponent(suffix)}`);
+            const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}`);
             const data = await res.json();
             if (!res.ok) throw failedRequest(data);
-            renderYoutubeResults(data.results, query, suffix);
+            renderYoutubeResults(data.results, query, data.suffix);
         } catch (error) {
             songBrowser.innerHTML = "";
             const errMsg = document.createElement("p");
@@ -1147,7 +1124,7 @@ document.addEventListener("DOMContentLoaded", () => {
             retryBtn.type = "button";
             retryBtn.className = "back-btn";
             setLabel(retryBtn, "refresh", t("remote.retry"));
-            retryBtn.onclick = () => searchYoutubeUI(query, suffix);
+            retryBtn.onclick = () => searchYoutubeUI(query);
             songBrowser.appendChild(retryBtn);
         }
     }
@@ -1165,6 +1142,17 @@ document.addEventListener("DOMContentLoaded", () => {
             noResults.textContent = t("yt.noResults");
             songBrowser.appendChild(noResults);
             return;
+        }
+
+        // Si no hubo versiones karaoke, se avisa: lo que sigue puede traer la voz original.
+        let fallbackNote = null;
+        if (suffix === "instrumental") fallbackNote = t("yt.fallback.instrumental");
+        else if (suffix === "none") fallbackNote = t("yt.fallback.none");
+        if (fallbackNote) {
+            const note = document.createElement("p");
+            note.className = "yt-fallback";
+            note.textContent = fallbackNote;
+            songBrowser.appendChild(note);
         }
 
         lastYtResults.forEach((video) => {
@@ -1273,7 +1261,7 @@ document.addEventListener("DOMContentLoaded", () => {
         await Promise.all([loadDownloads(), loadRatings()]);
         const { songs, downloads } = findLocalMatches(query);
         if (songs.length === 0 && downloads.length === 0) {
-            searchYoutubeUI(query, selectedYtSuffix);
+            searchYoutubeUI(query);
         } else if (showingLocalSearch()) {
             renderSearchResults(query);
         }

@@ -12,7 +12,7 @@ const remoteHtml = read("remote.html");
 const idsIn = (html) => new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
 
 // Ids que los scripts crean por su cuenta (no están en el HTML estático).
-const DYNAMIC_IDS = new Set(["song-duration", "ytSuffixSelect"]);
+const DYNAMIC_IDS = new Set(["song-duration"]);
 
 for (const [html, script] of [
   ["index.html", "karaoke.js"],

@@ -142,8 +142,8 @@ a:focus-visible {
     gap: 1rem;
 }
 
-/* El logo arriba y el QR abajo, cada uno pegado a su extremo de la barra en vez de apilados
-   con el resto: son "cómo conectarse", no información que deba crecer con el contenido. */
+/* El QR arriba y el logo abajo, cada uno pegado a su extremo de la barra en vez de apilados con el
+   resto. El QR va arriba porque la letra de los karaokes suele ir en la mitad de abajo del video. */
 .sidebar-right {
     justify-content: space-between;
 }
@@ -709,8 +709,38 @@ body.ui-idle #fullscreen-btn:not(:focus-visible) {
     justify-content: space-between;
 }
 
+/* La barra derecha mide lo que su contenido (el QR chico), no el ancho de la izquierda. */
 .ui-minimal .sidebar-right {
     right: 1.5rem;
+    width: auto;
+    align-items: flex-end;
+}
+
+.ui-minimal .sidebar-logo {
+    width: 3.5rem;
+}
+
+/* Tarjeta compacta: solo el código de sala y el QR, que así tapa menos video. El título, "Sala:",
+   "Escanea…" y la dirección sobran aquí: la dirección ya está en la pantalla de espera. */
+.ui-minimal #qr-container {
+    max-width: clamp(160px, 16vw, 360px);
+    padding: 0.6rem;
+}
+
+.ui-minimal #qr-container h3,
+.ui-minimal #qr-container p:not(#qr-error) {
+    display: none;
+}
+
+.ui-minimal #room-code {
+    font-size: 1.4rem;
+    letter-spacing: 3px;
+    margin-bottom: 0.4rem;
+}
+
+.ui-minimal #qr-container img {
+    width: 12vh;
+    border-width: 4px;
 }
 
 .ui-minimal .sidebar-section {

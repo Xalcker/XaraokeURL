@@ -251,20 +251,35 @@ cat > "$AUDIO_SCRIPT" <<'EOS'
 # Chromium o mpv (que usan el default del sistema) suenen por ahí. También lo
 # deja al 100 % y sin silencio: WirePlumber arranca una salida nueva al 40 %,
 # que en la escala del audio casi no se oye. El volumen se maneja desde el TV.
-if command -v wpctl >/dev/null 2>&1; then
-  id=$(wpctl status 2>/dev/null | awk '/Sinks:/{f=1} /Sources:/{f=0} f' | grep -i hdmi | head -n1 | grep -oE '[0-9]+' | head -n1)
-  if [ -n "$id" ]; then
+#
+# PipeWire y WirePlumber del usuario arrancan casi a la vez que este servicio: al principio la salida
+# HDMI puede no existir todavía (en un miniPC x86 el sonido salía por la salida analógica, la que
+# tiene prioridad, porque el ajuste se intentaba una sola vez), así que se reintenta hasta 20 s.
+set_hdmi() {
+  if command -v wpctl >/dev/null 2>&1; then
+    id=$(wpctl status 2>/dev/null | awk '/Sinks:/{f=1} /Sources:/{f=0} f' | grep -i hdmi | head -n1 | grep -oE '[0-9]+' | head -n1)
+    [ -n "$id" ] || return 1
     wpctl set-default "$id"
     wpctl set-volume "$id" 1.0
     wpctl set-mute "$id" 0
-  fi
-elif command -v pactl >/dev/null 2>&1; then
-  sink=$(pactl list short sinks | awk 'tolower($0) ~ /hdmi/ {print $2; exit}')
-  if [ -n "$sink" ]; then
+    echo "xaraoke-set-hdmi-audio: salida HDMI $id fijada como predeterminada"
+  else
+    sink=$(pactl list short sinks 2>/dev/null | awk 'tolower($0) ~ /hdmi/ {print $2; exit}')
+    [ -n "$sink" ] || return 1
     pactl set-default-sink "$sink"
     pactl set-sink-volume "$sink" 100%
     pactl set-sink-mute "$sink" 0
+    echo "xaraoke-set-hdmi-audio: salida HDMI $sink fijada como predeterminada"
   fi
+}
+if command -v wpctl >/dev/null 2>&1 || command -v pactl >/dev/null 2>&1; then
+  until set_hdmi; do
+    if [ "$SECONDS" -ge 20 ]; then
+      echo "xaraoke-set-hdmi-audio: no encontré ninguna salida HDMI tras 20s, dejo la predeterminada" >&2
+      break
+    fi
+    sleep 1
+  done
 fi
 exit 0
 EOS

@@ -1,6 +1,6 @@
 # 🖥️ Kiosko en un miniPC x86
 
-> **Probada en un miniPC con Debian 13** (instalado desde un USB de 128 GB). Funciona de principio a fin; quedan dos detalles del arranque sin resolver (ver [Lo que queda por revisar](#lo-que-queda-por-revisar)). Con Ubuntu Server no funcionó como se esperaba, y no está probado a fondo. Si la pruebas, cualquier ajuste que necesites es bienvenido.
+> **Probada en un miniPC con Debian 13** (instalado desde un USB de 128 GB). Funciona de principio a fin (sala, QR con la IP correcta y audio por HDMI); quedan dos detalles del arranque sin resolver (ver [Lo que queda por revisar](#lo-que-queda-por-revisar)). Con Ubuntu Server no funcionó como se esperaba, y no está probado a fondo. Si la pruebas, cualquier ajuste que necesites es bienvenido.
 
 En un miniPC (Intel/AMD) se usa [`scripts/setup-x86-display.sh`](../scripts/setup-x86-display.sh), el equivalente de `setup-raspberry-display.sh`: deja el logo de arranque, el GRUB silencioso y el kiosko funcionando (`cage` + Chromium, `seatd`, audio HDMI, cursor transparente y, si quieres, el servidor). El kiosko en sí lo instala [`scripts/install-kiosk.sh`](../scripts/install-kiosk.sh), que el script llama por ti.
 
@@ -94,11 +94,13 @@ sudo reboot
 
 * **En el TV:** el logo, un negro corto, un blanco y la sala. La dirección bajo el QR debe ser la de tu red y no `localhost`. Sin puntero.
 * **Audio por HDMI:** agrega una canción a la lista y confirma que suena por el TV. Es lo más específico de cada equipo: si no suena, mira [Problemas conocidos](kiosko-problemas.md#no-suena-por-hdmi).
+  * El sonido del kiosko lo maneja el PipeWire del usuario `kiosk`, aparte del de tu usuario: un `wpctl set-default` como tú no cambia lo que suena en el TV. Para ver o cambiar la salida, hazlo como `kiosk`: `sudo -u kiosk XDG_RUNTIME_DIR=/run/user/$(id -u kiosk) wpctl status`.
+  * No hace falta escribir reglas de WirePlumber a mano. El instalador fija la salida HDMI en cada arranque (reintenta hasta 20 s) y lo deja en el log: `sudo journalctl -u xaraoke-kiosk-prepare.service -b`, línea `salida HDMI ... fijada como predeterminada`. En el equipo de prueba (Ryzen), sin esto el sonido salía por la salida analógica, que tiene prioridad.
 * **Servicios:**
 
 ```bash
 systemctl status xaraoke-server.service xaraoke-kiosk.service xaraoke-kiosk-prepare.service --no-pager | head -30
-journalctl -u xaraoke-kiosk.service -u xaraoke-kiosk-prepare.service -b --no-pager | tail -40
+sudo journalctl -u xaraoke-kiosk.service -u xaraoke-kiosk-prepare.service -b --no-pager | tail -40
 ```
 
 * Escanea el QR con el teléfono, abre el control remoto y busca una canción en YouTube.
@@ -110,7 +112,12 @@ Al probar en un miniPC con Debian 13 (kernel 6.12) el arranque tuvo dos detalles
 * **Una pantalla azul** antes de que empiece el arranque. Sin causa confirmada. Si trae texto de "Enroll MOK" o similar, es Secure Boot: comprueba con `mokutil --sb-state` y, si dice `enabled`, desactívalo en la BIOS y mira si desaparece. Si es un fondo azul liso, probablemente sea el fondo por defecto de GRUB o del firmware.
 * **Dos líneas de texto** ("Loading Linux…" y "Loading initial ramdisk…") que alcanzan a verse después de la pantalla azul. Las imprime GRUB, no el kernel, así que `quiet` no las oculta. Con `GRUB_TIMEOUT_STYLE=hidden` deberían desaparecer, pero no está confirmado que lo hagan en todos los equipos; si las sigues viendo, avísalo.
 
-Antes se veía también el QR con `localhost` al arrancar: el kiosko se abría antes de que el Wi-Fi conectara y el servidor no encontraba ninguna IP. `install-kiosk.sh` ahora espera hasta 30 s a que exista una ruta de red antes de abrir la pantalla (solo cuando el servidor es `localhost`). Si tu equipo ya estaba instalado, vuelve a correr el comando del paso 5. Si aun así sale `localhost`, la red tarda más de 30 s en subir: por cable arranca antes.
+**Ya resuelto y comprobado en ese equipo:**
+
+* **El QR salía con `localhost`** al arrancar: el kiosko se abría antes de que el Wi-Fi conectara y el servidor no encontraba ninguna IP. `install-kiosk.sh` ahora espera hasta 30 s a que exista una ruta de red antes de abrir la pantalla (solo cuando el servidor es `localhost`); ahí la espera fue de unos 14 s y el QR salió con la IP correcta. Si tu equipo ya estaba instalado, vuelve a correr el comando del paso 5. Si aun así sale `localhost`, la red tarda más de 30 s en subir: por cable arranca antes.
+* **El audio salía por la salida analógica** en lugar de HDMI. Ver la nota de audio en [Qué comprobar](#7-qué-comprobar).
+
+**Al volver a correr el comando del paso 5** justo después de que se fusionó un cambio, `raw.githubusercontent.com` puede servirte la versión anterior: guarda copias unos 5 minutos. Para pedir una versión exacta, cambia `main` por el identificador completo del commit, en la URL y en `XARAOKE_REF` (`sudo XARAOKE_REF=<commit> ... bash -s -- ...`).
 
 ## Diferencias con el Raspberry Pi
 

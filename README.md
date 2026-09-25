@@ -54,7 +54,7 @@ Convierte un Raspberry Pi o un miniPC en una pantalla dedicada: enciende, muestr
 |---|---|---|
 | Raspberry Pi 4/5, servidor y pantalla en el mismo Pi | [Raspberry Pi](docs/kiosko-raspberry-pi.md) | Probado |
 | Raspberry Pi Zero 2 W (reproductor nativo, sin navegador) | [Raspberry Pi](docs/kiosko-raspberry-pi.md#c-pi-zero-2-w-y-placas-chicas-solo-pantalla) | Probado |
-| miniPC x86 (Debian/Ubuntu) | [miniPC x86](docs/kiosko-x86.md) | Sin probar |
+| miniPC x86 (Debian 13) | [miniPC x86](docs/kiosko-x86.md) | Probado en Debian 13; Ubuntu Server sin resolver |
 
 Si algo no arranca, mira [Problemas conocidos](docs/kiosko-problemas.md).
 
@@ -66,4 +66,5 @@ Si algo no arranca, mira [Problemas conocidos](docs/kiosko-problemas.md).
 * `npm run import` - Importa canciones desde `songs.csv` a la base de datos (ruta configurable con `CSV_PATH`; ver [formato](docs/instalacion.md#formato-de-songscsv))
 * `sudo ./scripts/install-kiosk.sh` - Instala el modo kiosko (ver [Modo Kiosko](docs/kiosko.md))
 * `sudo ./scripts/setup-raspberry-display.sh <url>` - Convierte un Raspberry Pi OS Lite limpio en pantalla de XaraokeURL (ver [Raspberry Pi](docs/kiosko-raspberry-pi.md))
+* `sudo ./scripts/setup-x86-display.sh <url>` - Convierte un Debian 13 x86 sin escritorio en pantalla de XaraokeURL (ver [miniPC x86](docs/kiosko-x86.md))
 * `node player/xaraoke-player.js <url>` - La pantalla principal sin navegador, con `mpv` (ver [Reproductor nativo](docs/reproductor-nativo.md))

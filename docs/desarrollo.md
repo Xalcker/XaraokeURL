@@ -57,7 +57,7 @@ XaraokeURL/
 │   ├── testServer.js             # Arranca server.js en un puerto libre con datos temporales
 │   └── wsClient.js               # Cliente de WebSocket que sabe esperar a un mensaje
 ├── docs/                         # La documentación (instalación, uso, kiosko, seguridad...); el README enlaza a ella
-├── scripts/                      # install-kiosk.sh y setup-raspberry-display.sh (ver docs/kiosko.md)
+├── scripts/                      # install-kiosk.sh, setup-raspberry-display.sh y setup-x86-display.sh (ver docs/kiosko.md)
 ├── player/                       # El reproductor nativo con mpv, sin navegador (ver docs/reproductor-nativo.md)
 ├── .github/workflows/ci.yml      # CI: lint + test en cada push/PR
 ├── eslint.config.js              # Configuración de ESLint

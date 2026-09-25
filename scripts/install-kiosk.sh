@@ -394,7 +394,10 @@ else
   if [ -z "$MPV_ARGS" ]; then
     if tr -d '\0' < /proc/device-tree/model 2>/dev/null | grep -q "Raspberry Pi"; then
       # Probado en una Pi Zero 2 W: el modo "-copy" es el que funciona con su GPU.
-      MPV_ARGS="--vo=gpu --gpu-context=drm --hwdec=v4l2m2m-copy"
+      # mpv dibuja a 1280×720 y la pantalla lo escala: la GPU de la Pi Zero 2 W no maneja texturas de
+      # más de 2048×2048, y a 1080p los textos de la pantalla de espera no cabían en una (mpv no los
+      # dibujaba). Además le ahorra trabajo a la GPU con el video.
+      MPV_ARGS="--vo=gpu --gpu-context=drm --drm-draw-surface-size=1280x720 --hwdec=v4l2m2m-copy"
     else
       MPV_ARGS="--vo=gpu --gpu-context=drm --hwdec=auto-safe"
     fi

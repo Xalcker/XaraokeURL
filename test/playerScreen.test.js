@@ -137,9 +137,10 @@ test("quién canta y quién sigue llevan un recuadro oscuro detrás, dibujado an
 test("sin canciones: fondo con los colores de la marca, logo arriba y el código en turquesa", () => {
   const { ass } = buildScreen(room(), { ...opts, logo: LOGO });
   const [first] = ass.split("\n");
-  assert.match(first, /\\1c&H241117&/, "lo primero es el fondo #171124, para que quede detrás de todo");
-  assert.match(first, /m 0 0 l 1280 0 l 1280 720 l 0 720/, "y cubre toda la pantalla");
-  assert.match(ass, /\\1c&H701F4E&/, "con el resplandor morado del degradado de la web");
+  assert.match(first, /\\1c&H701F4E&/, "lo primero es el resplandor morado del degradado de la web, detrás de todo");
+  // El morado de fondo lo pinta mpv (--background-color). Un rectángulo del tamaño de la pantalla no
+  // cabía junto con lo demás en la textura de la Pi Zero 2 W, y mpv no dibujaba ningún texto.
+  assert.doesNotMatch(ass, /m 0 0 l 1280 0 l 1280 720 l 0 720/, "sin un rectángulo que cubra toda la pantalla");
   const logo = logoIn(ass);
   assert.equal(logo.alpha, 0, "aquí el logo va opaco");
   assert.ok(logo.y < 100, "arriba del título");
@@ -149,7 +150,8 @@ test("sin canciones: fondo con los colores de la marca, logo arriba y el código
 test("conectando: el logo grande y el aviso, sobre el fondo de la marca", () => {
   const { ass } = buildScreen({ status: "connecting", serverUrl: "http://x/" }, { ...opts, logo: LOGO });
   assert.ok(logoIn(ass).scale > logoIn(buildScreen(room(), { ...opts, logo: LOGO }).ass).scale, "más grande que en espera");
-  assert.match(ass, /\\1c&H241117&/);
+  assert.match(ass, /\\1c&H701F4E&/, "con el resplandor morado del fondo");
+  assert.doesNotMatch(ass, /m 0 0 l 1280 0 l 1280 720 l 0 720/, "sin un rectángulo que cubra toda la pantalla");
 });
 
 test("sin logo (no se pudo leer) todo lo demás se dibuja igual", () => {

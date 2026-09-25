@@ -92,10 +92,12 @@ function ellipse(cx, cy, rx, ry) {
 
 // El fondo de las pantallas sin video: el morado oscuro de la marca con dos resplandores difusos,
 // a la manera del degradado de la pantalla web (ASS no tiene degradados; el desenfoque lo imita).
+// El morado de fondo lo pinta mpv (--background-color): un rectángulo que cubriera toda la pantalla
+// sería un mapa de bits más del tamaño de la pantalla, y mpv junta todo el texto y los dibujos en una
+// sola textura que en la GPU de una Pi Zero 2 W no pasa de 2048×2048. Si no cabe, mpv no dibuja nada
+// (ni el texto): pasó a 1080p.
 function backgroundLines() {
-  const full = `m 0 0 l ${WIDTH} 0 l ${WIDTH} ${HEIGHT} l 0 ${HEIGHT}`;
   return [
-    shape(full, { color: COLORS.brandDark }),
     shape(ellipse(180, 120, 520, 360), { color: COLORS.glowPurple, opacity: 0.55, blur: 60 }),
     shape(ellipse(1120, 640, 560, 340), { color: COLORS.glowBlue, opacity: 0.7, blur: 60 }),
     shape(ellipse(1180, 40, 300, 200), { color: COLORS.glowDeep, opacity: 0.6, blur: 50 }),

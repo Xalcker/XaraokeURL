@@ -24,9 +24,10 @@ const COLORS = {
 
 // Tamaño y posición del QR, en fracciones del alto (tamaño) y de la pantalla (posición).
 const QR_IDLE = { size: 0.44, centerX: 0.5, top: 0.22 };
-const QR_CORNER = { size: 0.2, right: MARGIN / WIDTH, bottom: MARGIN / HEIGHT };
+// Durante una canción, chico y arriba a la derecha: la letra de los karaokes suele ir en la mitad de abajo.
+const QR_CORNER = { size: 0.12, right: MARGIN / WIDTH, top: MARGIN / HEIGHT };
 
-// El logo durante una canción: arriba a la derecha y semitransparente, para no competir con el video.
+// El logo durante una canción: abajo a la derecha y semitransparente, para no competir con el video.
 const LOGO_PLAYING = { height: 64, opacity: 0.6 };
 const LOGO_IDLE = { height: 88, top: 14 };
 const LOGO_MESSAGE = { height: 150, top: 170 };
@@ -125,9 +126,9 @@ function roomCode(t, roomId) {
   return `${assEscape(t("host.room"))} {\\1c${assColor(COLORS.accent)}}${assEscape(roomId)}`;
 }
 
-// Quién canta arriba a la izquierda; quién sigue abajo a la izquierda; el QR abajo a la derecha, con
-// el código de sala encima, y el logo arriba a la derecha. La letra de los karaokes suele ir al
-// centro, lejos de las esquinas.
+// Quién canta arriba a la izquierda; quién sigue abajo a la izquierda; el QR arriba a la derecha, con
+// el código de sala debajo, y el logo abajo a la derecha. La letra de los karaokes suele ir al centro
+// o en la mitad de abajo, así que lo que más ocupa va arriba.
 function playingLines({ queue, roomId, paused, t, songDisplay, qrShown, logo }) {
   const [current, next] = queue;
   const lines = [];
@@ -146,15 +147,16 @@ function playingLines({ queue, roomId, paused, t, songDisplay, qrShown, logo }) 
   for (const [x, y, align, tags, text] of info) lines.push(line(x, y, align, `{${tags}${BACKDROP}}${text}`));
   for (const [x, y, align, tags, text] of info) lines.push(line(x, y, align, `{${tags}}${text}`));
 
-  // El código de sala, sobre el QR (o solo en la esquina, si el QR no está disponible).
-  const codeY = qrShown ? HEIGHT - MARGIN - QR_CORNER.size * HEIGHT - 6 : HEIGHT - MARGIN;
+  // El código de sala, debajo del QR (o solo en la esquina, si el QR no está disponible).
+  const codeY = qrShown ? MARGIN + QR_CORNER.size * HEIGHT + 6 : MARGIN;
   const codeX = WIDTH - MARGIN - (qrShown ? (QR_CORNER.size * HEIGHT) / 2 : 0);
-  const codeAlign = qrShown ? 2 : 3;
+  const codeAlign = qrShown ? 8 : 9;
   lines.push(line(codeX, codeY, codeAlign, `{${style(26, { bold: true })}}${roomCode(t, roomId)}`));
 
   if (logo) {
     const { height, opacity } = LOGO_PLAYING;
-    lines.push(logoLine(logo, { x: WIDTH - MARGIN - logoWidth(logo, height), y: MARGIN, height, opacity, outline: true }));
+    const y = HEIGHT - MARGIN - height;
+    lines.push(logoLine(logo, { x: WIDTH - MARGIN - logoWidth(logo, height), y, height, opacity, outline: true }));
   }
 
   if (paused) {
@@ -234,7 +236,7 @@ function messageLines(text, logo) {
 // state: { status: "connecting" | "replaced" | "room", serverUrl, roomId, remoteUrl, queue, paused, qrAvailable,
 //          countdown } (countdown: { remaining, paused } mientras corre la cuenta regresiva, o null)
 // logo: el dibujo de svgPath.logoDrawing ({ drawing, width, height }), o null si no se pudo leer.
-// Devuelve { ass, qr }, con qr = null (sin QR) o { size, centerX, top } / { size, right, bottom }.
+// Devuelve { ass, qr }, con qr = null (sin QR) o { size, centerX, top } / { size, right, top }.
 function buildScreen(state, { t, songDisplay, logo = null }) {
   if (state.status === "connecting") {
     return { ass: messageLines(t("player.connecting", { url: state.serverUrl }), logo).join("\n"), qr: null };
@@ -259,9 +261,7 @@ function buildScreen(state, { t, songDisplay, logo = null }) {
 // Pasa la posición del QR a píxeles de la pantalla real.
 function qrPixels(qr, screenWidth, screenHeight) {
   const size = Math.max(16, Math.round(qr.size * screenHeight));
-  const top = qr.bottom !== undefined
-    ? Math.round(screenHeight - qr.bottom * screenHeight - size)
-    : Math.round(qr.top * screenHeight);
+  const top = Math.round(qr.top * screenHeight);
   const left = qr.centerX !== undefined
     ? Math.round(qr.centerX * screenWidth - size / 2)
     : Math.round(screenWidth - qr.right * screenWidth - size);

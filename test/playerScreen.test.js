@@ -35,7 +35,7 @@ test("sin canciones: QR grande al centro, código de sala y cómo entrar", () =>
 
 test("durante una canción: quién canta, qué canción, quién sigue y el QR chico en la esquina", () => {
   const { ass, qr } = buildScreen(room({ queue: [ANA, BETO] }), opts);
-  assert.ok(qr.size < 0.3 && qr.right !== undefined && qr.bottom !== undefined, "QR chico, abajo a la derecha");
+  assert.ok(qr.size < 0.3 && qr.right !== undefined && qr.top < 0.1, "QR chico, arriba a la derecha");
   assert.match(ass, /Ahora Suena/);
   assert.match(ass, /Ana/);
   assert.match(ass, /Queen — Bohemian Rhapsody/);
@@ -45,7 +45,7 @@ test("durante una canción: quién canta, qué canción, quién sigue y el QR ch
   assert.doesNotMatch(ass, /En pausa/);
 });
 
-test("quién canta va arriba a la izquierda; quién sigue, abajo a la izquierda; el código, sobre el QR", () => {
+test("quién canta va arriba a la izquierda; quién sigue, abajo a la izquierda; el código, bajo el QR", () => {
   const { ass } = buildScreen(room({ queue: [ANA, BETO] }), opts);
   const at = (text) => new RegExp(`\\{\\\\an(\\d)\\\\pos\\((\\d+),(\\d+)\\)\\}[^\\n]*${text}`).exec(ass);
   const singer = at("Ana");
@@ -55,9 +55,10 @@ test("quién canta va arriba a la izquierda; quién sigue, abajo a la izquierda;
   assert.equal(upNext[1], "1", "quién sigue: anclado abajo a la izquierda");
   assert.ok(Number(upNext[2]) < 100 && Number(upNext[3]) > 650, "pegado a la esquina de abajo");
   const code = at("Sala: \\{[^}]*\\}ABCD");
-  assert.equal(code[1], "2", "el código va centrado sobre el QR");
+  assert.equal(code[1], "8", "el código va centrado bajo el QR");
   assert.ok(Number(code[2]) > 1100, "del lado derecho");
-  assert.ok(Number(code[3]) < 720 - 0.2 * 720, "por encima del QR");
+  const qr = buildScreen(room({ queue: [ANA, BETO] }), opts).qr;
+  assert.ok(Number(code[3]) > (qr.top + qr.size) * 720 && Number(code[3]) < 720 / 2, "debajo del QR, en la mitad de arriba");
 });
 
 test("la última canción no muestra quién sigue; en pausa se avisa al centro", () => {
@@ -106,11 +107,12 @@ const logoIn = (ass) => {
   return m && { x: Number(m[1]), y: Number(m[2]), scale: Number(m[3]), alpha: parseInt(m[4], 16) };
 };
 
-test("durante una canción, el logo va arriba a la derecha y semitransparente", () => {
+test("durante una canción, el logo va abajo a la derecha y semitransparente", () => {
   const { ass } = buildScreen(room({ queue: [ANA] }), { ...opts, logo: LOGO });
   const logo = logoIn(ass);
   assert.ok(logo, "se dibuja el logo en el turquesa de la marca");
-  assert.equal(logo.y, 28, "arriba");
+  const height = (LOGO.height * logo.scale) / 100;
+  assert.ok(Math.abs(logo.y + height - (720 - 28)) <= 1, "pegado al margen de abajo");
   const width = (LOGO.width * logo.scale) / 100;
   assert.ok(Math.abs(logo.x + width - (1280 - 28)) <= 1, "pegado al margen derecho");
   assert.ok(logo.alpha > 0x40 && logo.alpha < 0xc0, "ni opaco ni invisible");
@@ -173,6 +175,6 @@ test("qrPixels pasa las fracciones a píxeles de la pantalla real", () => {
   const corner = buildScreen(room({ queue: [ANA] }), opts).qr;
   const small = qrPixels(corner, 1920, 1080);
   assert.ok(small.left + small.size <= 1920 && small.left + small.size > 1920 - 60, "pegado a la derecha");
-  assert.ok(small.top + small.size <= 1080 && small.top + small.size > 1080 - 60, "pegado abajo");
+  assert.ok(small.top >= 0 && small.top < 60, "pegado arriba");
   assert.equal(small.size, Math.round(corner.size * 1080));
 });

@@ -268,8 +268,11 @@ EOF
     install_theme_file "$tmp" "$PLYMOUTH_THEME_DIR/xaraoke.script"
     rm -f "$tmp"
 
-    if ! dpkg -s plymouth >/dev/null 2>&1; then
-      apt-get install -y --no-install-recommends plymouth
+    # fontconfig-config trae /etc/fonts/fonts.conf: el hook de initramfs de Plymouth lo copia en
+    # cuanto ve las fuentes DejaVu, y en Raspberry Pi OS Lite no viene, así que update-initramfs
+    # fallaba con "cannot stat '/etc/fonts/fonts.conf'" (pasó en una Pi Zero 2 W recién instalada).
+    if ! dpkg -s plymouth >/dev/null 2>&1 || ! dpkg -s fontconfig-config >/dev/null 2>&1; then
+      apt-get install -y --no-install-recommends plymouth fontconfig-config
       initramfs_stale=true
     fi
     if [ "$(plymouth-set-default-theme)" != "xaraoke" ]; then
@@ -293,7 +296,8 @@ EOF
     }
     if [ "$initramfs_stale" = "true" ] || ! theme_in_initramfs; then
       echo "==> Regenerando el initramfs con el logo (en una Pi Zero 2 W tarda unos minutos)"
-      update-initramfs -u -k all
+      # Si falla, update-initramfs deja el initramfs anterior: se avisa abajo y la instalación sigue.
+      update-initramfs -u -k all || true
     fi
     theme_in_initramfs || warn "El initramfs no quedó con el tema del logo: el arranque mostrará el de emergencia (gris con puntos)."
   fi

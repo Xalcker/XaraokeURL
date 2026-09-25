@@ -18,7 +18,7 @@ Para dejar la pantalla principal montada de forma permanente en un Raspberry Pi 
 |---|---|
 | Raspberry Pi 4 (2 GB), servidor y pantalla en el mismo Pi, Raspberry Pi OS Lite 64 bits (Debian 13) | Probado: logo de arranque, sala, QR, búsqueda y descarga de YouTube, audio y video por HDMI |
 | Raspberry Pi Zero 2 W, solo pantalla con el reproductor nativo | Probado: logo, sala, audio por HDMI, lista de canciones y QR |
-| miniPC x86, Debian 13 | Probado: kiosko, logo de arranque, sala, QR y audio por HDMI. Quedan dos detalles del arranque sin resolver ([ver](kiosko-x86.md#lo-que-queda-por-revisar)). Ubuntu Server no funcionó como se esperaba |
+| miniPC x86, Debian 13 | Probado: kiosko, logo de arranque, sala, QR y audio por HDMI. El arranque tiene dos detalles menores ([ver](kiosko-x86.md#detalles-del-arranque)). Ubuntu Server no funcionó como se esperaba |
 
 Antes de confiar en él para un evento, pruébalo una vez en el equipo de destino, sobre todo el audio por HDMI (depende de cómo ese equipo nombre su salida) y el arranque de `cage` con el driver de GPU de esa placa.
 

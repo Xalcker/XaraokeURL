@@ -1,6 +1,6 @@
 # 🖥️ Kiosko en un miniPC x86
 
-> **Probada en un miniPC con Debian 13** (instalado desde un USB de 128 GB). Funciona de principio a fin (sala, QR con la IP correcta y audio por HDMI); quedan dos detalles del arranque sin resolver (ver [Lo que queda por revisar](#lo-que-queda-por-revisar)). Con Ubuntu Server no funcionó como se esperaba, y no está probado a fondo. Si la pruebas, cualquier ajuste que necesites es bienvenido.
+> **Probada en un miniPC con Debian 13** (instalado desde un USB de 128 GB). Funciona de principio a fin (sala, QR con la IP correcta y audio por HDMI); el arranque tiene dos detalles menores (ver [Detalles del arranque](#detalles-del-arranque)). Con Ubuntu Server no funcionó como se esperaba, y no está probado a fondo. Si la pruebas, cualquier ajuste que necesites es bienvenido.
 
 En un miniPC (Intel/AMD) se usa [`scripts/setup-x86-display.sh`](../scripts/setup-x86-display.sh), el equivalente de `setup-raspberry-display.sh`: deja el logo de arranque, el GRUB silencioso y el kiosko funcionando (`cage` + Chromium, `seatd`, audio HDMI, cursor transparente y, si quieres, el servidor). El kiosko en sí lo instala [`scripts/install-kiosk.sh`](../scripts/install-kiosk.sh), que el script llama por ti.
 
@@ -105,12 +105,12 @@ sudo journalctl -u xaraoke-kiosk.service -u xaraoke-kiosk-prepare.service -b --n
 
 * Escanea el QR con el teléfono, abre el control remoto y busca una canción en YouTube.
 
-## Lo que queda por revisar
+## Detalles del arranque
 
-Al probar en un miniPC con Debian 13 (kernel 6.12) el arranque tuvo dos detalles que no se han resuelto:
+Al probar en un miniPC con Debian 13 (kernel 6.12) el arranque tuvo dos detalles:
 
-* **Una pantalla azul** antes de que empiece el arranque. Sin causa confirmada. Si trae texto de "Enroll MOK" o similar, es Secure Boot: comprueba con `mokutil --sb-state` y, si dice `enabled`, desactívalo en la BIOS y mira si desaparece. Si es un fondo azul liso, probablemente sea el fondo por defecto de GRUB o del firmware.
-* **Dos líneas de texto** ("Loading Linux…" y "Loading initial ramdisk…") que alcanzan a verse después de la pantalla azul. Las imprime GRUB, no el kernel, así que `quiet` no las oculta. Con `GRUB_TIMEOUT_STYLE=hidden` deberían desaparecer, pero no está confirmado que lo hagan en todos los equipos; si las sigues viendo, avísalo.
+* **Una pantalla azul con un menú de texto** en el primer arranque, antes de GRUB. Es el gestor de claves de Secure Boot: en ese equipo `mokutil --sb-state` decía `SecureBoot enabled`. Elegir **Always continue boot** en ese menú la hizo desaparecer y no volvió. No se sabe por qué pidió confirmación. Si prefieres no depender de esa opción, desactiva Secure Boot en la BIOS.
+* **Dos líneas de texto** ("Loading Linux…" y "Loading initial ramdisk…") que alcanzan a verse un instante antes del logo. **No tienen arreglo sencillo y son solo cosméticas.** Las imprime GRUB, no el kernel: en Debian van sueltas en `grub.cfg`, sin condición, así que ni `quiet` ni `GRUB_TIMEOUT_STYLE=hidden` las ocultan (Ubuntu sí trae un interruptor, Debian no). Se probó redefinir `echo` con una función en `/etc/grub.d/`: GRUB la aceptó, pero las líneas siguieron saliendo.
 
 **Ya resuelto y comprobado en ese equipo:**
 

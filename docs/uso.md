@@ -4,7 +4,7 @@
 2.  Haz clic en "Comenzar" para crear una nueva sala. Se generará un código de sala de 4 letras.
 3.  Escanea el código QR con la cámara de tu teléfono para abrir el **Control Remoto**. El QR ya lleva el código de sala (`/remote.html?sala=ABCD`), así que no hay que escribirlo.
 4.  Inicia sesión con tu cuenta de Google (debe ser del dominio autorizado configurado en el código). Al volver de Google, el teléfono entra directo a la sala. Sin login de Google (modo desarrollo), el código aparece ya escrito y solo falta poner tu nombre y tocar "Unirse".
-5.  Si no puedes escanear el QR, entra a la dirección escrita bajo él e introduce el código de sala de 4 letras.
+5.  Si no puedes escanear el QR, entra a la dirección escrita bajo él (en la [vista minimalista](kiosko.md#vista-minimalista-uiminimal), la de la pantalla de espera) e introduce el código de sala de 4 letras.
 6.  En la pestaña **Buscar**, usa el explorador alfabético o el buscador de texto para encontrar tu canción favorita y añadirla a la lista (si no aparece, puedes buscarla en YouTube — ver [Búsqueda y descarga desde YouTube](youtube.md)).
 7.  Un aviso confirma que se añadió, y la lista se actualiza en la pantalla principal y en todos los remotos conectados; en la pestaña **Mi lista** ves tu posición, puedes quitar tus canciones y, si tienes varias en espera, cambiarles el orden con las flechas.
 8.  Recibirás una notificación (vibración, sonido y un aviso visual) 10 segundos antes de que empiece tu canción.
@@ -25,6 +25,7 @@ Si el host se desconecta (por ejemplo, alguien cierra la pestaña de la pantalla
 La pantalla principal está pensada para verse de lejos:
 
 * **Se adapta al tamaño de la pantalla:** el tamaño de la letra y de las tarjetas crece con el ancho de la ventana (de 16 px en una ventana pequeña a unos 22 px en una TV de 1920 px, con tope de 26 px). "Ahora suena" y "A continuación" muestran en grande el artista, la canción y **quién canta**, en color.
+* **El QR va arriba a la derecha:** en la vista clásica, el panel del control remoto está arriba en la barra derecha y el logo abajo; en la minimalista y en el reproductor nativo, el QR flota arriba a la derecha. La letra de los karaokes suele ir en la mitad de abajo del video, y así no la tapa.
 * **Pantalla de espera:** con la lista vacía, el video negro deja su lugar a un código QR grande, el código de sala y la dirección escrita por si no se puede escanear. En cuanto alguien añade una canción, vuelve el video.
 * **Cuenta regresiva antes de cada canción:** como en el cine, un círculo con una aguja que da la vuelta cada segundo y el número grande, con **quién canta** y la canción debajo, para que esa persona tome el micrófono. Dura `SONG_COUNTDOWN_SECONDS` (5 segundos por defecto, hasta 30; con `0` no hay cuenta). Mientras corre, el botón de pausa de quien canta la detiene, y saltar la cancela. No se repite si la canción se cae por un error de red y se retoma donde iba. El reproductor nativo muestra la misma cuenta.
 * **Pantalla completa:** botón discreto abajo a la izquierda, tecla `F` o doble clic sobre el video. Entra toda la página (no solo el video), así que la lista y el QR siguen a la vista; `Esc` sale. Tras 3 segundos sin mover el ratón ni pulsar teclas, se ocultan el cursor y el botón.

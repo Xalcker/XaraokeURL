@@ -80,6 +80,8 @@ Luego `sudo reboot`. Chromium espera hasta 60 segundos a que el servidor respond
 
 Sin barras laterales, con el video a pantalla completa y "ahora suena" / "a continuación" / logo / QR flotando como overlays translúcidos en cada esquina, la misma estética del [reproductor nativo](reproductor-nativo.md), pero en el navegador. No muestra la lista de próximas 5 canciones.
 
+El QR va arriba a la derecha, porque la letra de los karaokes suele ir en la mitad de abajo del video, y el logo abajo a la derecha. Para tapar poco video, la tarjeta del QR solo lleva el código de sala y un QR chico (12 % del alto de la pantalla), sin la dirección escrita: esa sale en la pantalla de espera, cuando la lista está vacía.
+
 Se activa sola en un navegador de TV (Fire TV/Silk, Samsung Tizen, LG webOS, Android TV/Google TV, detectados por el user agent en `public/js/uiMode.js`). En cualquier otro navegador, incluido el Chromium de un Raspberry Pi o un miniPC, se agrega a la URL: `http://<servidor>:8081/?autostart=1&ui=minimal`. En una TV se puede volver a la clásica con `?ui=classic`.
 
 **Para activarla en un kiosko ya instalado** (sin reinstalar):

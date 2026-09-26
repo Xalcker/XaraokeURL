@@ -397,7 +397,9 @@ else
       # mpv dibuja a 1280×720 y la pantalla lo escala: la GPU de la Pi Zero 2 W no maneja texturas de
       # más de 2048×2048, y a 1080p los textos de la pantalla de espera no cabían en una (mpv no los
       # dibujaba). Además le ahorra trabajo a la GPU con el video.
-      MPV_ARGS="--vo=gpu --gpu-context=drm --drm-draw-surface-size=1280x720 --hwdec=v4l2m2m-copy"
+      # "--profile=fast" usa filtros más simples al dibujar cada cuadro: en la Zero 2 W bajó los cuadros
+      # tirados de un video de 720p del 11 % al 7-8 %, y los textos se ven igual.
+      MPV_ARGS="--vo=gpu --gpu-context=drm --drm-draw-surface-size=1280x720 --hwdec=v4l2m2m-copy --profile=fast"
     else
       MPV_ARGS="--vo=gpu --gpu-context=drm --hwdec=auto-safe"
     fi

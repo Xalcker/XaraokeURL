@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Info.plist de referencia para el target principal de la app (Xaraoke).
+  Reúne lo que piden las Fases 1-5. Al crear el proyecto en Xcode puedes usar este archivo o copiar
+  sus claves al Info.plist que genera Xcode (o a la pestaña Info del target).
+
+  Reemplaza los marcadores <...>:
+    <REVERSED_CLIENT_ID>  el del client OAuth iOS de Google (viene en GoogleService-Info.plist,
+                          p. ej. com.googleusercontent.apps.1234567890-abcdef)
+    <GID_CLIENT_ID>       el client ID iOS de Google (1234567890-abcdef.apps.googleusercontent.com)
+
+  Notas:
+    - El servidor local corre por HTTP en la red de casa (192.168...), por eso se permite HTTP con
+      NSAllowsLocalNetworking (no se abre HTTP a todo internet).
+    - NSSupportsLiveActivities habilita la Live Activity de la sala (Fase 5).
+    - El esquema propio "xaraoke" cubre unirse (xaraoke://unirse?...) y compartir
+      (xaraoke://share?video=...). El esquema de Google usa su REVERSED_CLIENT_ID.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key>
+    <string>Xaraoke</string>
+    <key>CFBundleName</key>
+    <string>Xaraoke</string>
+
+    <!-- Google Sign-In: su client ID iOS. Lo lee GoogleSignIn.swift (clave GIDClientID). -->
+    <key>GIDClientID</key>
+    <string>&lt;GID_CLIENT_ID&gt;</string>
+
+    <!-- Esquemas de URL entrantes: el propio de la app y el de la vuelta de Google Sign-In. -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>xyz.xalcker.xaraoke</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>xaraoke</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>google-signin</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>&lt;REVERSED_CLIENT_ID&gt;</string>
+            </array>
+        </dict>
+    </array>
+
+    <!-- Permite consultar si la app de Google está instalada (recomendado por el SDK). -->
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>google</string>
+        <string>youtube</string>
+    </array>
+
+    <!-- Cámara: el escáner de QR (Vision). Texto que ve la persona al pedir el permiso. -->
+    <key>NSCameraUsageDescription</key>
+    <string>Se usa la cámara solo para escanear el código QR de la pantalla del karaoke y unirte a la sala.</string>
+
+    <!-- Live Activity de la sala (Fase 5). -->
+    <key>NSSupportsLiveActivities</key>
+    <true/>
+
+    <!-- Ejecución en segundo plano para notificaciones remotas (push del turno con la app cerrada). -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>remote-notification</string>
+    </array>
+
+    <!-- El servidor de la red local se sirve por HTTP: se permite solo la red local, no todo internet. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+
+    <!-- Orientaciones: la app se ve en vertical y horizontal (layout adaptable de la Fase 3). -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+</dict>
+</plist>

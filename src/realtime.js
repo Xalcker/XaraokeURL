@@ -40,7 +40,10 @@ const HEARTBEAT_MS = 30 * 1000;
 // `salas` es el módulo de salas, `descargas` el de descargas, `catalogo()` devuelve la base de
 // canciones (o null si no hay biblioteca) y `ratings()` el almacén de calificaciones (o null si
 // no se pudo abrir). Los dos últimos son funciones porque se abren después de montar esto.
-function createRealtime({ server, config, auth, salas, descargas, catalogo, ratings }) {
+function createRealtime({ server, config, auth, salas, descargas, catalogo, ratings, push }) {
+  // push es opcional (Fase 5 de la app iOS): si no viene, todo lo relacionado con avisos APNs es
+  // no-op y el servidor se comporta igual que antes.
+  const pushSvc = push || { onQueue() {}, onTime() {}, onRoomGone() {}, updateActivities() {} };
   // maxPayload: todo lo que manda un cliente es JSON pequeño (un nombre de archivo, una orden
   // de reproducción, una calificación). El tope por defecto de ws son 100 MB por mensaje.
   const wss = new WebSocket.Server({ server, maxPayload: 64 * 1024 });
@@ -145,6 +148,31 @@ function createRealtime({ server, config, auth, salas, descargas, catalogo, rati
     broadcastToRoom(roomId, JSON.stringify({ type: "queueUpdate", payload: room.songQueue }));
     sendControlAccess(room);
     sendSkipVotes(room);
+    // Aviso de turno "STARTING" y actualización de la Live Activity (Fase 5 iOS). No-op sin push.
+    pushSvc.onQueue(roomId, room.songQueue);
+    pushActivityUpdate(roomId, room);
+  }
+
+  // Estado de la Live Activity de una sala para el push (lo que suena y el host). El "faltan N para
+  // tu turno" es por persona, así que va en el ContentState que el cliente ya sabe derivar de la
+  // cola; aquí se manda lo común (nowPlaying/paused/host). Por persona lo resuelve el propio push.
+  function pushActivityUpdate(roomId, room) {
+    const head = room.songQueue[0];
+    const nowPlaying = head
+      ? (head.title ? `YouTube - ${head.title}` : filenameLabel(head.song))
+      : "";
+    pushSvc.updateActivities(roomId, {
+      nowPlaying,
+      paused: room.paused === true,
+      hostConnected: !!room.hostWs,
+      // songsAhead depende de la persona; el push por-dispositivo lo calcula con la cola.
+    });
+  }
+
+  function filenameLabel(filename) {
+    const base = String(filename || "").replace(/\.mp4$/, "");
+    const idx = base.indexOf(" - ");
+    return idx > 0 ? `${base.slice(0, idx)} - ${base.slice(idx + 3)}` : base;
   }
 
   // Avisa a los controles remotos de todas las salas (no al host, que no usa la lista) de que
@@ -537,6 +565,8 @@ function createRealtime({ server, config, auth, salas, descargas, catalogo, rati
               JSON.stringify({ type: "playbackState", payload: { paused: currentRoom.paused } })
             );
           case "timeUpdate":
+            // Aviso de turno "UP_NEXT" (Fase 5 iOS): se pasa la cola para saber quién es la siguiente.
+            pushSvc.onTime(ws.roomId, { ...data.payload, __queue: currentRoom.songQueue });
             return broadcastToRoom(ws.roomId, JSON.stringify(data));
           case "getQueue":
             return ws.send(
@@ -580,6 +610,7 @@ function createRealtime({ server, config, auth, salas, descargas, catalogo, rati
             // gracia para volver y recuperar la sala con su cola (el barrido de arriba la borra al vencer).
             if (config.roomGraceMs === 0) {
               salas.remove(roomId);
+              pushSvc.onRoomGone(roomId);
               console.log(`Room ${roomId} deleted.`);
             } else {
               room.emptySince = Date.now();

@@ -22,6 +22,7 @@ const { createRooms } = require("./src/rooms");
 const { createDownloads } = require("./src/downloads");
 const { mountApi } = require("./src/routes/api");
 const { createRealtime } = require("./src/realtime");
+const { createPush } = require("./src/push");
 
 const FORCE_EXIT_MS = 10000;
 
@@ -122,10 +123,15 @@ const descargas = createDownloads({
   queuedFilenames: () => salas.queuedFilenames(),
 });
 
-mountApi(app, { config, auth, salas, descargas, catalogo, ratings, tr });
+// Push a iOS (Fase 5 de la app iOS): avisa el turno con la app cerrada. Sin APNs configurado queda
+// inactivo (push.enabled === false) y no cambia nada del comportamiento actual.
+const push = createPush({ config });
+if (push.enabled) console.log("Push a iOS (APNs) activo: se avisará el turno con la app cerrada.");
+
+mountApi(app, { config, auth, salas, descargas, catalogo, ratings, tr, push });
 
 const server = http.createServer(app);
-const realtime = createRealtime({ server, config, auth, salas, descargas, catalogo, ratings });
+const realtime = createRealtime({ server, config, auth, salas, descargas, catalogo, ratings, push });
 avisarCambioDescargas = realtime.notifyDownloadsChanged;
 
 salas.startSweep();
@@ -164,6 +170,7 @@ async function apagar(senal) {
 
   try {
     await realtime.closeAll();
+    push.close();
     await new Promise((resolve) => server.close(resolve));
 
     // Las bases se cierran al final: hasta aquí alguien podía seguir escribiendo.

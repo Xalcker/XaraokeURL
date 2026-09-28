@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Info.plist del target de la Share Extension (XaraokeShare): "Compartir → Xaraoke" desde YouTube.
+  Equivalente al intent-filter ACTION_SEND de Android.
+
+  La regla de activación acepta compartir que traiga una URL o un texto (los enlaces de YouTube
+  llegan de una u otra forma según la app). Con un solo elemento basta.
+
+  NSExtensionPrincipalClass apunta a la clase de ShareViewController.swift. El nombre lleva el
+  módulo del target: <MóduloDelTarget>.ShareViewController (Xcode usa el nombre del target como
+  módulo; ajústalo si el módulo difiere).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key>
+    <string>Xaraoke</string>
+    <key>NSExtension</key>
+    <dict>
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.share-services</string>
+        <key>NSExtensionPrincipalClass</key>
+        <string>XaraokeShare.ShareViewController</string>
+        <key>NSExtensionAttributes</key>
+        <dict>
+            <key>NSExtensionActivationRule</key>
+            <dict>
+                <key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
+                <integer>1</integer>
+                <key>NSExtensionActivationSupportsText</key>
+                <true/>
+            </dict>
+        </dict>
+    </dict>
+</dict>
+</plist>

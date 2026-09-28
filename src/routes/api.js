@@ -28,8 +28,35 @@ const limitador = (max, clave, tr) =>
     message: (req) => ({ error: tr(req, clave) }),
   });
 
-function mountApi(app, { config, auth, salas, descargas, catalogo, ratings, tr }) {
+function mountApi(app, { config, auth, salas, descargas, catalogo, ratings, tr, push }) {
   const { ensureAuthenticated, ensureAuthenticatedRemote, requestUserName } = auth;
+
+  // --- push a iOS (Fase 5 de la app iOS) ---
+  // Registra el token del dispositivo/actividad junto al nombre de la sesión y la sala, para el
+  // aviso de turno con la app cerrada. Si el servidor no tiene APNs configurado, push.enabled es
+  // false y esto no hace nada útil, pero responde 200 igual para no romper al cliente.
+  if (push) {
+    // Estas rutas las consume solo la app iOS, que ignora el cuerpo de la respuesta; ante una
+    // entrada inválida basta el código de estado (sin texto que traducir).
+    app.post("/api/push/register", ensureAuthenticated, (req, res) => {
+      const token = typeof req.body?.token === "string" ? req.body.token : null;
+      const room = normalizeRoomId(req.body?.room);
+      if (!token || !room) return res.sendStatus(400);
+      push.registerDevice(token, requestUserName(req), room);
+      res.json({ ok: true });
+    });
+    app.post("/api/push/unregister", ensureAuthenticated, (req, res) => {
+      if (typeof req.body?.token === "string") push.unregisterDevice(req.body.token);
+      res.json({ ok: true });
+    });
+    app.post("/api/push/activity", ensureAuthenticated, (req, res) => {
+      const token = typeof req.body?.token === "string" ? req.body.token : null;
+      const room = normalizeRoomId(req.body?.room);
+      if (!token || !room) return res.sendStatus(400);
+      push.registerActivity(token, room);
+      res.json({ ok: true });
+    });
+  }
 
   // --- quién soy ---
 

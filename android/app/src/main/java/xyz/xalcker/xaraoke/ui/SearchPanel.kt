@@ -1,5 +1,9 @@
 package xyz.xalcker.xaraoke.ui
 
+import kotlinx.coroutines.Job
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -88,6 +92,7 @@ private data class YoutubeView(
 )
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun SearchPanel(controller: AppController) {
     val library by controller.library.collectAsStateWithLifecycle()
     val confirm = LocalConfirm.current
@@ -99,17 +104,30 @@ fun SearchPanel(controller: AppController) {
     var query by rememberSaveable { mutableStateOf("") }
     var browse by remember { mutableStateOf<Browse>(Browse.Letters) }
     var youtube by remember { mutableStateOf<YoutubeView?>(null) }
+    // La búsqueda en YouTube en curso: al salir de sus resultados se cancela, para que no vuelvan
+    // a aparecer solos cuando llegue la respuesta.
+    val youtubeJob = remember { arrayOfNulls<Job>(1) }
+
+    val closeYoutube = {
+        youtubeJob[0]?.cancel()
+        youtube = null
+    }
 
     val reset = {
         query = ""
         browse = Browse.Letters
-        youtube = null
+        closeYoutube()
     }
 
     fun searchYoutube(q: String) {
+        // Se cierra el teclado de una vez: ocultarlo después (con "Atrás") se confundía con salir.
+        focus.clearFocus()
+        youtubeJob[0]?.cancel()
         youtube = YoutubeView(q)
-        scope.launch {
-            controller.searchYoutube(q)
+        youtubeJob[0] = scope.launch {
+            val result = controller.searchYoutube(q)
+            if (youtube?.query != q) return@launch
+            result
                 .onSuccess { youtube = YoutubeView(q, loading = false, results = it.results, suffix = it.suffix) }
                 .onFailure {
                     youtube = YoutubeView(
@@ -152,12 +170,13 @@ fun SearchPanel(controller: AppController) {
     }
 
     // Atrás del teléfono: deshace la navegación del explorador y sale de los resultados de YouTube.
-    // Nunca borra lo escrito (para eso está la ✕): el botón de ocultar el teclado de Samsung es un
-    // "Atrás", y a veces también llega aquí.
+    // Nunca borra lo escrito (para eso está la ✕). Con el teclado abierto no hace nada aquí: el
+    // botón de ocultar el teclado de Samsung es un "Atrás", y a veces también llegaba a la app.
     val browsing = query.isEmpty() && browse != Browse.Letters
-    BackHandler(enabled = youtube != null || browsing) {
+    val keyboardOpen = WindowInsets.isImeVisible
+    BackHandler(enabled = !keyboardOpen && (youtube != null || browsing)) {
         when {
-            youtube != null -> youtube = null
+            youtube != null -> closeYoutube()
             browse is Browse.Songs -> browse = Browse.Artists((browse as Browse.Songs).letter)
             else -> browse = Browse.Letters
         }
@@ -168,7 +187,7 @@ fun SearchPanel(controller: AppController) {
             value = query,
             onValueChange = {
                 query = it
-                youtube = null
+                closeYoutube()
             },
             placeholder = { Text(stringResource(R.string.search_placeholder)) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
@@ -206,7 +225,7 @@ fun SearchPanel(controller: AppController) {
             modifier = Modifier.weight(1f),
         ) {
             when {
-                yt != null -> youtubeItems(yt, onBack = { youtube = null }, onRetry = { searchYoutube(yt.query) }, onPick = downloadVideo)
+                yt != null -> youtubeItems(yt, onBack = closeYoutube, onRetry = { searchYoutube(yt.query) }, onPick = downloadVideo)
                 q.isNotEmpty() -> localSearchItems(library, q, queueSong, onYoutube = { searchYoutube(q) })
                 else -> browseItems(library, browse, onBrowse = { browse = it }, onSong = queueSong, onRetry = controller::loadLibrary)
             }

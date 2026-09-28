@@ -149,7 +149,7 @@
     <string name="tour_browse_title">Browse the library</string>
     <string name="tour_browse_text">You can also pick a letter, then an artist, and finally the song. Tapping a song asks you to confirm before adding it to the queue.</string>
     <string name="tour_queue_title">My queue</string>
-    <string name="tour_queue_text">Here is everyone\'s queue, with your songs highlighted. The number on the tab shows how many you have, and inside you can read how long until your turn. Use the arrows and Remove to reorder or take out your own.</string>
+    <string name="tour_queue_text">Here is everyone\'s queue, with your songs highlighted. The number next to \"My queue\" shows how many you have, and inside you can read how long until your turn. Use the arrows and Remove to reorder or take out your own.</string>
     <string name="tour_alerts_title">Alerts</string>
     <string name="tour_alerts_text">About 10 seconds before your turn your phone vibrates and beeps, even when it\'s locked or the app is closed. While you\'re in the room you\'ll see a notification with what\'s playing and how long until your turn. When your song ends you can rate the video and the music with a thumbs up or down.</string>
     <string name="tour_help_title">Want to see it again?</string>

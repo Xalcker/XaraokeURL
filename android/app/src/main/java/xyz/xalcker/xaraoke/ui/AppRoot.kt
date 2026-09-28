@@ -1,5 +1,9 @@
 package xyz.xalcker.xaraoke.ui
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Dialog
 import android.Manifest
 import androidx.activity.compose.LocalActivity
 import android.os.Build
@@ -135,7 +139,7 @@ fun AppRoot(controller: AppController) {
             GradientBackground {
                 val currentRoom = room
                 if (currentRoom != null) {
-                    RoomScreen(controller, currentRoom, Modifier.padding(padding))
+                    RoomScreen(controller, currentRoom, padding)
                 } else {
                     JoinScreen(controller, session, Modifier.padding(padding))
                 }
@@ -183,17 +187,24 @@ fun AppRoot(controller: AppController) {
             )
         }
 
+        // Un diálogo propio y no un AlertDialog: sin botones, el de Material deja abajo el hueco de
+        // su fila de botones vacía. No se cierra tocando fuera ni con Atrás: la descarga sigue.
         if (busy) {
-            AlertDialog(
+            Dialog(
                 onDismissRequest = {},
-                confirmButton = {},
-                text = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+            ) {
+                Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                    Row(
+                        Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         CircularProgressIndicator(Modifier.size(28.dp))
                         Text(stringResource(R.string.yt_downloading))
                     }
-                },
-            )
+                }
+            }
         }
     }
 }

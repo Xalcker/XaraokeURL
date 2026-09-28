@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,8 +39,15 @@ import xyz.xalcker.xaraoke.room.Notifications
 import xyz.xalcker.xaraoke.room.RoomState
 
 // La lista de todos, con tus canciones resaltadas: puedes reordenar las tuyas entre sí y quitarlas.
+// `leading` va arriba de la lista y se desplaza con ella: en pantallas anchas, el mini-reproductor
+// y los avisos (así, con el teléfono acostado, la lista no queda aplastada bajo ellos).
 @Composable
-fun QueuePanel(controller: AppController, state: RoomState) {
+fun QueuePanel(
+    controller: AppController,
+    state: RoomState,
+    modifier: Modifier = Modifier,
+    leading: LazyListScope.() -> Unit = {},
+) {
     val library by controller.library.collectAsStateWithLifecycle()
     val confirm = LocalConfirm.current
     val context = LocalContext.current
@@ -52,8 +60,9 @@ fun QueuePanel(controller: AppController, state: RoomState) {
     LazyColumn(
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 160.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
     ) {
+        leading()
         item {
             Text(
                 Notifications.turnSummary(context, state),

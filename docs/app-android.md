@@ -14,6 +14,8 @@ Lo demás es igual que en el web: buscador sin acentos, explorador por letra y a
 
 **Tutorial:** la primera vez que entras a una sala se abre un recorrido guiado, con los mismos pasos que el del web adaptados a la app: oscurece la pantalla y resalta un elemento a la vez. Se puede saltar, o cerrar con el botón Atrás del teléfono. Se vuelve a ver desde **⋮ → Tutorial**. Que ya se vio se guarda al abrirlo, no al terminarlo.
 
+**Tablets, plegables y horizontal:** desde 600 dp de ancho (teléfono acostado, plegable abierto, tablet) la sala se ve en dos columnas, sin pestañas. A la izquierda van el mini-reproductor y "Mi lista", que se desplazan juntos para que con el teléfono acostado la lista no quede aplastada; a la derecha, el buscador. En pantallas más angostas se usan las pestañas **Buscar** y **Mi lista**. Al cerrar o abrir un plegable, la app sigue en la sala y cambia de diseño sola. Se probó en emuladores de teléfono chico, plegable (abierto y cerrado), tablet de 8" y de 11", en vertical y horizontal.
+
 ## Cómo encuentra el servidor
 
 La primera vez pide **escanear el QR** de la pantalla principal o escribir la dirección (`192.168.0.72:8081`; sin `http://` se asume HTTP). El QR ya trae el servidor y la sala. La app recuerda el servidor y la última sala, y al abrirla vuelve a entrar sola, igual que el web. **Cambiar** (junto al servidor) lo olvida.

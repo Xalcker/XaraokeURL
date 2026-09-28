@@ -165,7 +165,7 @@
     <string name="tour_browse_title">Explorar la biblioteca</string>
     <string name="tour_browse_text">También puedes elegir una letra, luego un artista y al final la canción. Al tocar una canción te pide confirmar antes de añadirla a la lista.</string>
     <string name="tour_queue_title">Mi lista</string>
-    <string name="tour_queue_text">Aquí está la lista de todos, con tus canciones resaltadas. El número de la pestaña indica cuántas tienes, y dentro se lee cuánto falta para tu turno. Con las flechas y con Quitar reordenas o sacas las tuyas.</string>
+    <string name="tour_queue_text">Aquí está la lista de todos, con tus canciones resaltadas. El número junto a \"Mi lista\" indica cuántas tienes, y dentro se lee cuánto falta para tu turno. Con las flechas y con Quitar reordenas o sacas las tuyas.</string>
     <string name="tour_alerts_title">Avisos</string>
     <string name="tour_alerts_text">Unos 10 segundos antes de tu turno el teléfono vibra y suena, aunque esté bloqueado o tengas la app cerrada. Mientras estés en la sala verás una notificación con lo que suena y cuánto falta para tu turno. Cuando termina tu canción puedes calificar el video y la música con un pulgar arriba o abajo.</string>
     <string name="tour_help_title">¿Quieres verlo otra vez?</string>

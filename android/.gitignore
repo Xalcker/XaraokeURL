@@ -1,0 +1,11 @@
+.gradle/
+.kotlin/
+build/
+local.properties
+# Clave de firma de release y su contraseña: respaldar fuera del repo, nunca subir.
+signing/
+*.jks
+*.keystore
+.idea/
+*.iml
+captures/

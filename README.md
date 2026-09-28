@@ -40,6 +40,7 @@ Abre `http://localhost:8081`, pulsa **Comenzar** y escanea el QR con el teléfon
 | Instalar el servidor, configurar el `.env`, cargar canciones | [Instalación](docs/instalacion.md) |
 | Saber cómo se usa (salas, lista, Modo TV, calificar) | [Uso](docs/uso.md) |
 | Buscar y descargar canciones desde YouTube | [YouTube](docs/youtube.md) |
+| Instalar el control remoto como app de Android | [App de Android](docs/app-android.md) |
 | Ver todas las características | [Características](docs/caracteristicas.md) |
 | Dejar una pantalla fija en un Raspberry Pi o miniPC | [Modo Kiosko](docs/kiosko.md) |
 | Publicarlo en un servidor de producción | [Producción](docs/produccion.md) |

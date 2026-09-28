@@ -53,6 +53,6 @@ module.exports = [
   },
   {
     // jsQR.js es una librería de terceros vendorizada tal cual (ver public/js/jsQR.LICENSE).
-    ignores: ["node_modules/", "public/notification.mp3", "public/js/jsQR.js"],
+    ignores: ["node_modules/", "android/", "public/notification.mp3", "public/js/jsQR.js"],
   },
 ];

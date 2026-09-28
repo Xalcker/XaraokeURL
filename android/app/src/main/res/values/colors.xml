@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Los de public/css/tokens.css. -->
+<resources>
+    <color name="accent">#49D6D8</color>
+</resources>

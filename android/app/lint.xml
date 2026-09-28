@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- El logo de la marca (public/img/logo.svg) tiene trazos largos; se dibuja pocas veces. -->
+    <issue id="VectorPath" severity="ignore" />
+    <!-- Dos números en la misma frase ("3 a favor y 1 en contra"): un plural no aplica. -->
+    <issue id="PluralsCandidate">
+        <ignore path="src/main/res/values/strings.xml" regexp="rating_total" />
+        <ignore path="src/main/res/values-en/strings.xml" regexp="thumbs" />
+    </issue>
+    <!-- allowBackup="false": no hay nada que respaldar (la sesión se vuelve a iniciar). -->
+    <issue id="DataExtractionRules" severity="ignore" />
+</lint>

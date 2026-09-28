@@ -1,3 +1,5 @@
 # Los scripts corren en Linux: con saltos de línea de Windows (CRLF), bash falla con
 # "invalid option name" al copiarlos desde un equipo con core.autocrlf=true.
 *.sh text eol=lf
+# gradlew también corre en Linux (CI, otras máquinas): siempre con LF.
+android/gradlew text eol=lf

@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Los mismos textos que public/js/i18n.js del remoto web, más los propios de la app. -->
+<resources>
+    <string name="app_name" translatable="false">Xaraoke</string>
+
+    <!-- Servidor -->
+    <string name="server_title">Conéctate a tu karaoke</string>
+    <string name="server_hint">Escanea el código QR de la pantalla principal o escribe la dirección del servidor.</string>
+    <string name="server_label">Dirección del servidor</string>
+    <string name="server_placeholder" translatable="false">192.168.0.72:8081</string>
+    <string name="server_connect">Conectar</string>
+    <string name="server_invalid">Esa no parece una dirección válida.</string>
+    <string name="server_unreachable">No se pudo conectar con %1$s. ¿El teléfono está en la misma red?</string>
+    <string name="server_outdated">El servidor de %1$s necesita actualizarse para usar la app (inicio de sesión con Google). Actualízalo y vuelve a intentar.</string>
+    <string name="server_current">Servidor: %1$s</string>
+    <string name="server_change">Cambiar</string>
+    <string name="server_connecting">Conectando con el servidor…</string>
+
+    <!-- Unirse -->
+    <string name="join_title">Unirse a una Sala</string>
+    <string name="join_hint">Introduce el código de 4 letras de la sala.</string>
+    <string name="join_code_label">Código de sala</string>
+    <string name="join_name_label">Tu nombre</string>
+    <string name="join_button">Unirse</string>
+    <string name="join_verifying">Verificando…</string>
+    <string name="join_code_length">El código debe tener 4 letras.</string>
+    <string name="join_name_required">Escribe tu nombre.</string>
+    <string name="join_room_missing">La sala \"%1$s\" no existe.</string>
+    <string name="join_saved_room_gone">La sala \"%1$s\" ya no existe. Escribe el código de una sala nueva.</string>
+    <string name="join_verify_failed">Error al verificar la sala.</string>
+    <string name="join_scan">Escanear código QR</string>
+    <string name="scan_not_found">No se reconoció un código de sala en ese QR. Prueba de nuevo.</string>
+    <string name="scan_unavailable">El lector de QR no está disponible en este teléfono (necesita Google Play Services).</string>
+
+    <!-- Inicio de sesión -->
+    <string name="login_prompt">Este servidor pide iniciar sesión con tu cuenta de Google.</string>
+    <string name="login_google">Iniciar sesión con Google</string>
+    <string name="login_signing_in">Iniciando sesión…</string>
+    <string name="login_failed">No se pudo iniciar sesión con Google.</string>
+    <string name="login_domain_hint">Usa una cuenta de %1$s.</string>
+    <string name="signed_in_as">Sesión iniciada como %1$s</string>
+    <string name="sign_out">Cerrar sesión</string>
+
+    <!-- Sala -->
+    <string name="room_code">SALA: %1$s</string>
+    <string name="user">Usuario: %1$s</string>
+    <string name="leave_room">Cambiar sala</string>
+    <string name="menu">Más opciones</string>
+    <string name="notification_settings">Ajustes de avisos</string>
+    <string name="host_disconnected">El host se desconectó. La reproducción está pausada hasta que vuelva a conectarse.</string>
+    <string name="host_disconnected_short">El host se desconectó</string>
+    <string name="conn_retrying">Sin conexión con el servidor. Reintentando…</string>
+    <string name="conn_room_gone">La sala ya no existe (pasó el tiempo de espera o se reinició el servidor). Vuelve a unirte con un código.</string>
+    <string name="conn_session_expired_native">Tu sesión venció. Vuelve a iniciar sesión para seguir en la sala.</string>
+    <string name="conn_rejected_native">El servidor rechazó la conexión. Intenta unirte de nuevo.</string>
+    <string name="api_name_taken">Alguien en la sala ya usa ese nombre. Elige otro (por ejemplo, agrega tu apellido).</string>
+    <string name="turn_banner">¡Prepárate! Tu canción está por empezar…</string>
+    <string name="play">Reproducir</string>
+    <string name="pause">Pausar</string>
+    <string name="paused_tag">En pausa</string>
+    <string name="controls_locked">Solo quien canta puede pausar. Con el botón de saltar votas para saltarla</string>
+    <string name="vote_skip">Votar para saltar (%1$d de %2$d)</string>
+    <string name="vote_skip_done">Ya votaste para saltar (%1$d de %2$d)</string>
+    <string name="skip">Saltar canción</string>
+    <string name="now_playing" translatable="false">%1$s - %2$s</string>
+    <string name="now_playing_label">Ahora suena</string>
+    <string name="time_left">%1$s / %2$s (Faltan %3$s)</string>
+    <string name="unknown_artist">Desconocido</string>
+
+    <!-- Pestañas -->
+    <string name="tab_search">Buscar</string>
+    <string name="tab_queue">Mi lista</string>
+    <string name="search_placeholder">Buscar canción o artista…</string>
+    <string name="queue_empty">La lista está vacía</string>
+    <string name="queue_summary_none">No tienes canciones en la lista.</string>
+    <string name="queue_summary_playing">Tu canción está sonando.</string>
+    <string name="queue_summary_next">Tu canción es la siguiente.</string>
+    <plurals name="queue_summary_ahead">
+        <item quantity="one">Antes de tu turno hay 1 canción.</item>
+        <item quantity="other">Antes de tu turno hay %d canciones.</item>
+    </plurals>
+    <string name="queue_empty_list">No hay canciones en espera todavía. Ve a Buscar para añadir la tuya.</string>
+    <string name="queue_you">tú</string>
+    <string name="queue_remove">Quitar</string>
+    <string name="move_up">Subir una posición</string>
+    <string name="move_down">Bajar una posición</string>
+
+    <!-- Calificar -->
+    <string name="rating_title">¿Cómo estuvo el karaoke de \"%1$s\"?</string>
+    <string name="rating_hint">Califica el video y la música, no cómo cantaste.</string>
+    <string name="rating_up">Bien</string>
+    <string name="rating_down">Mal</string>
+    <string name="rating_skip">Ahora no</string>
+    <string name="rating_total">%1$d a favor y %2$d en contra, sumando todas las salas</string>
+
+    <!-- Biblioteca -->
+    <string name="back">Volver</string>
+    <string name="retry">Reintentar</string>
+    <string name="loading">Cargando…</string>
+    <string name="library_load_failed">No se pudieron cargar las canciones.</string>
+    <string name="library_empty">La biblioteca local está vacía. Escribe el nombre de una canción y toca Buscar en el teclado para buscarla en YouTube.</string>
+    <plurals name="library_downloads">
+        <item quantity="one">Hay 1 video ya descargado de YouTube: aparece al buscar, sin volver a descargarlo.</item>
+        <item quantity="other">Hay %d videos ya descargados de YouTube: aparecen al buscar, sin volver a descargarlos.</item>
+    </plurals>
+    <string name="library_already_downloaded">Ya descargado de YouTube</string>
+
+    <!-- Confirmaciones y mensajes -->
+    <string name="confirm_cancel">Cancelar</string>
+    <string name="confirm_add">Añadir</string>
+    <string name="confirm_add_song">¿Añadir \"%1$s\" a la lista?</string>
+    <string name="confirm_skip_mine">¿Saltar tu canción \"%1$s\"?</string>
+    <string name="confirm_skip_other">¿Saltar \"%1$s\", la canción de %2$s?</string>
+    <string name="confirm_skip_yes">Saltar</string>
+    <string name="confirm_remove">¿Quitar \"%1$s\" de la lista?</string>
+    <string name="confirm_remove_yes">Quitar</string>
+    <string name="confirm_download">¿Descargar \"%1$s\" desde YouTube y agregarla a la lista? Puede tardar unos segundos.</string>
+    <string name="toast_added">Añadida a la lista</string>
+    <string name="toast_rated">¡Gracias por calificar!</string>
+    <string name="toast_offline">Sin conexión con la sala. Inténtalo de nuevo.</string>
+    <string name="toast_host_back">El host volvió: la sala está disponible de nuevo.</string>
+    <plurals name="toast_queue_full">
+        <item quantity="one">La lista de la sala está llena (%d canción). Espera a que se libere un lugar.</item>
+        <item quantity="other">La lista de la sala está llena (%d canciones). Espera a que se libere un lugar.</item>
+    </plurals>
+    <plurals name="toast_personal_limit">
+        <item quantity="one">Ya tienes %d canción esperando. Agrega otra cuando te toque.</item>
+        <item quantity="other">Ya tienes %d canciones esperando. Agrega otra cuando te toque alguna.</item>
+    </plurals>
+
+    <!-- YouTube -->
+    <string name="yt_press_enter">Toca Buscar en el teclado para buscar en YouTube.</string>
+    <string name="yt_no_local_matches">No se encontraron canciones en la biblioteca. Toca Buscar en el teclado para buscarla en YouTube.</string>
+    <string name="yt_search_button">Buscar en YouTube</string>
+    <string name="yt_searching">Buscando en YouTube…</string>
+    <string name="yt_search_failed">No se pudo buscar en YouTube. Intenta de nuevo.</string>
+    <string name="yt_no_results">No se encontraron resultados en YouTube.</string>
+    <string name="yt_fallback_instrumental">No hubo versiones karaoke: estas son versiones instrumentales.</string>
+    <string name="yt_fallback_none">No hubo versiones karaoke ni instrumentales: estos son los resultados de tu búsqueda, tal cual.</string>
+    <string name="yt_downloading">Descargando desde YouTube, esto puede tardar unos segundos…</string>
+    <string name="yt_download_failed">No se pudo descargar el video. Intenta de nuevo.</string>
+
+    <!-- Compartir desde YouTube -->
+    <string name="share_confirm">¿Descargar este video de YouTube y agregarlo a la lista? Puede tardar unos segundos.</string>
+    <string name="share_not_youtube">Lo que compartiste no es un video de YouTube.</string>
+    <string name="share_join_first">Únete a una sala y el video se agregará a la lista.</string>
+
+    <!-- Tutorial (los del web, adaptados a la app) -->
+    <string name="tour_open">Tutorial</string>
+    <string name="tour_skip">Saltar tutorial</string>
+    <string name="tour_back">Atrás</string>
+    <string name="tour_next">Siguiente</string>
+    <string name="tour_done">Listo</string>
+    <string name="tour_counter">%1$d de %2$d</string>
+    <string name="tour_room_title">Código de sala</string>
+    <string name="tour_room_text">Es la sala a la que estás conectado, la misma que se ve en la pantalla principal. Quien quiera unirse tiene que escribir este código o escanear el QR de la pantalla.</string>
+    <string name="tour_now_playing_title">Ahora suena</string>
+    <string name="tour_now_playing_text">Aquí ves la canción que suena, cuánto lleva y cuánto falta. La línea de abajo es su avance. Esta barra se queda fija aunque bajes por la lista.</string>
+    <string name="tour_play_pause_title">Pausar y reanudar</string>
+    <string name="tour_play_pause_text">Pausa o reanuda tu canción para toda la sala. El ícono muestra lo que pasará al tocarlo. Solo funciona mientras suena la tuya: con la de otra persona (o sin nada en la lista) está desactivado.</string>
+    <string name="tour_skip_title">Saltar canción</string>
+    <string name="tour_skip_text">Salta tu canción mientras suena; antes te pide confirmar. Con la de otra persona sirve para votar: el anillo se ilumina con cada voto y, al completarse, la canción se salta. Si esa persona lleva un rato sin conexión, salta directo.</string>
+    <string name="tour_search_title">Buscador</string>
+    <string name="tour_search_text">Escribe el nombre de una canción o de un artista. Si no está en la biblioteca, toca Buscar en el teclado para buscarla en YouTube: se descarga y se añade a la lista. También puedes compartir un video desde la app de YouTube con Compartir → Xaraoke.</string>
+    <string name="tour_browse_title">Explorar la biblioteca</string>
+    <string name="tour_browse_text">También puedes elegir una letra, luego un artista y al final la canción. Al tocar una canción te pide confirmar antes de añadirla a la lista.</string>
+    <string name="tour_queue_title">Mi lista</string>
+    <string name="tour_queue_text">Aquí está la lista de todos, con tus canciones resaltadas. El número de la pestaña indica cuántas tienes, y dentro se lee cuánto falta para tu turno. Con las flechas y con Quitar reordenas o sacas las tuyas.</string>
+    <string name="tour_alerts_title">Avisos</string>
+    <string name="tour_alerts_text">Unos 10 segundos antes de tu turno el teléfono vibra y suena, aunque esté bloqueado o tengas la app cerrada. Mientras estés en la sala verás una notificación con lo que suena y cuánto falta para tu turno. Cuando termina tu canción puedes calificar el video y la música con un pulgar arriba o abajo.</string>
+    <string name="tour_help_title">¿Quieres verlo otra vez?</string>
+    <string name="tour_help_text">El tutorial está en este menú, junto con Cambiar sala y Ajustes de avisos (para elegir cómo suena y vibra el aviso de tu turno).</string>
+
+    <!-- Notificaciones -->
+    <string name="channel_room">Sala activa</string>
+    <string name="channel_room_desc">Lo que suena y cuánto falta para tu turno mientras estás en una sala.</string>
+    <string name="channel_turn">Tu turno</string>
+    <string name="channel_turn_desc">Suena y vibra cuando está por tocarte cantar.</string>
+    <string name="notif_room_title">Sala %1$s</string>
+    <string name="notif_turn_title">¡Te toca cantar en unos segundos!</string>
+    <string name="notif_playing_title">¡Tu canción está empezando!</string>
+    <string name="notif_action_leave">Salir de la sala</string>
+    <string name="notifications_denied">Sin permiso de notificaciones no podremos avisarte cuando te toque con el teléfono bloqueado.</string>
+</resources>

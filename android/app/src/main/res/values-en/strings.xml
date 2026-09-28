@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="server_title">Connect to your karaoke</string>
+    <string name="server_hint">Scan the QR code on the main screen or type the server address.</string>
+    <string name="server_label">Server address</string>
+    <string name="server_connect">Connect</string>
+    <string name="server_invalid">That doesn\'t look like a valid address.</string>
+    <string name="server_unreachable">Couldn\'t connect to %1$s. Is the phone on the same network?</string>
+    <string name="server_outdated">The server at %1$s needs an update to work with the app (Google sign-in). Update it and try again.</string>
+    <string name="server_current">Server: %1$s</string>
+    <string name="server_change">Change</string>
+    <string name="server_connecting">Connecting to the server…</string>
+
+    <string name="join_title">Join a Room</string>
+    <string name="join_hint">Enter the room\'s 4-letter code.</string>
+    <string name="join_code_label">Room code</string>
+    <string name="join_name_label">Your name</string>
+    <string name="join_button">Join</string>
+    <string name="join_verifying">Checking…</string>
+    <string name="join_code_length">The code must be 4 letters.</string>
+    <string name="join_name_required">Enter your name.</string>
+    <string name="join_room_missing">Room \"%1$s\" doesn\'t exist.</string>
+    <string name="join_saved_room_gone">Room \"%1$s\" no longer exists. Enter the code of a new room.</string>
+    <string name="join_verify_failed">Couldn\'t check the room.</string>
+    <string name="join_scan">Scan QR code</string>
+    <string name="scan_not_found">Couldn\'t recognize a room code in that QR. Try again.</string>
+    <string name="scan_unavailable">The QR scanner isn\'t available on this phone (it needs Google Play Services).</string>
+
+    <string name="login_prompt">This server asks you to sign in with your Google account.</string>
+    <string name="login_google">Sign in with Google</string>
+    <string name="login_signing_in">Signing in…</string>
+    <string name="login_failed">Couldn\'t sign in with Google.</string>
+    <string name="login_domain_hint">Use a %1$s account.</string>
+    <string name="signed_in_as">Signed in as %1$s</string>
+    <string name="sign_out">Sign out</string>
+
+    <string name="room_code">ROOM: %1$s</string>
+    <string name="user">User: %1$s</string>
+    <string name="leave_room">Change room</string>
+    <string name="menu">More options</string>
+    <string name="notification_settings">Alert settings</string>
+    <string name="host_disconnected">The host disconnected. Playback is paused until they reconnect.</string>
+    <string name="host_disconnected_short">The host disconnected</string>
+    <string name="conn_retrying">No connection to the server. Retrying…</string>
+    <string name="conn_room_gone">This room no longer exists (it timed out or the server restarted). Join again with a code.</string>
+    <string name="conn_session_expired_native">Your session expired. Sign in again to stay in the room.</string>
+    <string name="conn_rejected_native">The server refused the connection. Try joining again.</string>
+    <string name="api_name_taken">Someone in this room already uses that name. Pick another one (for example, add your last name).</string>
+    <string name="turn_banner">Get ready! Your song is about to start…</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="paused_tag">Paused</string>
+    <string name="controls_locked">Only the singer can pause. The skip button lets you vote to skip it</string>
+    <string name="vote_skip">Vote to skip (%1$d of %2$d)</string>
+    <string name="vote_skip_done">You voted to skip (%1$d of %2$d)</string>
+    <string name="skip">Skip song</string>
+    <string name="now_playing_label">Now playing</string>
+    <string name="time_left">%1$s / %2$s (%3$s left)</string>
+    <string name="unknown_artist">Unknown</string>
+
+    <string name="tab_search">Search</string>
+    <string name="tab_queue">My queue</string>
+    <string name="search_placeholder">Search song or artist…</string>
+    <string name="queue_empty">The queue is empty</string>
+    <string name="queue_summary_none">You have no songs in the queue.</string>
+    <string name="queue_summary_playing">Your song is playing.</string>
+    <string name="queue_summary_next">Your song is next.</string>
+    <plurals name="queue_summary_ahead">
+        <item quantity="one">1 song before your turn.</item>
+        <item quantity="other">%d songs before your turn.</item>
+    </plurals>
+    <string name="queue_empty_list">No songs waiting yet. Go to Search to add yours.</string>
+    <string name="queue_you">you</string>
+    <string name="queue_remove">Remove</string>
+    <string name="move_up">Move up one place</string>
+    <string name="move_down">Move down one place</string>
+
+    <string name="rating_title">How was the karaoke for \"%1$s\"?</string>
+    <string name="rating_hint">Rate the video and the music, not your singing.</string>
+    <string name="rating_up">Good</string>
+    <string name="rating_down">Bad</string>
+    <string name="rating_skip">Not now</string>
+    <string name="rating_total">%1$d thumbs up and %2$d thumbs down, across all rooms</string>
+
+    <string name="back">Back</string>
+    <string name="retry">Retry</string>
+    <string name="loading">Loading…</string>
+    <string name="library_load_failed">Couldn\'t load the songs.</string>
+    <string name="library_empty">The local library is empty. Type a song name and tap Search on the keyboard to find it on YouTube.</string>
+    <plurals name="library_downloads">
+        <item quantity="one">There is 1 video already downloaded from YouTube: it shows up when you search, no need to download it again.</item>
+        <item quantity="other">There are %d videos already downloaded from YouTube: they show up when you search, no need to download them again.</item>
+    </plurals>
+    <string name="library_already_downloaded">Already downloaded from YouTube</string>
+
+    <string name="confirm_cancel">Cancel</string>
+    <string name="confirm_add">Add</string>
+    <string name="confirm_add_song">Add \"%1$s\" to the queue?</string>
+    <string name="confirm_skip_mine">Skip your song \"%1$s\"?</string>
+    <string name="confirm_skip_other">Skip \"%1$s\", %2$s\'s song?</string>
+    <string name="confirm_skip_yes">Skip</string>
+    <string name="confirm_remove">Remove \"%1$s\" from the queue?</string>
+    <string name="confirm_remove_yes">Remove</string>
+    <string name="confirm_download">Download \"%1$s\" from YouTube and add it to the queue? It may take a few seconds.</string>
+    <string name="toast_added">Added to the queue</string>
+    <string name="toast_rated">Thanks for rating!</string>
+    <string name="toast_offline">No connection to the room. Try again.</string>
+    <string name="toast_host_back">The host is back: the room is available again.</string>
+    <plurals name="toast_queue_full">
+        <item quantity="one">The room\'s queue is full (%d song). Wait for a slot to free up.</item>
+        <item quantity="other">The room\'s queue is full (%d songs). Wait for a slot to free up.</item>
+    </plurals>
+    <plurals name="toast_personal_limit">
+        <item quantity="one">You already have %d song waiting. Add another once it plays.</item>
+        <item quantity="other">You already have %d songs waiting. Add another once one of yours plays.</item>
+    </plurals>
+
+    <string name="yt_press_enter">Tap Search on the keyboard to search YouTube.</string>
+    <string name="yt_no_local_matches">No songs found in the library. Tap Search on the keyboard to find it on YouTube.</string>
+    <string name="yt_search_button">Search YouTube</string>
+    <string name="yt_searching">Searching YouTube…</string>
+    <string name="yt_search_failed">Couldn\'t search YouTube. Try again.</string>
+    <string name="yt_no_results">No results found on YouTube.</string>
+    <string name="yt_fallback_instrumental">No karaoke versions found: these are instrumental versions.</string>
+    <string name="yt_fallback_none">No karaoke or instrumental versions found: these are the results for your search as typed.</string>
+    <string name="yt_downloading">Downloading from YouTube, this may take a few seconds…</string>
+    <string name="yt_download_failed">Couldn\'t download the video. Try again.</string>
+
+    <string name="share_confirm">Download this YouTube video and add it to the queue? It may take a few seconds.</string>
+    <string name="share_not_youtube">What you shared isn\'t a YouTube video.</string>
+    <string name="share_join_first">Join a room and the video will be added to the queue.</string>
+
+    <string name="tour_open">Tutorial</string>
+    <string name="tour_skip">Skip tutorial</string>
+    <string name="tour_back">Back</string>
+    <string name="tour_next">Next</string>
+    <string name="tour_done">Done</string>
+    <string name="tour_counter">%1$d of %2$d</string>
+    <string name="tour_room_title">Room code</string>
+    <string name="tour_room_text">This is the room you\'re connected to, the same one shown on the main screen. Anyone who wants to join has to enter this code or scan the QR code on the screen.</string>
+    <string name="tour_now_playing_title">Now playing</string>
+    <string name="tour_now_playing_text">Here you see the song that\'s playing, how far along it is and how much is left. The line below is its progress. This bar stays in place even when you scroll down the list.</string>
+    <string name="tour_play_pause_title">Pause and resume</string>
+    <string name="tour_play_pause_text">Pauses or resumes your song for the whole room. The icon shows what will happen when you tap it. It only works while yours is playing: with someone else\'s song (or an empty queue) it\'s disabled.</string>
+    <string name="tour_skip_title">Skip song</string>
+    <string name="tour_skip_text">Skips your song while it\'s playing; it asks you to confirm first. With someone else\'s song it casts a vote: the ring lights up with each vote and, once it\'s full, the song is skipped. If that person has been offline for a while, it skips directly.</string>
+    <string name="tour_search_title">Search</string>
+    <string name="tour_search_text">Type a song or artist name. If it isn\'t in the library, tap Search on the keyboard to find it on YouTube: it gets downloaded and added to the queue. You can also share a video from the YouTube app with Share → Xaraoke.</string>
+    <string name="tour_browse_title">Browse the library</string>
+    <string name="tour_browse_text">You can also pick a letter, then an artist, and finally the song. Tapping a song asks you to confirm before adding it to the queue.</string>
+    <string name="tour_queue_title">My queue</string>
+    <string name="tour_queue_text">Here is everyone\'s queue, with your songs highlighted. The number on the tab shows how many you have, and inside you can read how long until your turn. Use the arrows and Remove to reorder or take out your own.</string>
+    <string name="tour_alerts_title">Alerts</string>
+    <string name="tour_alerts_text">About 10 seconds before your turn your phone vibrates and beeps, even when it\'s locked or the app is closed. While you\'re in the room you\'ll see a notification with what\'s playing and how long until your turn. When your song ends you can rate the video and the music with a thumbs up or down.</string>
+    <string name="tour_help_title">Want to see it again?</string>
+    <string name="tour_help_text">The tutorial is in this menu, along with Change room and Alert settings (to choose how your turn alert sounds and vibrates).</string>
+
+    <string name="channel_room">Active room</string>
+    <string name="channel_room_desc">What\'s playing and how long until your turn while you\'re in a room.</string>
+    <string name="channel_turn">Your turn</string>
+    <string name="channel_turn_desc">Rings and vibrates when it\'s almost your turn to sing.</string>
+    <string name="notif_room_title">Room %1$s</string>
+    <string name="notif_turn_title">You\'re up in a few seconds!</string>
+    <string name="notif_playing_title">Your song is starting!</string>
+    <string name="notif_action_leave">Leave room</string>
+    <string name="notifications_denied">Without notification permission we can\'t alert you when it\'s your turn with the phone locked.</string>
+</resources>

@@ -81,7 +81,8 @@ async function startServer({ auth = false, songs = [], env = {} } = {}) {
       RATINGS_DB_PATH: path.join(dataDir, "ratings.db"),
       SESSION_SECRET: "secreto-de-prueba-suficientemente-largo-para-no-avisar",
       ...(auth
-        ? { GOOGLE_CLIENT_ID: "id-de-prueba", GOOGLE_CLIENT_SECRET: "secreto-de-prueba" }
+        ? // DISABLE_GOOGLE_AUTH explícito: si no, el .env de quien corre las pruebas podría desactivarlo.
+          { GOOGLE_CLIENT_ID: "id-de-prueba", GOOGLE_CLIENT_SECRET: "secreto-de-prueba", DISABLE_GOOGLE_AUTH: "false" }
         : { DISABLE_GOOGLE_AUTH: "true" }),
       ...env,
     },

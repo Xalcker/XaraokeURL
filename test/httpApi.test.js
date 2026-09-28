@@ -192,4 +192,38 @@ test("API HTTP con Google OAuth activo", async (t) => {
     const res = await fetch(`${server.baseUrl}/api/rooms`, { method: "POST" });
     assert.equal(res.status, 200);
   });
+
+  await t.test("la app de Android sabe que se entra con Google y con qué client ID", async () => {
+    const res = await get("/api/auth/config");
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      mode: "google",
+      googleClientId: "id-de-prueba",
+      allowedDomain: "xalcker.xyz",
+    });
+  });
+
+  await t.test("un ID token de Google que no se puede verificar no abre sesión", async () => {
+    const post = (body) =>
+      fetch(`${server.baseUrl}/api/auth/google-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    assert.equal((await post({})).status, 400);
+    assert.equal((await post({ idToken: "x".repeat(5000) })).status, 400);
+    const falso = await post({ idToken: "no.es.un-jwt" });
+    assert.equal(falso.status, 401);
+    assert.ok((await falso.json()).error);
+    assert.equal(falso.headers.get("set-cookie"), null, "no debería crear una sesión");
+  });
+});
+
+test("la app de Android sabe que en modo desarrollo se entra con un nombre", async (t) => {
+  const server = await startServer();
+  t.after(() => server.stop());
+  const res = await fetch(`${server.baseUrl}/api/auth/config`);
+  assert.deepEqual(await res.json(), { mode: "name" });
+  const token = await fetch(`${server.baseUrl}/api/auth/google-token`, { method: "POST" });
+  assert.equal(token.status, 404);
 });

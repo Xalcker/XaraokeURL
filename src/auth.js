@@ -7,8 +7,11 @@ const session = require("express-session");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FileStore = require("session-file-store")(session);
+const rateLimit = require("express-rate-limit");
+const { OAuth2Client } = require("google-auth-library");
 
 const { normalizeRoomId } = require("../lib/roomId");
+const { isPlausibleIdToken, profileFromIdToken } = require("../lib/googleIdToken");
 const { hardenSessionStore } = require("../lib/sessionStore");
 const { escapeHtml } = require("../public/js/shared");
 const { translate } = require("../public/js/i18n");
@@ -112,7 +115,57 @@ function setupAuth(app, { config, tr, langOf }) {
         res.redirect(roomId ? `/remote.html?sala=${roomId}` : "/remote.html");
       }
     );
+
+    // Inicio de sesión desde la app de Android. Google no deja iniciar sesión dentro de una app
+    // embebida, así que la app usa Credential Manager, que le entrega un ID token firmado por
+    // Google para este mismo client ID (la app lo pide con él como "serverClientId"). Aquí se
+    // verifica y se crea la misma sesión que deja el login web (ver lib/googleIdToken.js).
+    const googleVerifier = new OAuth2Client();
+    app.post(
+      "/api/auth/google-token",
+      rateLimit({
+        windowMs: 60 * 1000,
+        max: 20,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: (req) => ({ error: tr(req, "api.tooManyLogins") }),
+      }),
+      async (req, res, next) => {
+        const idToken = req.body?.idToken;
+        if (!isPlausibleIdToken(idToken)) {
+          return res.status(400).json({ error: tr(req, "api.googleTokenInvalid") });
+        }
+        let payload;
+        try {
+          const ticket = await googleVerifier.verifyIdToken({ idToken, audience: config.googleClientId });
+          payload = ticket.getPayload();
+        } catch {
+          return res.status(401).json({ error: tr(req, "api.googleTokenInvalid") });
+        }
+        const profile = profileFromIdToken(payload, config.allowedDomain);
+        if (!profile) {
+          return res
+            .status(403)
+            .json({ error: translate(langOf(req), "login.deniedBody", { domain: config.allowedDomain }) });
+        }
+        req.login(profile, (err) => {
+          if (err) return next(err);
+          res.json({ name: profile.displayName });
+        });
+      }
+    );
   }
+
+  // La app de Android pregunta cómo se entra a este servidor antes de mostrar la pantalla de
+  // inicio: con Google (y con qué client ID pedir el token) o escribiendo un nombre. El client
+  // ID no es secreto: es el mismo que ve cualquiera en la dirección de /auth/google.
+  app.get("/api/auth/config", (req, res) => {
+    res.json(
+      config.authDisabled
+        ? { mode: "name" }
+        : { mode: "google", googleClientId: config.googleClientId, allowedDomain: config.allowedDomain }
+    );
+  });
 
   passport.serializeUser((user, done) => done(null, user));
   passport.deserializeUser((obj, done) => done(null, obj));

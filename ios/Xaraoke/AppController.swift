@@ -9,6 +9,9 @@
 import Foundation
 import Network
 
+// @MainActor: lo implementa Notifications (que toca UNUserNotificationCenter / ActivityKit / UIKit)
+// y lo llama AppController, ambos en el hilo principal.
+@MainActor
 protocol RoomNotifying: AnyObject {
     func alertTurn(_ alert: TurnTracker.Alert, state: RoomState)
     func cancelTurn()
@@ -89,8 +92,10 @@ final class AppController: ObservableObject {
         static let tourSeen = "tourSeen"
     }
 
-    init(notifier: RoomNotifying = NoopNotifying()) {
-        self.notifier = notifier
+    // notifier nil = sin avisos (fases previas / pruebas). El NoopNotifying se crea aquí dentro,
+    // no como argumento por defecto, porque su init es @MainActor y el default se evaluaría fuera.
+    init(notifier: RoomNotifying? = nil) {
+        self.notifier = notifier ?? NoopNotifying()
         if let server = defaults.string(forKey: Key.server) {
             let savedRoom = defaults.string(forKey: Key.room)
             session.serverUrl = server

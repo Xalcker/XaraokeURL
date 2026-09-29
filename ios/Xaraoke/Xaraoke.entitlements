@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Entitlements del target principal (Fase 5). En Xcode se activan como capacidades:
+    - Push Notifications  -> aps-environment
+  "development" para pruebas; Xcode lo cambia a "production" al archivar para la App Store / TestFlight.
+  Requiere una key APNs (.p8) en la cuenta Apple Developer (la usa el servidor, no la app).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>aps-environment</key>
+    <string>development</string>
+</dict>
+</plist>

@@ -23,22 +23,22 @@
   "author": "Xalcker",
   "license": "ISC",
   "dependencies": {
-    "dotenv": "^18.0.0",
-    "express": "^5.2.1",
-    "express-rate-limit": "^8.7.0",
+    "dotenv": "^18.0.7",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
     "express-session": "^1.19.0",
-    "google-auth-library": "^11.1.0",
+    "google-auth-library": "^11.2.0",
     "helmet": "^8.3.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "qrcode": "^1.5.3",
     "session-file-store": "^1.5.0",
     "sqlite3": "^6.0.1",
-    "ws": "^8.18.0"
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.11.0",
-    "globals": "^17.12.0"
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0"
   }
 }
